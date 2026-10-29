@@ -19,7 +19,7 @@ import { select } from './interact.js';
 import { fmtPop, pct, renderAll } from './panels.js';
 import { foreignCountry } from './operators.js';
 import { countyRep, countyZones, mayorKey, partyBadge, syncMayors, zoneAdminHTML, zoneGus } from './election.js';
-import { bunguSelect, drawBungu, guNamingDialog, guOfSub, guSubs, makeBungu, payEvent, unitZones } from './bungu.js';
+import { bunguSelect, bunguUnits, drawBungu, guNamesOfZone, guNamingDialog, guOfSub, guSubs, makeBungu, payEvent, unitZones } from './bungu.js';
 import { localZoneHTML } from './firstyear.js';
 import { REST_REMOVE_COST } from './housing.js';
 import { header } from './svcmap.js';
@@ -47,6 +47,7 @@ export function zonePanel(id) {
   return `${header(name)}
     <table class="kv">
       <tr><td>소속</td><td>${esc(regionOf(state, z))} (${z.country === 'KP' ? '북' : '남'})${name !== z.name ? ` · 원래 이름 ${esc(z.name)}` : ''}</td></tr>
+      ${guNamesOfZone(countyRep(id))?.length ? `<tr><td>구</td><td>${[...guNamesOfZone(countyRep(id))].sort((a, b) => a.localeCompare(b, 'ko')).map((g) => `<a href="#" data-gu-sel="${countyRep(id)}" data-gu="${esc(g)}">${esc(g)}</a>`).join(' · ')}</td></tr>` : ''}
       ${(() => { const p = z.ext ? null : provincePops().get(regionOf(state, z)); if (!p) return ''; const c = p.pop / Math.max(p.pop0, 1) - 1;
         return `<tr><td>${esc(regionOf(state, z))} 인구</td><td>${fmtPop(p.pop)} <span class="${c >= 0 ? 'pos' : 'neg'}">(${c >= 0 ? '+' : ''}${pct(c)})</span> · 이 시군구가 ${pct(pop / Math.max(p.pop, 1))}</td></tr>`; })()}
       ${hists.length ? `<tr><td>분단 전</td><td>옛 ${hists.map(esc).join('·')} 땅이 들어 있습니다<br><span class="hint">민원·정책 탭 › 행정구역 정리에서 되살릴 수 있습니다 (${START_YEAR}년)</span></td></tr>` : ''}
@@ -117,7 +118,7 @@ export function subPanel(i) {
   const change = s.pop[i] / Math.max(subPop0[i], 1) - 1;
   return `${header(name)}
     <table class="kv">
-      <tr><td>소속</td><td>${esc(subRegion(i))} ${esc(guOfSub(i) || subCountyName(i))}${unitMyeon(i) ? ` ${esc(unitMyeon(i).name)}` : ''}${state.local?.annexSubUnit?.[subKey(i)] ? ` <span class="m">(${esc(zoneName(z))}에서 편입)</span>` : state.local?.annexSub?.[subKey(i)] ? ` <span class="m">(${esc(regionOf(state, zoneProps[z]))}에서 편입)</span>` : ''}</td></tr>
+      <tr><td>소속</td><td>${esc(subRegion(i))} ${esc(guOfSub(i) || subCountyName(i))}${(() => { const k = admin()?.emdOf[i], e = k && admin().emds.get(k); return e && e.subs.length > 1 ? ` <a href="#" data-emd-sel="${esc(k)}">${esc(e.name)}</a>` : unitMyeon(i) ? ` ${esc(unitMyeon(i).name)}` : ''; })()}${state.local?.annexSubUnit?.[subKey(i)] ? ` <span class="m">(${esc(zoneName(z))}에서 편입)</span>` : state.local?.annexSub?.[subKey(i)] ? ` <span class="m">(${esc(regionOf(state, zoneProps[z]))}에서 편입)</span>` : ''}</td></tr>
       <tr><td>인구</td><td>${Math.round(s.pop[i]).toLocaleString()}명 <span class="${change >= 0 ? 'pos' : 'neg'}">(${change >= 0 ? '+' : ''}${pct(change)})</span></td></tr>
       <tr><td>인구 밀도</td><td>${Math.round(s.pop[i] / subArea(i)).toLocaleString()}/km²</td></tr>
       <tr><td>대중교통 접근 (대기 포함)</td><td>${Math.round(s.transit[i])}분</td></tr>
@@ -225,6 +226,9 @@ export function regionPanel(r) {
     const rep = x.u.id.startsWith('z:') ? +x.u.id.slice(2) : -1, gs = rep >= 0 && isMetroCity(r) ? zoneGus(rep) : null;
     return gs ? gs.map((g) => ({ u: x.u, gu: g, rep, p: guSubs(rep, g).reduce((t, i) => t + (result.subs.pop[i] || 0), 0) })) : [x];
   }).sort((x, y) => y.p - x.p);
+  // 구 없는 몸통을 자치구로 나누는 단추 (몸통을 누르면 바로 동으로 내려가 존 창에 닿지 않는다)
+  const bodyZs = new Set(body.flatMap(({ u }) => [...u.zones]));
+  const bu = body.length ? bunguUnits().find(([k]) => unitZones(k).some((j) => bodyZs.has(j))) : null;
   const kinds = isMetroCity(r) ? (others.length ? '군·구' : '읍면동') : '시·군';
   const gov = L?.offices[`g:${r}`];
   const acc = {};
@@ -253,6 +257,9 @@ export function regionPanel(r) {
     <table class="kv">${others.slice(0, 60).map(({ u, p, gu, rep }) => `<tr><td>${gu ? `<a href="#" data-gu-sel="${rep}" data-gu="${esc(gu)}">${esc(gu)}</a>` : `<a href="#" data-unit-sel="${esc(u.id)}">${esc(u.name)}</a>`}${u.split ? ' <span class="m">신설</span>' : ''}</td><td>${fmtPop(p)}</td></tr>`).join('')}</table>` : ''}
     ${body.length ? `<h4>${others.length ? '구로 나누지 않은 읍면동' : '산하 읍면동'} (인구 순)</h4>
     <table class="kv">${emdRows.slice(0, 80).map((e) => `<tr><td><a href="#" data-emd-sel="${esc(e.k)}">${esc(e.name)}</a></td><td>${fmtPop(e.p)}</td></tr>`).join('')}</table>` : ''}
+    ${bu ? `<h4>행정 조정</h4><div class="item"><div class="t">분구: ${esc(r)}</div>
+      <div class="m">구로 나누지 않은 읍면동을 묶어 여러 자치구로 나눕니다 (구마다 구청장 선거) · ${formatWon(EVENT_COST.cityUp)}</div>
+      <div class="actions">${bunguSelect('bungu-n2', null, 2)} <button class="small primary" data-bungu="${esc(bu[0])}">분구</button></div></div>` : ''}
     <p class="hint">같은 자리를 다시 누르면 ${others.length || !body.length ? (isMetroCity(r) ? '군·구' : '시·군') + ' → 읍면동' : '읍면동'} → 리 순으로 내려갑니다.</p>`;
 }
 
@@ -345,7 +352,7 @@ export function emdPanel(key) {
   const rail = wavg((i) => s0.rail[i]), happy = wavg((i) => subMetric('subHappy', i)), gu = guOfSub(i0);
   return `${header(name)}
     <table class="kv">
-      <tr><td>소속</td><td><a href="#" data-region-sel="${esc(subRegion(i0))}">${esc(subRegion(i0))}</a>${isMetroBody(subUnit(i0)) && !guOfSub(i0) ? '' : ` <a href="#" data-unit-sel="${esc(subUnit(i0))}">${esc(subCountyName(i0))}</a>`}${gu ? ` ${esc(gu)}` : ''}</td></tr>
+      <tr><td>소속</td><td><a href="#" data-region-sel="${esc(subRegion(i0))}">${esc(subRegion(i0))}</a>${isMetroBody(subUnit(i0)) && !guOfSub(i0) ? '' : ` <a href="#" data-unit-sel="${esc(subUnit(i0))}">${esc(subCountyName(i0))}</a>`}${gu ? ` <a href="#" data-gu-sel="${countyRep(unitRepZone(subUnit(i0)))}" data-gu="${esc(gu)}">${esc(gu)}</a>` : ''}</td></tr>
       <tr><td>인구</td><td>${Math.round(p).toLocaleString()}명 <span class="${c >= 0 ? 'pos' : 'neg'}">(${c >= 0 ? '+' : ''}${pct(c)})</span></td></tr>
       <tr><td>면적 · 밀도</td><td>${area.toFixed(1)}km² · ${Math.round(p / Math.max(area, 0.01)).toLocaleString()}명/km²</td></tr>
       <tr><td>대중교통 접근 (대기 포함)</td><td>${Math.round(wavg((i) => s0.transit[i]))}분</td></tr>

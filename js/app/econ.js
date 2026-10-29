@@ -20,7 +20,7 @@ import { bindHousingRename, housingRowHTML } from './budget.js';
 import { bindService, econCache, fmtRatio, lineEconomics, openServiceEditor, servicePanel, setEconCache, svcStats } from './svc.js';
 import { bindFund, bindRailStats, openLineDiagram, railStatsHTML } from './operators.js';
 import { countyZones, localSettingsHTML } from './election.js';
-import { bindLocalSettings, bunguUnitOf, drawBungu, endGuEdit, guEdit, guPanel, guSubs, moveGuTo, normGu, payEvent, renameGus, startGuEdit } from './bungu.js';
+import { bindBunguBtns, bindLocalSettings, bunguUnitOf, drawBungu, endGuEdit, guEdit, guPanel, guSubs, moveGuTo, normGu, payEvent, renameGus, startGuEdit } from './bungu.js';
 import { bindStraighten, startStraighten, straightenPanel } from './straighten.js';
 import { bindPointAdd, pointAddPanel, REST_REMOVE_COST, startPointAdd } from './housing.js';
 import { previewUpgrade } from './compare.js';
@@ -237,7 +237,7 @@ export function renderSelection() {
   if (!selection) { el.hidden = true; setHighlight(); return; }
   el.hidden = false;
   if (selection.type === 'link') el.innerHTML = linkPanel(selection.id);
-  else if (selection.type === 'zone') el.innerHTML = zonePanel(selection.id);
+  else if (selection.type === 'zone') { el.innerHTML = zonePanel(selection.id); bindLevelLinks(el); }
   else if (selection.type === 'gu') {
     el.innerHTML = guPanel(selection.id, selection.gu);
     el.querySelector('[data-gu-county]')?.addEventListener('click', () => select({ type: 'zone', id: selection.id }));
@@ -268,6 +268,7 @@ export function renderSelection() {
   else if (selection.type === 'region') {
     el.innerHTML = regionPanel(selection.id);
     bindLevelLinks(el);
+    bindBunguBtns(el);
     el.querySelectorAll('[data-metro-rename]').forEach((b) => { b.onclick = () => metroRename(b.dataset.metroRename); });
   }
   else if (selection.type === 'ri') {
@@ -285,6 +286,7 @@ export function renderSelection() {
   else if (selection.type === 'sub') {
     el.innerHTML = subPanel(selection.id);
     bindAnnexButtons(el, selection.id, true);
+    bindLevelLinks(el);
   }
   else if (selection.type === 'unit') { el.innerHTML = unitPanel(selection.id); bindUnitPanel(el); }
   else if (selection.type === 'airport') el.innerHTML = airportPanel(selection.id);

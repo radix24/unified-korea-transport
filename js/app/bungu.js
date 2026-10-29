@@ -2,7 +2,7 @@
 import { formatWon } from '../game/catalog.js';
 import { polylineKm, smoothSegments } from '../game/curve.js';
 import {
-  adminNames, CITY_UP_MIN_POP, EVENT_COST, governorTitle, hasAutonomy, HISTORIC_CITIES, isMetroCity, metroName, promotedName, REGION_RENAMED, regionBase, regionOf,
+  adminNames, CITY_UP_MIN_POP, dueum, EVENT_COST, governorTitle, hasAutonomy, HISTORIC_CITIES, isMetroCity, metroName, promotedName, REGION_RENAMED, regionBase, regionOf,
   unitId,
 } from '../game/local.js';
 import { applyMega, kpACCost, kpDCLines, MEGA, megaGeometry, TSR_FREIGHT } from '../game/mega.js';
@@ -160,7 +160,9 @@ export const unitPrefix = (unit) => (unit.includes('|') ? unit.split('|')[1].rep
  */
 export function makeBungu(unit, n, opts = {}) {
   const general = !!opts.general;
-  const zs = unitZones(unit), pre = general ? '' : unitPrefix(unit);
+  const zs = unitZones(unit);
+  // 앞머리가 그 광역시 이름 줄기와 같으면(구 없는 라선시를 나눌 때) 붙이지 않는다: 라선광역시 라선구가 되지 않게
+  const pre0 = general ? '' : unitPrefix(unit), pre = pre0 && guParentStem(unit, false) === stemOf(pre0) ? '' : pre0;
   // 새로 세운 시군은 그 시군의 읍면동만 (존에는 원래 시군 읍면동도 섞여 있다)
   const members = unit.startsWith('split:') ? new Set(admin()?.unit(unit)?.subs || []) : null;
   const subs = zs.flatMap((z) => zoneProps[z].subs.map((s, k) => ({ i: zoneProps[z].sub0 + k, x: s[0], y: s[1], w: Math.max(1, result ? result.subs.pop[zoneProps[z].sub0 + k] : s[2] * zoneProps[z].pop) })))
@@ -351,12 +353,23 @@ export const normGu = (v) => { const n = String(v).replace(/\s+/g, ''); return n
  * 분구한 단위의 구 이름을 한꺼번에 바꾼다 (names: 옛 이름 → 새 이름, 서로 맞바꿔도 된다).
  * 구 배정·가운데 구·구청장 자리를 함께 옮긴다. 끝에 '구'가 없으면 붙인다. 안 되면 이유 문자열, 되면 null
  */
+/** 이름 줄기 (라선광역시·라선시·라선구 → 라선) */
+const stemOf = (n) => dueum(String(n).replace(/(특별자치시|특별시|광역시|직할시|시|군|구역|구)$/, ''));
+/** 구 위의 단체 이름 줄기: 일반구는 그 시, 자치구는 그 광역시 */
+function guParentStem(unit, general) {
+  const zs = unitZones(unit);
+  const region = unit.startsWith('split:') ? state.local.splitUnit[unit].region : unit.includes('|') ? annexRegion(unit) : regionOf(state, zoneProps[zs[0]]);
+  return stemOf(general ? (unit.startsWith('split:') ? state.local.splitUnit[unit].name : zoneName(zs[0])) : region);
+}
+
 export function renameGus(unit, names) {
   const L = state.local, b = L.bungu?.[unit];
   if (!b) return '분구하지 않은 곳입니다.';
   const cur = [...new Set(Object.values(b.gu))];
   const fin = cur.map((g) => normGu(names.get(g) ?? g));
   if (fin.some((n) => n.length < 2)) return '구 이름이 비어 있습니다.';
+  const up = guParentStem(unit, !!b.general), same = fin.find((n) => stemOf(n) === up);
+  if (same) return `${same}: 구 이름은 그 위 ${b.general ? '시' : '광역시'} 이름과 겹칠 수 없습니다.`;
   if (new Set(fin).size !== fin.length) return '구 이름이 겹칩니다.';
   const ren = new Map(cur.map((g, k) => [g, fin[k]]).filter(([a, c]) => a !== c));
   if (!ren.size) return null;
@@ -505,6 +518,11 @@ export function bunguUnits() {
     if (L.bungu?.[k] || !isMetroCity(c.region) || !/(구|구역)$/.test(c.z.name) || c.z.name === c.z.province || L.annex?.[k] || L.gunToGu?.includes(k)) continue;
     if (!hasAutonomy(state, c.z)) continue;
     if (unitZones(k).reduce((t, z) => t + zoneProps[z].subs.length, 0) >= 2) out.push([k, `${c.region} ${c.name}`]);
+  }
+  // 구로 나누지 않은 광역시 몸통 (라선시처럼 바로 밑이 동인 곳): 자치구로
+  for (const [k, c] of counties()) {
+    if (L.bungu?.[k] || !isMetroCity(c.region) || c.z.name !== c.z.province || L.annex?.[k]) continue;
+    if (unitZones(k).reduce((t, z) => t + zoneProps[z].subs.length, 0) >= 2) out.push([k, `${c.region} 분구`]);
   }
   // 광역시 산하 군을 구로 바꾼 곳
   for (const k of L.gunToGu || []) {
@@ -1198,6 +1216,21 @@ export function payEvent(cost) {
   return true;
 }
 
+/** 분구 단추 (존 창의 행정 조정·광역시 창) */
+export function bindBunguBtns(el) {
+  el.querySelectorAll('[data-bungu]').forEach((b) => {
+    b.onclick = () => {
+      const c = b.dataset.bungu, n = +(el.querySelector('#bungu-n2')?.value || 1);
+      if (n < 2) { toast('나눌 구 수를 고르세요.'); return; }
+      if (!payEvent(EVENT_COST.cityUp)) return;
+      if (!makeBungu(c, n, { general: isGeneralUnit(c) })) { toast('읍면동이 모자라 그만큼 나눌 수 없습니다.'); return; }
+      syncMayors();   // 새로 생긴 구마다 구청장
+      drawBungu(); refreshNames(map); save(state); renderAll();
+      guNamingDialog(c);
+    };
+  });
+}
+
 export function bindLocalSettings(el) {
   const L = state.local;
   el.querySelector('#ev-autonomy')?.addEventListener('click', () => {
@@ -1231,17 +1264,7 @@ export function bindLocalSettings(el) {
   });
   el.querySelectorAll('[data-metro-rename]').forEach((b) => { b.onclick = () => metroRename(b.dataset.metroRename); });
   bindGuSplit(el);
-  el.querySelectorAll('[data-bungu]').forEach((b) => {
-    b.onclick = () => {
-      const c = b.dataset.bungu, n = +(el.querySelector('#bungu-n2')?.value || 1);
-      if (n < 2) { toast('나눌 구 수를 고르세요.'); return; }
-      if (!payEvent(EVENT_COST.cityUp)) return;
-      if (!makeBungu(c, n, { general: isGeneralUnit(c) })) { toast('읍면동이 모자라 그만큼 나눌 수 없습니다.'); return; }
-      syncMayors();   // 새로 생긴 구마다 구청장
-      drawBungu(); refreshNames(map); save(state); renderAll();
-      guNamingDialog(c);
-    };
-  });
+  bindBunguBtns(el);
   el.querySelectorAll('[data-city-up]').forEach((b) => {
     b.onclick = () => {
       const k = b.dataset.cityUp, c = counties().get(k);

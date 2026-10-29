@@ -8,15 +8,15 @@ import { t } from '../i18n.js';
 import { kmBetween } from '../sim/model.js';
 import { METRICS, refreshNames } from '../ui/map.js';
 import { toast } from '../ui/panel.js';
-import { esc, map, metric, result, selection, state, subPop0, subsFC, zoneProps } from './core.js';
+import { busy, esc, map, metric, result, selection, state, subPop0, subsFC, zoneProps } from './core.js';
 import { officeName, zoneName } from './year.js';
-import { drawAdmin, subInfo } from './mapdata.js';
+import { drawAdmin, krRi, riAt, riCodeMap, riFeat, subInfo } from './mapdata.js';
 import { select } from './interact.js';
 import { fmtPop, renderAll } from './panels.js';
 import { countyRep, countyRepCache, countyRepFresh, setCountyRepFresh, syncMayors, zoneGus } from './election.js';
 import { guNamesOfZone, isGeneralGu, payEvent, subAdjacency, unitZones } from './bungu.js';
 import { endHousingPick, inRing } from './housing.js';
-import { extraOf, extraSubs, extrasOfParent, extrasOfZone, padSubsFC } from './risplit.js';
+import { extraOf, extraSubs, extrasOfParent, extrasOfZone, padSubsFC, splitRi } from './risplit.js';
 
 // ---- 읍면동 단위 광역시 편입 (state.local.annexSub: '도|시군|읍면동' → 광역시)
 
@@ -222,10 +222,23 @@ export function admin() {
   for (let i = 0; i < S; i++) {
     if (!a.unitOfSub[i]) continue;
     // 면 묶음은 지금 속한 시군 안에서만: 리 하나만 다른 시로 편입하면 옛 면과 따로 묶인다
-    const m = unitMyeon(i), key = m ? `${m.key}@${a.unitOfSub[i]}` : `s:${i}`;
+    const m = unitMyeon(i);
+    let key = m ? `${m.key}@${a.unitOfSub[i]}` : `s:${i}`, name = m ? m.name : subName(i);
+    // 떼어 낸 남측 법정리도 읍면동 밑에 둔다: 원래 시군에 있으면 원래 읍면동, 다른 시군·구로 옮겼으면 거기서 맞닿은
+    // 읍면동(인구가 많은 곳), 맞닿은 곳이 없으면(리로만 세운 시군) 원래 읍면 이름으로 묶는다 (떼어 낸 리는 번호가 뒤라 이웃은 이미 묶였다)
+    const x = !m && extraOf(i);
+    if (x) {
+      const u = a.unitOfSub[i];
+      if (a.unitOfSub[x.parent] === u && a.emdOf[x.parent]) key = a.emdOf[x.parent];
+      else {
+        const nb = [...subNeighbors(i)].filter((j) => !extraOf(j) && a.unitOfSub[j] === u && a.emdOf[j]).sort((p, q) => (result?.subs.pop[q] || 0) - (result?.subs.pop[p] || 0))[0];
+        if (nb != null) key = a.emdOf[nb];
+        else { key = `p:${x.parent}@${u}`; name = subName(x.parent); }
+      }
+    }
     a.emdOf[i] = key;
     let e = a.emds.get(key);
-    if (!e) a.emds.set(key, (e = { key, name: m ? m.name : subName(i), subs: [] }));
+    if (!e) a.emds.set(key, (e = { key, name, subs: [] }));
     e.subs.push(i);
   }
   adminBuilding = null;
@@ -250,6 +263,9 @@ export function unitName(id) { const u = admin()?.unit(id); return u ? u.name : 
 export function isMetroBody(id) {
   const u = admin()?.unit(id), r = u?.region;
   if (!r || !isMetroCity(r)) return false;
+  // 자치구로 나눴으면 몸통이 아니라 구들이다
+  const B = state.local?.bungu || {};
+  if (B[id] || [...u.zones].some((z) => B[unitId(state, zoneProps[z])] || B[promotedName(state, zoneProps[z])])) return false;
   const k = (s) => dueum(s.replace(/(특별자치시|광역시|직할시|특별시|시)$/, ''));
   return k(u.name) === k(r);
 }
@@ -342,10 +358,11 @@ export function splitUnits() { return admin()?.splits() || []; }
 
 // ---- 시군구 신설 (시티즈: 스카이라인의 구역 칠하기처럼): 단추를 누른 뒤 지도에서 읍면동(북측은 면)을 눌러 고르고 이름을 정해 세운다.
 // 군에는 읍면만, 시에는 읍면동 모두, 광역시 안이면 자치구(○○구). 세운 시군은 단체장을 뽑고, 경계·이름·색칠·통계에 시군으로 나온다
-export var unitPick = null;   // {subs: Set<소구역>}
+// 고르는 단위: 'ri'(동·리 하나씩 — 북측은 리·동 소구역, 남측 읍·면은 법정리를 세울 때 떼어 낸다) 또는 'emd'(읍면동 통째)
+export var unitPick = null;   // {subs: Set<소구역>, ri: Set<남측 법정리 코드>, mode}
 export function startUnitPick() {
   endHousingPick?.();
-  unitPick = { subs: new Set() };
+  unitPick = { subs: new Set(), ri: new Set(), mode: 'ri' };
   if (!map.getSource('unit-pick')) {
     map.addSource('unit-pick', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     map.addLayer({ id: 'unit-pick-fill', type: 'fill', source: 'unit-pick', paint: { 'fill-color': '#e07b39', 'fill-opacity': 0.45 } });
@@ -355,12 +372,13 @@ export function startUnitPick() {
   document.querySelector('.unit-pick-bar')?.remove();
   const bar = document.createElement('div');
   bar.className = 'unit-pick-bar';
-  bar.innerHTML = `<b>시군구 신설</b><span class="m" data-up-info>지도에서 읍면동을 누르세요 (다시 누르면 뺌, Esc로 그만두기)</span>
+  bar.innerHTML = `<b>시군구 신설</b><select class="small" data-up-mode><option value="ri">동·리 하나씩</option><option value="emd">읍면동 통째</option></select><span class="m" data-up-info>지도에서 읍면동을 누르세요 (다시 누르면 뺌, Esc로 그만두기)</span>
     <input type="text" data-up-name placeholder="새 이름 (○○시·○○군·○○구)">
     <button class="small primary" data-up-ok>세우기 · ${formatWon(EVENT_COST.cityUp)}</button><button class="small" data-up-cancel>그만두기</button>`;
   document.body.appendChild(bar);
   bar.querySelector('[data-up-cancel]').onclick = endUnitPick;
   bar.querySelector('[data-up-ok]').onclick = finishUnitPick;
+  bar.querySelector('[data-up-mode]').onchange = (e) => { if (unitPick) { unitPick.mode = e.target.value; drawUnitPick(); } };
   const esc_ = (e) => { if (e.key === 'Escape') { endUnitPick(); document.removeEventListener('keydown', esc_); } };
   document.addEventListener('keydown', esc_);
   map.getCanvas().style.cursor = 'crosshair';
@@ -407,49 +425,82 @@ export function unitPickClick(ll) {
   if (zp.country === 'KP' && !state.local.autonomyKP) { toast('북측은 지방자치를 시작한 뒤에 시군구를 세울 수 있습니다.'); return; }
   const first = [...unitPick.subs][0];
   if (first != null && zoneProps[subInfo(first)[0]].country !== zp.country) { toast('남북에 걸친 시군구는 세울 수 없습니다.'); return; }
-  const g = annexGroup(i), on = !unitPick.subs.has(i);
-  for (const j of g) { if (on) unitPick.subs.add(j); else unitPick.subs.delete(j); }
+  // 남측 읍·면을 동·리 단위로: 누른 자리의 법정리 (세울 때 떼어 낸다)
+  if (unitPick.mode === 'ri' && krRi?.[i]?.length && !unitPick.subs.has(i)) {
+    const pick = unitPick;
+    riAt(ll, i).then((code) => {
+      if (unitPick !== pick) return;
+      if (!code) { toast('이 자리의 리 경계를 찾지 못했습니다. 읍면동 통째로 고르세요.'); return; }
+      if (pick.ri.has(code)) pick.ri.delete(code); else pick.ri.add(code);
+      drawUnitPick();
+    });
+    return;
+  }
+  const g = annexGroup(i, unitPick.mode === 'ri'), on = !unitPick.subs.has(i);
+  for (const j of g) {
+    if (on) unitPick.subs.add(j); else unitPick.subs.delete(j);
+    for (const [, , code] of krRi?.[j] || []) unitPick.ri.delete(code);   // 통째로 고른 읍면의 리는 따로 셀 것 없다
+  }
   drawUnitPick();
 }
+
+/** 고른 리의 추정 인구·이름 */
+const pickRi = () => [...(unitPick?.ri || [])].map((code) => riCodeMap?.get(code) && { ...riCodeMap.get(code), code }).filter(Boolean);
 
 export function drawUnitPick() {
   if (!unitPick) return;
   const subs = [...unitPick.subs];
-  map.getSource('unit-pick').setData({ type: 'FeatureCollection', features: subs.map((i) => ({ type: 'Feature', properties: {}, geometry: subsFC.features[i].geometry })) });
+  const ris = [...unitPick.ri].filter((code) => riFeat.get(code));
+  map.getSource('unit-pick').setData({ type: 'FeatureCollection', features: [
+    ...subs.map((i) => ({ type: 'Feature', properties: {}, geometry: subsFC.features[i].geometry })),
+    ...ris.map((code) => ({ type: 'Feature', properties: {}, geometry: riFeat.get(code).geometry }))] });
   const bar = document.querySelector('.unit-pick-bar');
   if (!bar) return;
-  const pop = result ? subs.reduce((t, i) => t + result.subs.pop[i], 0) : 0;
-  const names = [...new Set(subs.map((i) => unitMyeon(i)?.name || subName(i)))];
-  bar.querySelector('[data-up-info]').textContent = subs.length
+  const pop = result ? subs.reduce((t, i) => t + result.subs.pop[i], 0) + pickRi().reduce((t, r) => t + result.subs.pop[r.sub] * r.share, 0) : 0;
+  const one = unitPick.mode === 'ri';
+  const names = [...new Set([...subs.map((i) => (one ? subName(i) : unitMyeon(i)?.name || subName(i))), ...pickRi().map((r) => r.name)])];
+  bar.querySelector('[data-up-info]').textContent = names.length
     ? `${names.length}곳${result ? ` · ${fmtPop(pop)}` : ''} (${names.slice(0, 4).join('·')}${names.length > 4 ? ' …' : ''})`
-    : '지도에서 읍면동을 누르세요 (다시 누르면 뺌, Esc로 그만두기)';
+    : `지도에서 ${one ? '동·리' : '읍면동'}를 누르세요 (다시 누르면 뺌, Esc로 그만두기)`;
   const nm = bar.querySelector('[data-up-name]');
   if (!nm.value && names.length) nm.placeholder = `예: ${stem(names[0].replace(/[읍면동리]$/, '')) || names[0]}${regionsOfPick().every(isMetroCity) ? '구' : '시'}`;
 }
 
-export function regionsOfPick() { return [...new Set([...unitPick.subs].map((i) => subRegion(i)))]; }
+export function regionsOfPick() { return [...new Set([...unitPick.subs, ...pickRi().map((r) => r.sub)].map((i) => subRegion(i)))]; }
 
-export function finishUnitPick() {
-  const subs = [...unitPick.subs], bar = document.querySelector('.unit-pick-bar');
+export async function finishUnitPick() {
+  const pick = unitPick, subs = [...pick.subs], bar = document.querySelector('.unit-pick-bar'), ris = pickRi();
   const name = bar.querySelector('[data-up-name]').value.trim();
-  if (!subs.length) { alert('지도에서 읍면동을 고르세요.'); return; }
+  if (!subs.length && !ris.length) { alert('지도에서 읍면동이나 리를 고르세요.'); return; }
+  if (busy) { toast('계산이 끝난 뒤에 세우세요.'); return; }
   const regs = regionsOfPick(), metro = regs.every(isMetroCity);
   if (metro ? !/(구|군)$/.test(name) : !/(시|군)$/.test(name)) { alert(metro ? '광역시 안이면 ○○구 또는 ○○군으로 정하세요.' : '새 이름은 ○○시 또는 ○○군으로 정하세요.'); return; }
   if (/군$/.test(name) && subs.some((i) => /동$/.test(subName(i)))) { alert('군에는 읍·면만 둘 수 있습니다. ○○시로 하거나 동을 빼세요.'); return; }
   const a = admin(), from = new Map();
   for (const i of subs) { const u = a.unitOfSub[i]; from.set(u, (from.get(u) || 0) + 1); }
   // 원래 시군을 통째로 고르면 새로 세울 것이 없다: 적어도 한 시군에는 읍면동이 남아야 한다
-  if ([...from].every(([u, n]) => n >= a.unit(u).subs.length)) { alert('원래 시군을 통째로 고르면 새로 세울 것이 없습니다. 이름은 시군 창에서 바꾸세요.'); return; }
+  if (!ris.length && [...from].every(([u, n]) => n >= a.unit(u).subs.length)) { alert('원래 시군을 통째로 고르면 새로 세울 것이 없습니다. 이름은 시군 창에서 바꾸세요.'); return; }
   if ([...a.units.values()].some((u) => u.name === name && u.region === regs[0])) { alert(`${regs[0]}에 이미 ${name}이(가) 있습니다.`); return; }
   if (!payEvent(EVENT_COST.cityUp)) return;
+  // 고른 법정리를 떼어 따로 계산하는 소구역으로 (리 편입과 같다)
+  for (const r of ris) {
+    const u = a.unitOfSub[r.sub];
+    from.set(u, (from.get(u) || 0) + 1);
+  }
   const homeId = [...from].sort((x, y) => y[1] - x[1])[0][0];
+  for (const r of ris) {
+    const g = await splitRi(r.code);
+    if (g >= 0) subs.push(g); else toast(`${r.name}의 경계를 찾지 못해 뺐습니다.`);
+    while (busy) await new Promise((ok) => setTimeout(ok, 200));   // 리마다 다시 계산이 끝난 뒤에 다음 리를 뗀다 (겹치면 번호가 어긋난다)
+  }
+  if (unitPick !== pick || !subs.length) return;
   const home = homeId.startsWith('z:') ? unitId(state, zoneProps[+homeId.slice(2)]) : state.local.splitUnit[homeId].home;
-  const region = regs.length === 1 ? regs[0] : a.unit(homeId).region;
+  const region = regs.length === 1 ? regs[0] : admin().unit(homeId)?.region || regs[0];
   const key = `split:${Date.now().toString(36)}`;
   (state.local.splitUnit ||= {})[key] = { name, home, region, year: state.year };
   adminInvalidate();
   for (const i of subs) setSubUnit(i, key);
-  state.log.unshift(`${state.year}년 ${name} 신설 (${[...new Set(subs.map((i) => unitMyeon(i)?.name || subName(i)))].slice(0, 6).join('·')})`);
+  state.log.unshift(`${state.year}년 ${name} 신설 (${[...new Set(subs.map((i) => (pick.mode === 'ri' ? subName(i) : unitMyeon(i)?.name || subName(i))))].slice(0, 6).join('·')})`);
   endUnitPick();
   syncMayors();
   const off = state.local.offices[unitOfficeKey(key)];
