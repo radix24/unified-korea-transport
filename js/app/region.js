@@ -14,7 +14,7 @@ import { drawAdmin, krRi, riAt, riCodeMap, riFeat, subInfo } from './mapdata.js'
 import { select } from './interact.js';
 import { fmtPop, renderAll } from './panels.js';
 import { countyRep, countyRepCache, countyRepFresh, setCountyRepFresh, syncMayors, zoneGus } from './election.js';
-import { guNamesOfZone, isGeneralGu, payEvent, subAdjacency, unitZones } from './bungu.js';
+import { guNamesOfZone, isGeneralGu, payEvent, pruneBungu, subAdjacency, unitZones } from './bungu.js';
 import { endHousingPick, inRing } from './housing.js';
 import { extraOf, extraSubs, extrasOfParent, extrasOfZone, padSubsFC, splitRi } from './risplit.js';
 
@@ -500,6 +500,7 @@ export async function finishUnitPick() {
   (state.local.splitUnit ||= {})[key] = { name, home, region, year: state.year };
   adminInvalidate();
   for (const i of subs) setSubUnit(i, key);
+  pruneBungu();
   state.log.unshift(`${state.year}년 ${name} 신설 (${[...new Set(subs.map((i) => (pick.mode === 'ri' ? subName(i) : unitMyeon(i)?.name || subName(i))))].slice(0, 6).join('·')})`);
   endUnitPick();
   syncMayors();

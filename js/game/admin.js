@@ -75,5 +75,5 @@ export function buildAdmin(d, L) {
 
 /** 소속표 지문: 이것이 같으면 표를 다시 만들지 않는다 */
 export function adminSig(L, extra = '') {
-  return JSON.stringify([L?.annexSubUnit || null, L?.annexSub || null, L?.splitUnit || null]) + extra;
+  return JSON.stringify([L?.annexSubUnit || null, L?.annexSub || null, L?.splitUnit || null, L?.regionReorg || null]) + extra;
 }

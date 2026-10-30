@@ -23,6 +23,7 @@ import {
   setGridSent, setHappiness, setLastDone, setLastIncome, setPrevSummary, setRequests, setResult, state, subsFC, worker, zoneProps,
 } from './core.js';
 import { resetNamer, settleSEZ } from './sez.js';
+import { settleZoneDev, zoneDevEffects } from './zonedev.js';
 import { paintVolumes, paintZones, refreshLinks, refreshPoints, showDensity } from './mapdata.js';
 import { adminInvalidate } from './region.js';
 import { settleUniv, univFundSeats, univList, univYear } from './univ.js';
@@ -77,7 +78,7 @@ export function assignTourism(t) {
 }
 
 export function ctx() {
-  return { integration: state.integration, policy: state.policy, sez: (state.sez || []).filter((z) => z.done).map((z) => z.zone),
+  return { integration: state.integration, policy: state.policy, sez: (state.sez || []).filter((z) => z.done).map((z) => z.zone), zdev: zoneDevEffects(),
     univ: univList().filter((u) => u.built).map((u) => [u.zone, u.seats, u.isNew ? 1 : 0]).concat(univFundSeats()),
     housingSubs: housingSubList().map(toModelSub) };   // 계산 워커의 소구역 번호로 (떼어 낸 남측 법정리, risplit.js)
 }
@@ -225,7 +226,7 @@ export function nextYear() {
   openWaitingServices(state, effectiveNetwork(base, state), base.stations);
   const opened = done.some((p) => p.kind === 'new');   // 플레이어가 놓은 새 노선 (이어받은 공사는 해마다 열려서 뺀다)
   // 완공된 역세권 개발: 분양 수익과 인구 순유입
-  const dev = [...settleDevels(state, done), ...settleHousing(state, done)];
+  const dev = [...settleDevels(state, done), ...settleHousing(state, done), ...settleZoneDev(done)];
   housingComplaints();
   settleSEZ(done);
   settleUniv(done);

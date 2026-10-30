@@ -2,7 +2,7 @@
 import { formatWon, resolve } from '../game/catalog.js';
 import { opBadge, operatorOf } from '../game/operators.js';
 import { canRun, defaultTrainType, EXISTING_SERVICES, SERVICE_KINDS } from '../game/services.js';
-import { canAfford, effectiveNetwork, fundFor, linkAt, linkPending, linksUnderWork, upgradeCost, UPGRADES } from '../game/state.js';
+import { canAfford, effectiveNetwork, fundFor, linkAt, linkPending, linksBlockedFor, linksUnderBuild, upgradeCost, UPGRADES } from '../game/state.js';
 import { t } from '../i18n.js';
 import { kmBetween } from '../sim/model.js';
 import { railStd } from '../ui/railkind.js';
@@ -239,11 +239,12 @@ export function linkPanel(id) {
   // 분리 차로 쌍은 합친 값 (지도 색과 같게)
   const vc = shownTraffic ? shownTraffic.vc[linkTwins[id]] : 0, vol = shownTraffic ? shownTraffic.vol[linkTwins[id]] : 0;
   const speed = result ? result.links.speed[id] : 0;
-  const busyProj = state.projects.find((p) => p.status === 'building' && p.links.includes(id));
+  const busyProj = state.projects.find((p) => p.status === 'building' && p.links.includes(id) && p.kind !== 'upgrade');   // 새로 짓는 중 (개량 메뉴 없음)
+  const upProjs = state.projects.filter((p) => p.status === 'building' && p.kind === 'upgrade' && p.links.includes(id));   // 개량 공사 중: 다른 개량은 함께 벌일 수 있다
   const isRoad = l.mode === 0;
   const planned = id < base.links.length && linkPending(base, state, id);
   const osmProj = planned && state.projects.find((p) => p.kind === 'osm' && p.status === 'building' && p.links.includes(id));
-  const ups = l.ext || l.cls === 'ferry' || planned ? [] : UPGRADES.filter((u) => u.mode === l.mode && u.applies(l));
+  const ups = l.ext || l.cls === 'ferry' || planned ? [] : UPGRADES.filter((u) => u.mode === l.mode && u.applies(l) && !(upProjs.length && linksBlockedFor(state, u.id).has(id)));
   const isNew = id >= base.links.length;
   const route = sameRoute(id, true);
   const routeKm = route.reduce((sum, x) => sum + linkAt(base, state, x).len, 0);
@@ -287,7 +288,7 @@ export function linkPanel(id) {
     ${planned ? `<p class="hint">진행 중인 사업 구간입니다: ${esc(osmProj?.label || '')} · ${osmProj ? `${osmProj.doneYear}년 개통 예정` : ''}. 사업 탭에서 예산 투입 속도를 바꿀 수 있습니다.</p>`
     : l.ext ? '<p class="hint">국외 거점과 잇는 국경 연결 구간입니다. 개량 대상이 아닙니다.</p>'
     : l.cls === 'ferry' ? '<p class="hint">여객선 항로입니다. 개량 대상이 아닙니다.</p>'
-    : busyProj ? `<p class="hint">공사 중: ${esc(busyProj.label)} (${busyProj.doneYear}년 완공)</p>` : `<h4>개량</h4>
+    : busyProj ? `<p class="hint">공사 중: ${esc(busyProj.label)} (${busyProj.doneYear}년 완공)</p>` : `${upProjs.map((p) => `<p class="hint">공사 중: ${esc(p.label)} (${p.doneYear}년 완공) · 겹치지 않는 다른 개량은 함께 벌일 수 있습니다</p>`).join('')}<h4>개량</h4>
     <div class="actions"><button class="small sec-start" title="두 역·IC를 차례로 눌러 그 사이만 고릅니다">구간 선택 (${l.mode === 0 ? 'IC' : '역'} 두 곳 누르기)</button>
       ${l.mode >= 1 ? '<button class="small" data-padd="station" title="노선 위 한 점을 눌러 역을 놓습니다">이 노선에 역 신설</button>' : l.cls === 'motorway' ? '<button class="small" data-padd="ic">IC·JCT 신설</button><button class="small" data-padd="rest">휴게소 신설</button>' : ''}
       ${l.mode === 1 ? '<button class="small" data-st-start title="두 역 사이를 단순한 곡선으로 새로 놓고 옛 구간은 폐선합니다. 사이 역은 눌러서 자동·제자리 유지·폐역을 고릅니다">구간 직선화</button>' : ''}</div>
@@ -327,10 +328,11 @@ export function upEffect(u, l) {
  */
 export const LINE_BATCH_DISCOUNT = 0.9;
 export function lineBatch(id) {
-  const work = linksUnderWork(state), u = UPGRADES.find((x) => x.id === 'electrify');
-  const route = sameRoute(id, true).filter((i) => !work.has(i) && !(i < base.links.length && linkPending(base, state, i)) && !state.replaced?.[i]);
+  const u = UPGRADES.find((x) => x.id === 'electrify');
+  const route = sameRoute(id, true).filter((i) => !(i < base.links.length && linkPending(base, state, i)) && !state.replaced?.[i]);
   const make = (pw, up = u) => {
-    const ids = route.filter((i) => { const m = linkAt(base, state, i); return m.mode === 1 && !m.ext && (pw ? m.power === pw : up.applies(m)); });
+    const work = linksBlockedFor(state, up.id);
+    const ids = route.filter((i) => { const m = linkAt(base, state, i); return !work.has(i) && m.mode === 1 && !m.ext && (pw ? m.power === pw : up.applies(m)); });
     const ls = ids.map((i) => linkAt(base, state, i));
     const cost = Math.round(ls.reduce((s0, m) => s0 + upgradeCost(up, m), 0) * LINE_BATCH_DISCOUNT);
     return { ids, km: ls.reduce((s0, m) => s0 + m.len, 0), cost, years: up.years, ok: ids.length > 0 && canAfford(state, cost, up.years, fundFor(state, ls)) };
@@ -340,7 +342,7 @@ export function lineBatch(id) {
 }
 /** 북측 철도 전체 일괄 개량: 개량 전 북측 선로(직류 3kV·비전철·단선·저속)를 모두 남측 규격으로 한 사업에 (노선 일괄과 같은 10% 할인) */
 export function kpStdAll() {
-  const work = linksUnderWork(state), u = UPGRADES.find((x) => x.id === 'kpstd');
+  const work = linksBlockedFor(state, 'kpstd'), u = UPGRADES.find((x) => x.id === 'kpstd');
   const ids = allLinks().map((_, i) => i).filter((i) => !work.has(i) && !(i < base.links.length && linkPending(base, state, i)) && !state.replaced?.[i]
     && (() => { const m = linkAt(base, state, i); return m.mode === 1 && !m.ext && u.applies(m); })());
   const ls = ids.map((i) => linkAt(base, state, i));
@@ -371,7 +373,7 @@ export function confirmRetire(upId, ids) {
 
 /** 드래그로 고른 여러 구간: 가장 긴 수단 기준으로 개량을 한꺼번에 */
 export function multiPanel(ids) {
-  const work = linksUnderWork(state);
+  const work = linksUnderBuild(state);   // 개량끼리는 겹쳐도 된다: 개량마다 착공할 때 거른다
   const km = [0, 0, 0];
   for (const i of ids) km[linkAt(base, state, i).mode] += linkAt(base, state, i).len;
   const mode = km.indexOf(Math.max(...km));

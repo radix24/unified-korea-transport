@@ -573,11 +573,12 @@ export async function finishHousingDraw() {
   let km2 = whole.km2;
   if (km2 < 0.3) { toast(`너무 좁습니다 (${km2.toFixed(2)}km²). 0.3km² 넘게 그리세요.`); return; }
   if (km2 > HOUSING_DRAW_MAX) { toast(`너무 넓습니다 (${km2.toFixed(1)}km²). ${HOUSING_DRAW_MAX}km² 안으로 그리세요.`); return; }
-  // 경계 안을 250m 간격으로 훑어 시가지·산지·물·다른 지구가 15% 넘게 걸리면 안 된다
+  // 경계 안을 250m 간격으로 훑어 산지·물·다른 지구가 15% 넘게 걸리면 안 된다.
+  // 기존 시가지는 막지 않는다(연담화: 시가지에 잇대어 그릴 수 있다). 그 몫은 이미 사는 곳이라 새 세대 수에서만 뺀다 (85% 넘게 시가지면 택지가 아니라 재개발)
   const kx = 111.32 * Math.cos((lat * Math.PI) / 180), step = 0.25;
   const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]);
   const why = new Map();
-  let n = 0, bad = 0, wet = 0, all = 0;
+  let n = 0, bad = 0, wet = 0, all = 0, urban = 0;
   for (let y = Math.min(...ys); y <= Math.max(...ys); y += step / 110.57) {
     for (let x = Math.min(...xs); x <= Math.max(...xs); x += step / kx) {
       if (!inRing(x, y, pts)) continue;
@@ -586,11 +587,14 @@ export async function finishHousingDraw() {
       if (!onLand(x, y) || inRiverOrLake(x, y)) { wet++; continue; }
       n++;
       const w = housingPointProblem(x, y, { water: false, fine: true });
-      if (w) { bad++; why.set(w, (why.get(w) || 0) + 1); }
+      if (w === '이미 시가지') urban++;
+      else if (w) { bad++; why.set(w, (why.get(w) || 0) + 1); }
     }
   }
   if (all && wet) km2 *= (all - wet) / all;
   if (km2 < 0.3) { toast(`물을 빼면 너무 좁습니다 (${km2.toFixed(2)}km²).`); return; }
+  if (n && urban / n > 0.85) { toast(`경계 안 ${Math.round((urban / n) * 100)}%가 이미 시가지입니다. 시가지 바깥 땅을 더 넣어 그리세요 (시가지 안은 재개발로).`); return; }
+  if (n && urban) km2 *= (n - urban) / n;   // 새로 짓는 땅만 세대 수로 센다
   if (n && bad / n > 0.15) {
     toast(`경계 안 ${Math.round((bad / n) * 100)}%가 택지로 쓸 수 없는 땅입니다 (${[...why].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${Math.round((v / n) * 100)}%`).join(', ')}). 초록 칸 안으로 그리세요.`);
     return;
@@ -957,7 +961,7 @@ export function openHousingDialog({ lon, lat, zi0 = -1, ring = null, km2 = null,
       <div class="m">택지 조성 ${formatWon(pl.cost)}${pl.levy ? ` + 광역교통개선대책 분담금 ${formatWon(pl.levy)}` : ''}${roadCost ? ` + 연결도로 ${formatWon(roadCost)}` : ''} · ${pl.years}년 · 분양 수익 ${formatWon(pl.revenue)}</div>
       <div class="m">도로망: 단지 안 ${o.households >= HOUSING.bigTown ? '6차로 간선 가로세로 두 줄씩(# 모양)' : '4차로 간선 십자 축'}, 둘레 간선도로 연결 ${rp.links.filter((r) => /연결도로$/.test(r.attrs.name) && !r.ic).length}곳${rp.links.find((r) => r.ic) ? ` · ${esc(rp.links.find((r) => r.ic).ic)}까지 4차로` : ''} (연결도로 ${rp.connKm.toFixed(1)}km)</div>
       ${phaseSel}
-      <button class="small primary" data-housing="${o.key}">착공</button></div>`;
+      <button class="small" data-housing-preview="${o.key}" title="창을 접고 지도에서 지구 경계와 단지 도로·연결도로를 미리 봅니다">미리보기</button> <button class="small primary" data-housing="${o.key}">착공</button></div>`;
   }).join('');
   const wrap = document.createElement('div');
   wrap.className = 'setup-wrap';
@@ -969,8 +973,11 @@ export function openHousingDialog({ lon, lat, zi0 = -1, ring = null, km2 = null,
     <div class="setup-btns">${sc.railKm > 2 ? '<button class="small" data-housing="rail">연결 철도 그리기</button>' : ''}<span style="flex:1"></span><button class="small" data-housing="cancel">닫기</button></div></div>`;
   document.body.appendChild(wrap);
   wrap.addEventListener('click', (ev) => {
+    const pv = ev.target.closest('[data-housing-preview]');
+    if (pv) { previewHousing(wrap, options.find((x) => x.key === pv.dataset.housingPreview), { lon, lat, ring, zp, sc, name: () => wrap.querySelector('#h-name')?.value.trim() || name }); return; }
     const b = ev.target.closest('[data-housing]');
     if (!b) return;
+    clearHousingPreview();
     const k = b.dataset.housing;
     if (k === 'rail') {
       // 지구 가운데에서 시작하는 철도 그리기 (가까운 역까지 이어 그린다)
@@ -1000,6 +1007,46 @@ export function openHousingDialog({ lon, lat, zi0 = -1, ring = null, km2 = null,
     }
     wrap.remove();
   });
+}
+
+/**
+ * 택지지구 미리보기: 창을 접고 지도에 지구 경계(그린 경계, 넓힌 모양 또는 원)와 단지 간선도로·연결도로를 그린다.
+ * 떠 있는 띠에서 착공하거나 창으로 돌아간다
+ */
+function previewHousing(wrap, o, { lon, lat, ring, zp, sc, name }) {
+  if (!o) return;
+  const oRing = o.ring ?? ring, oLon = o.lon ?? lon, oLat = o.lat ?? lat;
+  const kx = 111.32 * Math.cos((oLat * Math.PI) / 180);
+  const shape = oRing || Array.from({ length: 49 }, (_, k) => { const a = (k / 48) * 2 * Math.PI; return [oLon + (o.R * Math.cos(a)) / kx, oLat + (o.R * Math.sin(a)) / 110.57]; });
+  const pl = housingPlan({ households: o.households, zone: zp, lat: oLat, lon: oLon, score: sc.score });
+  const rp = housingRoadPlan({ lon: oLon, lat: oLat, ring: oRing, R: o.R, name: name(), levy: pl.levy > 0, households: o.households });
+  const closed = shape[0][0] === shape[shape.length - 1][0] && shape[0][1] === shape[shape.length - 1][1] ? shape : [...shape, shape[0]];
+  const fc = { type: 'FeatureCollection', features: [
+    { type: 'Feature', properties: { k: 'site' }, geometry: { type: 'Polygon', coordinates: [closed] } },
+    ...rp.links.map((r) => ({ type: 'Feature', properties: { k: /연결도로$/.test(r.attrs.name) ? 'conn' : 'road', w: r.attrs.lanes || 2 }, geometry: { type: 'LineString', coordinates: r.pts } })),
+  ] };
+  if (!map.getSource('housing-preview')) {
+    map.addSource('housing-preview', { type: 'geojson', data: fc });
+    map.addLayer({ id: 'housing-preview-fill', type: 'fill', source: 'housing-preview', filter: ['==', ['get', 'k'], 'site'], paint: { 'fill-color': '#f2a33a', 'fill-opacity': 0.3 } });
+    map.addLayer({ id: 'housing-preview-edge', type: 'line', source: 'housing-preview', filter: ['==', ['get', 'k'], 'site'], paint: { 'line-color': '#c26a00', 'line-width': 2, 'line-dasharray': [2, 1.5] } });
+    map.addLayer({ id: 'housing-preview-road', type: 'line', source: 'housing-preview', filter: ['!=', ['get', 'k'], 'site'],
+      paint: { 'line-color': ['case', ['==', ['get', 'k'], 'conn'], '#d1495b', '#5a5f66'], 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 1.5, 13, ['*', ['get', 'w'], 1.2]] } });
+  } else map.getSource('housing-preview').setData(fc);
+  const xs = closed.map((q) => q[0]).concat(rp.links.flatMap((r) => r.pts.map((q) => q[0]))), ys = closed.map((q) => q[1]).concat(rp.links.flatMap((r) => r.pts.map((q) => q[1])));
+  map.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding: 80, maxZoom: 13.5, duration: 600 });
+  wrap.style.display = 'none';
+  document.querySelector('.housing-preview-bar')?.remove();
+  const bar = document.createElement('div');
+  bar.className = 'unit-pick-bar housing-preview-bar';
+  bar.innerHTML = `<b>택지지구 미리보기</b><span class="m">${esc(name())} · ${esc(o.label)} · ${o.households.toLocaleString()}세대 · 주황: 지구 경계, 회색: 단지 간선도로, 빨강: 연결도로</span>
+    <button class="small primary" data-hp="ok">착공</button><button class="small" data-hp="back">창으로 돌아가기</button>`;
+  document.body.appendChild(bar);
+  bar.querySelector('[data-hp="back"]').onclick = () => { clearHousingPreview(); wrap.style.display = ''; };
+  bar.querySelector('[data-hp="ok"]').onclick = () => { wrap.style.display = ''; wrap.querySelector(`[data-housing="${o.key}"]`)?.click(); };
+}
+export function clearHousingPreview() {
+  document.querySelector('.housing-preview-bar')?.remove();
+  map?.getSource('housing-preview')?.setData({ type: 'FeatureCollection', features: [] });
 }
 
 /** 해마다 입주를 마친 택지지구의 교통 민원: 철도역이 멀면 지구 주민 행복도가 깎이고, 가까이 역이 생기면 풀린다 */

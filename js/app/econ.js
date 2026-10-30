@@ -11,6 +11,7 @@ import { openPalette } from '../ui/palette.js';
 import { toast } from '../ui/panel.js';
 import { $, APP_VERSION, autoRenameNode, base, BUG_MAIL, esc, historic, map, namer, POLICY_LABEL, result, selection, setState, setWholeRoute, state, wholeRoute } from './core.js';
 import { startSEZ } from './sez.js';
+import { bindZoneDev } from './zonedev.js';
 import { allLinks, nodeNames, refreshLinks, refreshPoints, setHighlight } from './mapdata.js';
 import { admin, adminInvalidate } from './region.js';
 import { bindUnivPanel, univPanel } from './univ.js';
@@ -29,7 +30,7 @@ import { endSection, sectionPanel, startSection, startServicePick } from './pick
 import { commitServicePick, confirmRetire, endServicePick, header, LINE_BATCH_DISCOUNT, lineBatch, linkPanel, multiPanel, servicePickPanel } from './svcmap.js';
 import { closedPanel, openClosedStraight, sameRoute, startClosedReopen, startReopen } from './reopen.js';
 import {
-  airportName, airportPanel, bindAnnexButtons, bindLevelLinks, bindUnitPanel, emdPanel, metroRename, nodePanel, regionPanel, restoreRow, riPanel, subPanel, unitPanel,
+  airportName, airportPanel, bindAnnexButtons, bindLevelLinks, bindUnitPanel, emdPanel, metroRename, nodePanel, regionPanel, regionReorg, restoreRow, riPanel, subPanel, unitPanel,
   zonePanel, zonesPanel,
 } from './selpanel.js';
 import { showGazette } from './gazette.js';
@@ -270,6 +271,7 @@ export function renderSelection() {
     bindLevelLinks(el);
     bindBunguBtns(el);
     el.querySelectorAll('[data-metro-rename]').forEach((b) => { b.onclick = () => metroRename(b.dataset.metroRename); });
+    el.querySelectorAll('[data-reorg]').forEach((b) => { b.onclick = () => regionReorg(b.dataset.reorg, selection.id); });
   }
   else if (selection.type === 'ri') {
     // 이미 떼어 낸 리는 그 소구역 창으로 (다시 다른 곳으로 옮길 수 있다)
@@ -432,6 +434,7 @@ export function renderSelection() {
     save(state); renderAll();
   });
   el.querySelector('[data-sez]')?.addEventListener('click', (e) => startSEZ(+e.currentTarget.dataset.sez));
+  bindZoneDev(el, () => { save(state); renderAll(); });   // 도시 개발 (시군 창·구 창)
   if (selection.type === 'zone' || selection.type === 'gu') bindLocalSettings(el);   // 행정구역 조정 단추
   const zn = el.querySelector('#zone-name');
   if (zn) {

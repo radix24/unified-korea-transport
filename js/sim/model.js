@@ -1760,7 +1760,7 @@ export class Model {
   }
 
   /** 1년 진행: 소득 수렴, 건강·교육, 인구이동, 자연증감 */
-  advanceYear(integration, policy, sez = [], univ = []) {
+  advanceYear(integration, policy, sez = [], univ = [], zdev = []) {
     const { Z } = this;
     this.computeAccess();
     const edu = this.eduBoost(univ);
@@ -1768,14 +1768,18 @@ export class Model {
     this.frontier *= 1 + P.frontierGrowth;
     // 경제특구: 투자가 몰려 소득이 빨리 따라잡고(수렴 속도 ×1.8, 목표 +15%), 일자리를 찾아 사람이 모인다(편의 +)
     const special = new Set(sez);
+    // 산업단지·업무단지 (app/zonedev.js): [존, 소득 목표 배수, 수렴 배수, 편의 가산]. 한 존에 여럿이면 곱한다
+    const zd = new Map();
+    for (const [z, inc, conv, am] of zdev) { const o = zd.get(z) || [1, 1, 0]; zd.set(z, [o[0] * inc, o[1] * conv, o[2] + am]); }
     for (let i = 0; i < Z; i++) {
       if (this.isExt[i]) continue;
-      const sz = special.has(i);
-      const target = this.incomeTarget(i) * (sz ? 1.15 : 1);
+      const sz = special.has(i), dv = zd.get(i);
+      const target = this.incomeTarget(i) * (sz ? 1.15 : 1) * (dv ? dv[0] : 1);
       if (sz) this.amenity[i] += 0.02;
+      if (dv) this.amenity[i] += dv[2];
       const r = (this.isKP[i]
         ? P.convergenceKPBase + P.convergenceKPIntegrated * integration
-        : P.convergenceKR) * (sz ? 1.8 : 1);
+        : P.convergenceKR) * (sz ? 1.8 : 1) * (dv ? dv[1] : 1);
       this.income[i] = Math.exp(Math.log(this.income[i]) + r * (Math.log(target) - Math.log(this.income[i])));
       this.le[i] += 0.08 * (this.leTarget(i) - this.le[i]);
       const ii = incomeIndex(this.income[i]);

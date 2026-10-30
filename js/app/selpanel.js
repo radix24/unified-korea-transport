@@ -2,7 +2,7 @@
 import { airlinesHTML } from '../game/airlines.js';
 import { AIRPORT, formatWon, KP_COST_FACTOR } from '../game/catalog.js';
 import { placeIntroHTML } from '../game/cities.js';
-import { dueum, EVENT_COST, governorTitle, hasAutonomy, isMetroCity, KP_DIRECT_CITIES, PARTIES, partySupport, regionOf } from '../game/local.js';
+import { dueum, EVENT_COST, governorTitle, hasAutonomy, isMetroCity, KP_DIRECT_CITIES, PARTIES, partySupport, REGION_REORG, regionOf } from '../game/local.js';
 import { AIR, effectiveNetwork, IC_REMOVE_COST, load, RENAME, save, START_YEAR } from '../game/state.js';
 import { t } from '../i18n.js';
 import { routeKey } from '../sim/model.js';
@@ -11,6 +11,7 @@ import { toast } from '../ui/panel.js';
 import { base, busy, esc, happiness, historic, map, median, result, selection, setSelection, state, subPop0, subsFC, zoneProps } from './core.js';
 import { gains, zoneName } from './year.js';
 import { sezHTML } from './sez.js';
+import { zoneDevHTML } from './zonedev.js';
 import { drawAdmin, krRi, nodeNames, provincePops, riCodeMap, riFeat, subArea, subInfo, subMetric } from './mapdata.js';
 import {
   admin, adminInvalidate, annexGroup, annexSubCost, isMetroBody, kpMyeon, mergeSplitUnit, riToDong, seatEup, setSubUnit, subAnnexAll, subCountyName, subKey, subName, subNeighbors, subRegion, subUnit, unitMyeon, unitName, unitOfficeKey, unitPop, unitRepZone,
@@ -19,7 +20,7 @@ import { select } from './interact.js';
 import { fmtPop, pct, renderAll } from './panels.js';
 import { foreignCountry } from './operators.js';
 import { countyRep, countyZones, mayorKey, partyBadge, syncMayors, zoneAdminHTML, zoneGus } from './election.js';
-import { bunguSelect, bunguUnits, drawBungu, guNamesOfZone, guNamingDialog, guOfSub, guSubs, makeBungu, payEvent, unitZones } from './bungu.js';
+import { bunguSelect, bunguUnits, drawBungu, syncGovernors, guNamesOfZone, guNamingDialog, guOfSub, guSubs, makeBungu, payEvent, pruneBungu, unitZones } from './bungu.js';
 import { localZoneHTML } from './firstyear.js';
 import { REST_REMOVE_COST } from './housing.js';
 import { header } from './svcmap.js';
@@ -63,6 +64,7 @@ export function zonePanel(id) {
     ${localZoneHTML(id)}
     ${zoneAdminHTML(id)}
     ${sezHTML(id)}
+    ${zoneDevHTML(id)}
     ${targets.map((t) => restoreRow(t)).join('')}
     <h4>이름 바꾸기</h4>
     <div class="name-row"><input type="text" id="zone-name" value="${esc(name)}">
@@ -162,6 +164,7 @@ export function bindAnnexButtons(el, i, one = false) {
         (state.local.annexSub ||= {})[subKey(j)] = to;
       }
       state.log.unshift(`${state.year}년 ${zoneName(subInfo(i)[0])} ${(!one && unitMyeon(i)?.name) || nm}, ${from}에서 ${to}${dst ? ` ${unitName(dst)}` : ''}로 편입`);
+      pruneBungu(); syncMayors();
       save(state); drawAdmin(); renderAll();
     };
   });
@@ -174,6 +177,7 @@ export function bindAnnexButtons(el, i, one = false) {
       if (!payEvent(annexSubCost(i))) return;
       for (const j of annexGroup(i, one)) setSubUnit(j, u);
       state.log.unshift(`${state.year}년 ${from} ${nm}, ${toName}로 편입`);
+      pruneBungu(); syncMayors();
       save(state); drawAdmin(); renderAll();
     };
   });
@@ -187,6 +191,26 @@ export function bindLevelLinks(el) {
   el.querySelectorAll('[data-emd-sel]').forEach((x) => { x.onclick = (e) => { e.preventDefault(); select({ type: 'emd', id: x.dataset.emdSel }); }; });
   el.querySelectorAll('[data-gu-sel]').forEach((x) => { x.onclick = (e) => { e.preventDefault(); select({ type: 'gu', id: +x.dataset.guSel, gu: x.dataset.gu }); }; });
   el.querySelectorAll('[data-region-sel]').forEach((x) => { x.onclick = (e) => { e.preventDefault(); select({ type: 'region', id: x.dataset.regionSel }); }; });
+}
+
+/** 광역 행정구역 개편 (REGION_REORG): 이름 변경은 단체장 그대로, 통합·분리는 새로 뽑는다 */
+export function regionReorg(k, from) {
+  const L = state.local, o = REGION_REORG[k];
+  if (!o || L.regionReorg?.[k]) return;
+  if (!confirm(`${o.label}할까요?`)) return;
+  if (!payEvent(k === 'jeonbuk' ? EVENT_COST.cityUp : EVENT_COST.independence)) return;
+  (L.regionReorg ||= {})[k] = state.year;
+  if (!o.split && o.from.length === 1) {   // 이름만: 단체장·지지도를 옮긴다
+    const off = L.offices[`g:${from}`];
+    if (off) { L.offices[`g:${o.to}`] = { ...off, region: o.to, title: governorTitle(o.to) }; delete L.offices[`g:${from}`]; }
+    for (const pr of L.proposals || []) { if (pr.office === `g:${from}`) pr.office = `g:${o.to}`; if (pr.region === from) pr.region = o.to; }
+  }
+  for (const f of o.from) if (L.support?.[f]) { for (const t of [o.to, o.split].filter(Boolean)) L.support[t] ||= L.support[f]; }
+  state.log.unshift(`${state.year}년 광역 행정구역 개편: ${o.split ? `${from}를 ${o.to}와 ${o.split}로 나눕니다` : `${o.from.join('·')} → ${o.to}`}`);
+  adminInvalidate();
+  syncGovernors(); syncMayors(); refreshNames(map); save(state); drawAdmin();
+  setSelection({ type: 'region', id: o.to });
+  renderAll();
 }
 
 /** 북측 직할시(평양·남포·개성·라선)를 ○○광역시로 부른다 (단체장은 그대로, 직함만) */
@@ -250,6 +274,9 @@ export function regionPanel(r) {
     ${tot ? `<div class="m" style="margin-top:6px">정당 지지율 (이 광역 단체)</div>
     <div style="display:flex;height:12px;border-radius:3px;overflow:hidden;margin:3px 0">${rows.map(([k, v]) => `<span title="${esc(PARTIES[k].name)} ${(v * 100).toFixed(1)}%" style="width:${v * 100}%;background:${PARTIES[k].color}"></span>`).join('')}</div>
     <div class="m">${rows.map(([k, v]) => `${partyBadge(k)} ${(v * 100).toFixed(1)}%`).join(' ')}</div>` : ''}
+    ${Object.entries(REGION_REORG).filter(([k, o]) => !L.regionReorg?.[k] && o.from.includes(r)).map(([k, o]) => `<h4>광역 행정구역 개편</h4><div class="item"><div class="t">${esc(o.label)}: ${esc(o.split ? `${r} → ${o.to} + ${o.split}` : k === 'gangwon' ? `${L.historic ? '강원남도' : '강원특별자치도'}·강원북도 → ${o.to}` : `${r} → ${o.to}`)}</div>
+      <div class="m">${o.split ? '통합특별시의 구 다섯 곳(광산·남·동·북·서구)은 광주광역시, 나머지 시군은 전라남도가 됩니다. 두 단체장을 새로 뽑습니다' : k === 'gangwon' ? '남북의 강원을 한 도로 합칩니다. 도지사를 새로 뽑습니다' : '단체장은 그대로, 이름만 바꿉니다'} · ${formatWon(k === 'jeonbuk' ? EVENT_COST.cityUp : EVENT_COST.independence)} (해마다 할 수 있습니다)</div>
+      <div class="actions"><button class="small primary" data-reorg="${k}">${esc(o.label)}</button></div></div>`).join('')}
     ${KP_DIRECT_CITIES.includes(r) || KP_DIRECT_CITIES.map(dueum).includes(r) ? `<h4>행정 조정</h4><div class="item"><div class="t">광역시로 명칭 변경: ${esc(r)} → ${esc(r.replace(/시$/, '광역시'))}</div>
       <div class="m">직할시(독립시)를 남측처럼 광역시로 부릅니다. 단체장은 그대로 직함만 바뀌고 선거는 하지 않습니다 · ${formatWon(EVENT_COST.cityUp)}</div>
       <div class="actions"><button class="small primary" data-metro-rename="${esc(r)}">바꾸기</button></div></div>` : ''}
@@ -334,6 +361,7 @@ export function bindRiAnnex(el, code) {
         (state.local.annexSub ||= {})[subKey(g)] = to;
       }
       state.log.unshift(`${state.year}년 ${from} ${subName(r.sub)} ${r.name}, ${toName}로 편입 (리를 따로 떼어 계산)`);
+      pruneBungu(); syncMayors();
       save(state); drawAdmin(); select({ type: 'sub', id: g }); renderAll();
     };
   });

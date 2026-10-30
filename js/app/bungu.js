@@ -5,6 +5,7 @@ import {
   adminNames, CITY_UP_MIN_POP, dueum, EVENT_COST, governorTitle, hasAutonomy, HISTORIC_CITIES, isMetroCity, metroName, promotedName, REGION_RENAMED, regionBase, regionOf,
   unitId,
 } from '../game/local.js';
+import { zoneDevHTML } from './zonedev.js';
 import { applyMega, kpACCost, kpDCLines, MEGA, megaGeometry, TSR_FREIGHT } from '../game/mega.js';
 import { canAfford, renameKPLines, save, startMega, startUpgrade } from '../game/state.js';
 import { t } from '../i18n.js';
@@ -299,7 +300,13 @@ export function dirNames(angles) {
  */
 export function fixBunguNames() {
   const L = state.local;
-  let changed = false;
+  let changed = false, fixed = false;
+  // 예전 판: 광역시 안의 몸통을 일반구로 나눴던 것은 자치구로 (광역시 → 함흥시 → 구가 아니라 광역시 → 구)
+  for (const [unit, b] of Object.entries(L?.bungu || {})) {
+    const z = unitZones(unit)[0];
+    if (b.general && !unit.startsWith('split:') && z != null && isMetroCity(regionOf(state, zoneProps[z]))) { delete b.general; fixed = true; guUnits.clear(); }
+  }
+  if (pruneBungu()) fixed = true;
   for (const [unit, b] of Object.entries(L?.bungu || {})) {
     if (b.dirV >= 2) continue;
     b.dirV = 2;
@@ -337,7 +344,7 @@ export function fixBunguNames() {
     changed = true;
   }
   if (changed) { guUnits.clear(); state.log.unshift(`${state.year}년 분구한 구의 이름을 방향에 맞게 바로잡았습니다.`); }
-  return changed;
+  return changed || fixed;
 }
 
 /** 이 시군(존)을 나눈 분구 단위 열쇠 (없으면 null) */
@@ -667,8 +674,10 @@ export function splitMetroCities() {
 // 일반구로 나누는 단위: 도 밑의 시 (군에서 승격한 시 포함). 광역시 안이면 자치구, 도 밑의 군은 구를 둘 수 없다
 export const isGeneralUnit = (k) => {
   if (state.local.annex?.[k] || isMetroCity(annexRegion(k))) return false;
-  if (state.local.cityUp?.includes(k)) return true;
   const z = unitZones(k)[0];
+  // 광역시 안의 몸통(승격한 함흥시처럼 아직 구로 나누지 않은 곳)은 자치구: 일반구로 나누면 광역시 밑에 시가 한 단계 더 낀다
+  if (z != null && isMetroCity(regionOf(state, zoneProps[z]))) return false;
+  if (state.local.cityUp?.includes(k)) return true;
   return z != null && /시$/.test(countyNameOf(z));
 };
 
@@ -735,6 +744,22 @@ export function guMoveTargets(subs) {
  * 구를 통째로 다른 광역시로 옮긴다: 그 구의 읍면동으로 대상 광역시 안에 같은 이름의 자치구를 세운다 (시군구 신설과 같은 장치).
  * 일반구였으면 자치구가 되어 구청장을 뽑는다
  */
+/** 구가 하나만 남은 시군은 분구를 푼다 (구 하나뿐인 시가 되지 않게). 그 구의 구청장 자리도 없앤다. 푼 곳이 있으면 true */
+export function pruneBungu() {
+  const L = state.local;
+  let any = false;
+  for (const [u, b] of Object.entries(L?.bungu || {})) {
+    const gs = new Set(Object.values(b.gu || {}));
+    if (gs.size >= 2) continue;
+    delete L.bungu[u]; bunguLineCache.delete(u); guUnits.clear();
+    for (const k of Object.keys(L.offices || {})) if (/#/.test(k) && gs.has(k.split('#')[1]) && unitZones(u).some((z) => k.startsWith(`m:${countyRep(z)}#`))) delete L.offices[k];
+    state.log?.unshift(`${state.year}년 ${u.split('|').pop().replace(/군$/, '시')}: 구가 ${gs.size ? '하나만 남아' : '남지 않아'} ${b.general ? '일반구' : '구'}를 폐지`);
+    any = true;
+  }
+  if (any) adminInvalidate();
+  return any;
+}
+
 export function moveGuTo(subs, gu, to) {
   const a = admin();
   if (!a || !subs.length) return false;
@@ -746,12 +771,9 @@ export function moveGuTo(subs, gu, to) {
   (state.local.splitUnit ||= {})[key] = { name: gu, home, region: to, year: state.year };
   adminInvalidate();
   for (const i of subs) setSubUnit(i, key);
-  // 원래 시의 구 목록에서 뺀다: 구가 하나만 남으면 분구를 푼다 (구 하나뿐인 시가 되지 않게)
-  for (const [u, b] of Object.entries(state.local.bungu || {})) {
-    if (!subs.some((i) => b.gu?.[subKey(i)] === gu)) continue;
-    for (const i of subs) delete b.gu[subKey(i)];
-    if (new Set(Object.values(b.gu)).size < 2) { delete state.local.bungu[u]; bunguLineCache.delete(u); } else bunguLineCache.delete(u);
-  }
+  // 원래 시의 구 목록에서는 setSubUnit이 뺐다: 구가 하나만 남으면 분구를 푼다
+  for (const u of Object.keys(state.local.bungu || {})) bunguLineCache.delete(u);
+  pruneBungu();
   adminInvalidate();
   state.log.unshift(`${state.year}년 ${from} ${unitName(fromUnit)} ${gu}, ${to}로 통째 편입`);
   holdElection([to, from], `${to} 구 편입 선거`);
@@ -803,6 +825,7 @@ export function guPanel(z, gu) {
       return t.length ? `<h4>구 통째 편입</h4><p class="hint">${esc(gu)}를 통째로 맞닿은 광역시의 자치구로 옮깁니다 (같은 이름, 구청장 선거) · ${formatWon(EVENT_COST.annex)}</p>
         <div class="actions">${t.map((r) => `<button class="small" data-gu-move="${esc(r)}">${esc(r)}에 편입</button>`).join('')}</div>` : '';
     })()}
+    ${zoneDevHTML(z, subs, name)}
     <h4>구 경계 조정</h4>
     <p class="hint">${guEdit ? '지도에서 동을 누르면 그 자리에 구 목록이 뜹니다. 옮길 구를 고르세요 (한 구의 마지막 동은 옮길 수 없습니다). Esc로 끝냅니다.' : '단추를 누른 뒤 지도에서 동을 눌러, 그 동이 속할 구를 고릅니다.'}</p>
     <button class="small ${guEdit ? '' : 'primary'}" id="gu-edit">${guEdit ? '경계 조정 끝내기' : '동을 눌러 경계 조정'}</button>
@@ -1265,6 +1288,12 @@ export function bindLocalSettings(el) {
   el.querySelectorAll('[data-metro-rename]').forEach((b) => { b.onclick = () => metroRename(b.dataset.metroRename); });
   bindGuSplit(el);
   bindBunguBtns(el);
+  el.querySelectorAll('[data-gu-move-one]').forEach((b) => {
+    b.onclick = () => {
+      const g = b.dataset.guMoveOne, to = b.dataset.guMoveTo, z = +b.dataset.guZone;
+      if (confirm(`${g}를 통째로 ${to}의 자치구로 옮길까요? 두 광역 단체장과 구청장을 다시 뽑습니다. ${formatWon(EVENT_COST.annex)}`)) moveGuTo(guSubs(z, g), g, to);
+    };
+  });
   el.querySelectorAll('[data-city-up]').forEach((b) => {
     b.onclick = () => {
       const k = b.dataset.cityUp, c = counties().get(k);

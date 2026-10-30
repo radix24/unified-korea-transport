@@ -14,7 +14,7 @@ import { admin, adminInvalidate, kpMyeon, kpUnitKind, krSi, splitUnits, unitMyeo
 import { fmtPop, renderAll } from './panels.js';
 import { gotoLinks, renderRequests, spanText } from './budget.js';
 import {
-  annexRegion, annexTargets, bunguOf, bunguSelect, bunguUnitOf, bunguUnits, cityUpTargets, guNamesOfZone, isGeneralGu, isGeneralUnit, unitPrefix, unitZones,
+  annexRegion, annexTargets, bunguOf, bunguSelect, bunguUnitOf, bunguUnits, cityUpTargets, guMoveTargets, guNamesOfZone, guSubs, isGeneralGu, isGeneralUnit, unitPrefix, unitZones,
 } from './bungu.js';
 import { adminSummaryHTML } from './firstyear.js';
 
@@ -339,7 +339,7 @@ export function countyRep(i) {
   if (countyRepFresh && countyRepCache?.state === state) return countyRepCache.rep[i];
   countyRepFresh = true;
   queueMicrotask(() => { countyRepFresh = false; });
-  const sig = JSON.stringify([state.local?.admin, state.local?.historic, state.local?.independent, state.local?.cityUp, state.local?.annex, state.local?.renamedRegions, state.local?.gunToGu, state.adminNames, state.placeNames]);
+  const sig = JSON.stringify([state.local?.admin, state.local?.historic, state.local?.independent, state.local?.cityUp, state.local?.annex, state.local?.renamedRegions, state.local?.regionReorg, state.local?.gunToGu, state.adminNames, state.placeNames]);
   if (countyRepCache?.sig !== sig) {
     const best = new Map();
     zoneProps.forEach((z, j) => { const k = countyKey(j), b = best.get(k); if (b == null || (z.area || 0) > (zoneProps[b].area || 0)) best.set(k, j); });
@@ -581,11 +581,11 @@ export function promotableCities() {
   const pops = new Map();
   zoneProps.forEach((z, i) => { if (!z.ext) pops.set(promotedName(state, z), (pops.get(promotedName(state, z)) || 0) + zonePop(i)); });
   // 복원 뒤에는 북측 옛 직할시(평양·남포)를 다시 독립시킬 수 있고, 모든 도의 인구 50만 이상 시를 광역시로 승격할 수 있다
-  // (북측 도시는 지방자치를 도입한 뒤: 시장을 선거로 뽑으므로)
+  // (북측 도시도 지방자치 전에 승격할 수 있다: 그때까지 시장·구청장은 임명한다. 함흥·청진처럼)
   return [
     ...(L.historic ? HISTORIC_CITIES.filter((c) => !L.independent.includes(c) && zoneProps.some((z) => z.province === c)) : []),
     ...[...pops].filter(([n, p]) => p >= PROMOTE_MIN_POP && /시$/.test(n) && !isMetroCity(n) && !L.independent.includes(n)
-      && zoneProps.some((z) => promotedName(state, z) === n && !z.ext && (z.country === 'KR' || L.autonomyKP) && !isMetroCity(z.province) && !L.annex?.[unitId(state, z)])).map(([n]) => n),
+      && zoneProps.some((z) => promotedName(state, z) === n && !z.ext && !isMetroCity(z.province) && !L.annex?.[unitId(state, z)])).map(([n]) => n),
   ];
 }
 export const cityZoneMatch = (c, z) => z.province === c || promotedName(state, z) === c;
@@ -621,7 +621,7 @@ export function zoneAdminHTML(id) {
   if (city) {
     const indep = L.historic && HISTORIC_CITIES.includes(city);
     rows.push(item(`광역시 ${indep ? '독립' : '승격'}: ${esc(city)} → ${esc(metroName(city))}`,
-      `도에서 떼어 광역시로 만들고 시장·도지사를 다시 뽑습니다. 분구하면 구마다 구청장을 뽑습니다 · ${formatWon(EVENT_COST.independence)}`,
+      `${z.country === 'KP' && !L.autonomyKP ? '도에서 떼어 광역시로 만듭니다. 북측 지방자치 전이라 시장·구청장은 임명하고, 지방자치를 시작하면 선거로 뽑습니다' : '도에서 떼어 광역시로 만들고 시장·도지사를 다시 뽑습니다. 분구하면 구마다 구청장을 뽑습니다'} · ${formatWon(EVENT_COST.independence)}`,
       `${bunguSelect('bungu-n')} <button class="small primary" data-ev-city="${esc(city)}">${indep ? '광역시로 독립' : '광역시로 승격'}</button>`));
   }
   const up = cityUpTargets().find((c) => inMine(c.zones));
@@ -636,6 +636,13 @@ export function zoneAdminHTML(id) {
     rows.push(item('구 나누기', `구 하나를 여러 구로 나눕니다${L.bungu[bk].general ? ' (일반구: 구청장은 시장이 임명)' : ' (새 구마다 구청장 선거)'} · ${formatWon(EVENT_COST.cityUp)}`,
       `<select id="gu-split-name" class="small">${names.map((g) => `<option>${esc(g)}</option>`).join('')}</select> ${bunguSelect('gu-split-n', null, 2)} <button class="small primary" data-gu-split="${esc(bk)}">나누기</button>
        <button class="small" data-gu-adjust="${esc(bk)}">구 이름·경계 고치기</button>`));
+  }
+  // 시의 구를 하나씩 맞닿은 광역시로 (시를 통째로가 아니라). 구가 하나만 남으면 그 시는 분구를 푼다
+  if (bk) {
+    const one = (guNamesOfZone(id) || []).map((g) => ({ g, to: guMoveTargets(guSubs(id, g)) })).filter((x) => x.to.length);
+    if (one.length) rows.push(item('구 하나씩 광역시로 편입',
+      `구를 하나씩 맞닿은 광역시의 자치구로 옮깁니다 (같은 이름, 구청장 선거). 시에 구가 하나만 남으면 그 시는 구를 폐지합니다 · 구마다 ${formatWon(EVENT_COST.annex)}`,
+      one.map(({ g, to }) => to.map((r) => `<button class="small" data-gu-move-one="${esc(g)}" data-gu-move-to="${esc(r)}" data-gu-zone="${id}">${esc(g)} → ${esc(r)}</button>`).join('')).join(' ')));
   }
   if (bu) rows.push(item(`분구: ${esc(bu[1])}`,
     `읍면동을 묶어 여러 구로 나눕니다${isGeneralUnit(bu[0]) ? ' (일반구: 구청장은 시장이 임명)' : ' (구마다 구청장 선거)'} · ${formatWon(EVENT_COST.cityUp)}`,

@@ -311,7 +311,7 @@ export function cancelProject(base, state, id) {
     }
   }
   if (p.kind === 'airport') state.newAirports = (state.newAirports || []).filter((a) => a.id !== p.airport || a.built);
-  for (const k of ['devels', 'sez', 'transfers']) if (state[k]) state[k] = state[k].filter((x) => x.id !== p.id);
+  for (const k of ['devels', 'sez', 'transfers', 'zoneDev']) if (state[k]) state[k] = state[k].filter((x) => x.id !== p.id);
   if (p.kind === 'housing') cancelHousingPhase(state, p);
   if (state.restAreas) state.restAreas = state.restAreas.filter((r) => r.built || (r.project !== p.id && !(p.links || []).includes(r.links[0])));
   // 시민들은 짓다 만 사업을 반기지 않는다: 큰 사업일수록 지지율이 조금 내린다
@@ -644,11 +644,34 @@ export function linksUnderWork(state) {
   return s;
 }
 
+/** 새로 짓는 중인 링크 (신설·이어받은 공사): 아직 없는 선로라 개량하거나 중간에 이어 붙일 수 없다 */
+export function linksUnderBuild(state) {
+  const s = new Set();
+  for (const p of state.projects) if (p.status === 'building' && p.kind !== 'upgrade') p.links.forEach((id) => s.add(id));
+  return s;
+}
+
+/**
+ * 이 개량을 지금 벌일 수 없는 링크: 새로 짓는 중이거나, 같은 개량이 공사 중이거나, 폐선·남측 규격 일괄 개량(선로를 통째로 다시 놓는다)과 겹치는 곳.
+ * 다른 개량끼리는 같은 구간에서 함께 벌일 수 있다 (예전에는 공사 하나가 걸린 구간은 어떤 개량도 막았다)
+ */
+export function linksBlockedFor(state, upgradeId) {
+  const whole = (id) => id === 'kpstd' || !!UPGRADES.find((x) => x.id === id)?.retire;
+  const s = new Set();
+  for (const p of state.projects) {
+    if (p.status !== 'building') continue;
+    for (const id of p.retire || []) s.add(id);   // 완공 때 걷어 낼 옛 구간 (직선화·현대화)
+    if (p.kind === 'upgrade' && p.upgrade !== upgradeId && !whole(p.upgrade) && !whole(upgradeId)) continue;
+    p.links.forEach((id) => s.add(id));
+  }
+  return s;
+}
+
 /** 기존 링크 개량. linkIds는 한 링크 또는 같은 노선의 여러 링크 */
 export function startUpgrade(base, state, linkIds, upgradeId, opts = {}) {
   const ids = Array.isArray(linkIds) ? linkIds : [linkIds];
   const u = UPGRADES.find((x) => x.id === upgradeId);
-  const work = linksUnderWork(state);
+  const work = linksBlockedFor(state, u.id);
   const targets = ids.filter((id) => !work.has(id) && u.applies(linkAt(base, state, id)));
   if (!targets.length) return { ok: false, reason: '이미 공사 중이거나 적용할 수 없는 구간입니다.' };
   let cost = 0, km = 0;
@@ -720,6 +743,11 @@ export function splitLink(base, state, id, lon, lat) {
   );
   if (id < base.links.length) (state.replaced ||= {})[id] = true;
   else state.newLinks[id - base.links.length].replaced = true;
+  // 개량 공사 중이거나 완공 때 폐선할 구간을 나눴으면 그 사업도 나뉜 두 구간을 이어받는다
+  for (const p of state.projects) {
+    if (p.status !== 'building') continue;
+    for (const k of ['links', 'retire']) if (p[k]?.includes(id)) p[k] = p[k].filter((x) => x !== id).concat([first, first + 1]);
+  }
   return node;
 }
 
@@ -1127,7 +1155,7 @@ function completeProject(base, state, p) {
   }
   // 택지지구: 단지 안 간선도로·연결도로를 연다 (입주·분양은 해 넘길 때 main이 정산한다: settleHousing)
   if (p.kind === 'housing') { for (const id of p.links || []) { const l = state.newLinks[id - base.links.length]; if (l) l.built = true; } return; }
-  if (p.kind === 'vehicles' || p.kind === 'devel' || p.kind === 'sez') return;   // 역세권 개발은 해 넘길 때 main이 정산한다 (settleDevels)
+  if (p.kind === 'vehicles' || p.kind === 'devel' || p.kind === 'sez' || p.kind === 'zonedev') return;   // 역세권 개발은 해 넘길 때 main이 정산한다 (settleDevels)
   if (p.kind === 'mega') { applyMega(base, state, p.mega); return; }
   if (p.kind === 'osm') {
     // 중간역 자리를 넣으려고 나눈 구간(새 구간)도 함께 열고, 그 역들도 연다

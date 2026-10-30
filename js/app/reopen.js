@@ -343,9 +343,11 @@ export function sameRoute(id, withOrigin = false) {
   const l = linkAt(base, state, id);
   if (!l.name) return [id];
   const out = [];
+  // 걷어 낸 구간(직선화·개량으로 폐선된 옛 구간, 나뉘기 전 구간)은 이름이 같아도 뺀다 (노선 전체를 고르면 옛 선형이 계속 보이던 것)
+  const gone = (i) => (i < base.links.length ? !!state.replaced?.[i] : !!state.newLinks[i - base.links.length]?.replaced);
   allLinks().forEach((_, i) => {
     const m = linkAt(base, state, i);
-    if (m.name === l.name && m.mode === l.mode && m.cls === l.cls && m.kp === l.kp) out.push(i);
+    if (m.name === l.name && m.mode === l.mode && m.cls === l.cls && m.kp === l.kp && (i === id || !gone(i))) out.push(i);
   });
   return withOrigin ? out.concat(originConnector(l, out)) : out;
 }

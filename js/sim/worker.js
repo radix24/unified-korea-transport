@@ -196,7 +196,7 @@ async function handle(msg) {
       if (msg.ctx.spread?.length) model.spreadDevelopments(msg.ctx.spread);   // 예전 저장: 한 읍면동에 몰린 택지지구 인구를 지구가 덮는 읍면동으로 (한 번)   // 예전 저장의 입주 인구를 제자리로 (한 번)
       // 열린 북측 관광지만 관광 수요를 끈다 (해금)
       if (msg.ctx.tourKP?.length === model.tourKP.length) model.tourKP.set(msg.ctx.tourKP);
-      model.advanceYear(msg.ctx.integration, msg.ctx.policy, msg.ctx.sez || [], msg.ctx.univ || []);
+      model.advanceYear(msg.ctx.integration, msg.ctx.policy, msg.ctx.sez || [], msg.ctx.univ || [], msg.ctx.zdev || []);
       wmark('advanced');
       if (pre) await pre;
       beforeCache = null;

@@ -68,7 +68,7 @@ export function univEntries() {
     if (!u.built) continue;
     const orig = u.orig || u.name, fam = orig.split(' ')[0];
     const branch = !u.isNew && UNIV_BRANCH.some((rx) => rx.test(orig));
-    const key = u.isNew ? u.key : branch ? `${fam}|분교` : fam;
+    const key = u.group || (u.isNew ? u.key : branch ? `${fam}|분교` : fam);
     if (!m.has(key)) {
       const famRep = UNIV_REP[fam] ?? (/과학기술원$/.test(fam) ? 85 : /^국립|교육대학교$/.test(fam) ? 70 : u.country === 'KP' ? 58 : 66);
       const base = u.isNew ? ({ comp: 60, kaist: 72, branch: 55 }[u.kind] ?? 60) : branch ? famRep - 12 : famRep;
@@ -201,8 +201,13 @@ export const UNIV_RENAME = { cost: 100, years: 1, bonus: 2 };
 
 /** 모든 대학: [{key, name, lon, lat, zone, kind, seats, built, isNew, idx}] */
 export function univList() {
-  const out = univs.map((u, i) => ({ key: `b${i}`, idx: i, orig: u.n, name: state.univNames?.[u.n] || u.n, lon: u.x, lat: u.y, zone: u.z, kind: u.k,
-    seats: univSeats(u), built: true, isNew: false, country: u.c }));
+  const out = univs.map((u, i) => {
+    // 통합 이전한 대학: 본교 자리로 옮겨 한 대학으로 센다 (state.univMoved: 옮긴 대학 → 본교 원래 이름)
+    const to = state.univMoved?.[u.n], t = to ? univs.find((x) => x.n === to) : null;
+    return { key: `b${i}`, idx: i, orig: u.n, name: state.univNames?.[u.n] || u.n, lon: t ? t.x : u.x, lat: t ? t.y : u.y, zone: t ? t.z : u.z, kind: t ? 'univ' : u.k,
+      seats: univSeats(u), built: true, isNew: false, country: u.c, group: t ? `m:${to}` : null };
+  });
+  for (const k of Object.values(state.univMoved || {})) { const t = out.find((u) => u.orig === k); if (t) t.group = `m:${k}`; }
   for (const u of state.univNew || []) out.push({ key: `n${u.id}`, name: u.name, lon: u.lon, lat: u.lat, zone: u.zone, kind: u.type, seats: u.seats, built: !!u.done, isNew: true });
   return out;
 }
@@ -272,12 +277,41 @@ export function univPanel(key) {
     ${univRankHTML(u)}
     ${to ? `<h4>이름 되돌리기</h4><p class="hint">인물 이름이 든 대학을 지명 이름으로 바꿉니다: <b>${esc(to)}</b>. 교표·문서·간판을 바꾸는 데 예산이 들고, 끝나면 그 시군 주민 행복도가 오릅니다.</p>
       ${proj ? `<p class="hint">${proj.doneYear}년 완료 예정</p>` : `<button class="small primary" data-univ-restore="${u.idx}">이름 되돌리기 · ${formatWon(UNIV_RENAME.cost)} · ${UNIV_RENAME.years}년 · 행복도 +${UNIV_RENAME.bonus}</button>`}` : ''}
+    ${univMergeHTML(u)}
     <h4>이름 바꾸기</h4>
     <div class="name-row"><input type="text" id="univ-name" value="${esc(u.name)}"><button class="small" id="univ-rename">바꾸기</button></div>
     <p class="hint">새 대학을 세우면 90분 안팎에 닿는 시군의 교육 수준(기대·평균 교육연수, HDI)이 오르고 청년이 조금 모입니다. 건설 탭의 '대학 설립'으로 세웁니다.</p>`;
 }
 
+/** 대학 통합 이전: 같은 광역 단체의 여러 대학(사범대·공과대 등)을 이 대학 자리로 모아 한 대학으로 (평양종합대학 → 평양대학교처럼) */
+export const UNIV_MERGE = { perCampus: 1500, years: 3, bonus: 2 };
+function univMergeHTML(u) {
+  if (u.isNew || !u.built || state.univMoved?.[u.orig]) return '';
+  const r = regionOf(state, zoneProps[u.zone]);
+  const pend = state.projects.find((p) => p.kind === 'univMerge' && p.status === 'building' && (p.target === u.orig || p.members.includes(u.orig)));
+  if (pend) return `<h4>통합 이전</h4><p class="hint">${esc(pend.label)} · ${pend.doneYear}년 완료 예정</p>`;
+  const cand = univList().filter((x) => !x.isNew && x.orig !== u.orig && !state.univMoved?.[x.orig] && !Object.values(state.univMoved || {}).includes(x.orig)
+    && regionOf(state, zoneProps[x.zone]) === r).sort((a, b) => kmBetween(u.lon, u.lat, a.lon, a.lat) - kmBetween(u.lon, u.lat, b.lon, b.lat)).slice(0, 40);
+  if (!cand.length) return '';
+  const def = `${stem(r.replace(/(특별자치시|특별자치도|광역시|특별시|직할시|시|도)$/, '')) || stem(zoneName(u.zone))}대학교`;
+  const kp = u.country === 'KP' ? KP_COST_FACTOR * 0.6 : 1;
+  return `<h4>통합 이전</h4><p class="hint">${esc(r)} 안의 다른 대학을 골라 이 대학 자리로 옮겨 한 대학으로 합칩니다 (남측 국립대처럼 단과대학이 한 캠퍼스에). 정원은 더하고, 옮긴 대학의 교육 효과도 이 자리로 옵니다 · 대학마다 ${formatWon(Math.round(UNIV_MERGE.perCampus * kp))} · ${UNIV_MERGE.years}년</p>
+    <div class="list" style="max-height:180px;overflow:auto">${cand.map((x) => `<label class="item" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-merge-univ="${esc(x.orig)}"><span class="t" style="flex:1">${esc(x.name)}</span><span class="m">${esc(zoneName(x.zone))} · ${kmBetween(u.lon, u.lat, x.lon, x.lat).toFixed(0)}km</span></label>`).join('')}</div>
+    <div class="name-row"><span class="kind">새 이름</span><input type="text" id="univ-merge-name" value="${esc(def)}"><button class="small primary" data-univ-merge="${esc(u.orig)}">통합 이전</button></div>`;
+}
+
 export function bindUnivPanel(el) {
+  el.querySelector('[data-univ-merge]')?.addEventListener('click', (e) => {
+    const target = e.currentTarget.dataset.univMerge, members = [...el.querySelectorAll('[data-merge-univ]:checked')].map((x) => x.dataset.mergeUniv);
+    const name = el.querySelector('#univ-merge-name').value.trim(), u = univList().find((x) => x.orig === target);
+    if (!members.length) { alert('합칠 대학을 고르세요.'); return; }
+    if (!name) { alert('새 이름을 정하세요.'); return; }
+    const cost = Math.round(UNIV_MERGE.perCampus * (u.country === 'KP' ? KP_COST_FACTOR * 0.6 : 1) * members.length);
+    if (!canAfford(state, cost, UNIV_MERGE.years)) { alert('예산과 차입 한도가 부족합니다.'); return; }
+    if (!confirm(`${members.length}개 대학을 ${u.name} 자리로 옮겨 ${name}(으)로 합칠까요? ${formatWon(cost)}, ${UNIV_MERGE.years}년`)) return;
+    startProject(state, { id: crypto.randomUUID(), kind: 'univMerge', target, members, name, links: [], stations: [], cost, years: UNIV_MERGE.years, label: `${name} 통합 이전 (${u.name} 자리로 ${members.length}개 대학)` });
+    save(state); renderAll();
+  });
   el.querySelector('#univ-fund')?.addEventListener('change', (e) => {
     const k = e.target.dataset.key, v = Math.max(0, Math.round(+e.target.value || 0));
     delete state.univFundUntil?.[k];
@@ -320,9 +354,19 @@ export function settleUniv(done) {
       const z = univs.find((u) => u.n === key)?.z;
       if (z != null) state.happyBonus[z] = (state.happyBonus[z] || 0) + UNIV_RENAME.bonus;
       state.log.unshift(`${state.year}년 대학 개칭 완료: ${p.label.replace(/ 개칭$/, '')}`);
+    } else if (p.kind === 'univMerge') {
+      (state.univNames ||= {})[p.target] = p.name;
+      for (const m of p.members) { (state.univMoved ||= {})[m] = p.target; state.univNames[m] = p.name; }
+      // 평판·재정 투입은 본교 것을 잇는다 (합친 대학들 가운데 가장 높은 평판)
+      const fam = (n) => n.split(' ')[0], key = `m:${p.target}`, S = state.univScore || {};
+      const best = Math.max(...[p.target, ...p.members].map((n) => S[fam(n)] ?? -1));
+      if (best >= 0) (state.univScore ||= {})[key] = best;
+      const z = univs.find((x) => x.n === p.target)?.z;
+      if (z != null) state.happyBonus[z] = (state.happyBonus[z] || 0) + UNIV_MERGE.bonus;
+      state.log.unshift(`${state.year}년 ${p.name} 통합 이전 완료: ${p.members.length + 1}개 대학이 한 캠퍼스로`);
     }
   }
-  if (done.some((p) => p.kind === 'univ' || p.kind === 'univRename')) drawUnivs();
+  if (done.some((p) => p.kind === 'univ' || p.kind === 'univRename' || p.kind === 'univMerge')) drawUnivs();
 }
 
 /**

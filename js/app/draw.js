@@ -1,6 +1,6 @@
 // 신설 노선 그리기와 둘레 인구.
 import { AIRPORT, formatWon } from '../game/catalog.js';
-import { effectiveNetwork, linkAt, linksUnderWork, NEW_BUILDS, save, startAirport } from '../game/state.js';
+import { effectiveNetwork, linkAt, linksUnderBuild, NEW_BUILDS, save, startAirport } from '../game/state.js';
 import { loadTerrain } from '../game/terrain.js';
 import { t } from '../i18n.js';
 import { kmBetween } from '../sim/model.js';
@@ -157,7 +157,7 @@ export function nearestOnLink(lngLat, mode, maxPx, filter = null) {
   // 철도만 보기에서는 rails·metro가 숨고 혼잡도 색 rails-vc·metro-vc가 그려진다: 그 층에서도 찾는다 (예전에는 '이 노선에 역 신설'이 안 됐다)
   const layers = (mode === 0 ? ['roads', 'roads-minor', 'roads-motorway', 'roads-casing'] : mode === 1 ? ['rails', 'rails-vc'] : ['metro', 'metro-vc']).filter((id) => map.getLayer(id));
   const box = [[p.x - maxPx, p.y - maxPx], [p.x + maxPx, p.y + maxPx]];
-  const work = linksUnderWork(state);
+  const work = linksUnderBuild(state);   // 개량 공사 중인 구간에는 이어 붙일 수 있다 (나누면 그 사업이 두 구간을 이어받는다)
   let best = null;
   for (const f of map.queryRenderedFeatures(box, { layers })) {
     const id = f.properties.id;
