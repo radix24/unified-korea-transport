@@ -4,7 +4,7 @@ import { hasAutonomy, PARTIES, partySupport, regionOf } from '../game/local.js';
 import { MEGA } from '../game/mega.js';
 import { operatorOf } from '../game/operators.js';
 import { canAfford, isKP, linkAt, NEW_BUILDS, save } from '../game/state.js';
-import { terrainReady, terrainRule } from '../game/terrain.js';
+import { loadTerrain, terrainReady, terrainRule } from '../game/terrain.js';
 import { LANG, t } from '../i18n.js';
 import { getGuideMode, guideShouldAutoShow, startGuide } from '../ui/guide.js';
 import { LAYER_VIEWS, legendHTML, metricLevel, METRICS, setBasemap, setHousing, setHousingVisible, setLayerView, setRegions } from '../ui/map.js';
@@ -493,6 +493,7 @@ export function renderBuild() {
     const { km, cost, years, foreignKm, terrain, lims } = draftCost();
     const slow = lims.filter((x) => x.v < spec.attrs.speed), minR = Math.min(...lims.map((x) => x.r));
     const tRule = terrainRule(draft.type);
+    if (tRule && !terrainReady()) loadTerrain().then((t) => { if (t && draft) renderBuild(); });   // 아직 못 받았으면 다시 받아 단추를 켠다
     // 철도 신설은 운영사 자체 재원으로도 지을 수 있다 (찍은 점 대부분이 북측이면 KPRail)
     const draftOp = spec.mode === 1 ? operatorOf(state, { mode: 1, kp: draft.points.filter((p) => isKP(p.lat, p.lon)).length * 2 > draft.points.length ? 1 : 0 }) : null;
     const draftFund = draftOp && state.rail.fund === 'op' ? draftOp : 'gov';

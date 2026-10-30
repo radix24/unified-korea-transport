@@ -10,11 +10,11 @@ export function loadTerrain() {
     fetch('data/terrain.json').then((r) => (r.ok ? r.json() : null)),
     fetch('data/terrain.bin').then((r) => (r.ok ? r.arrayBuffer() : null)),
   ]).then(([meta, buf]) => {
-    if (!meta || !buf) return null;
+    if (!meta || !buf) { loading = null; return null; }   // 받지 못했으면 다음에 다시 받는다 (한 번 실패하면 지형 따라 그리기가 계속 꺼져 있었다)
     const n = meta.rows * meta.cols;
     T = { ...meta, elev: new Int16Array(buf, 0, n), rough: new Uint8Array(buf, n * 2, n) };
     return T;
-  }).catch(() => null);
+  }).catch(() => { loading = null; return null; });
   return loading;
 }
 
@@ -42,7 +42,7 @@ const RULES = {
 };
 export function terrainRule(type) {
   // 도시철도·대심도 광역급행철도·해저터널은 땅 밑이라 지형을 보지 않는다
-  return { hsr: RULES.hsr, rail: RULES.conv, rail1: RULES.conv, motorway: RULES.motorway, trunk: RULES.road }[type] || null;
+  return { hsr: RULES.hsr, hsr350: RULES.hsr, rail: RULES.conv, rail1: RULES.conv, motorway: RULES.motorway, trunk: RULES.road }[type] || null;
 }
 
 /** 공사비 배율: 평지만 지나면 평균 단가보다 싸고(0.85), 터널·깎기·교량·바다 위 구간 비율만큼 비싸진다 */

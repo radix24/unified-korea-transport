@@ -71,16 +71,21 @@ export function resolveWaypoint([name, lon, lat], mode, motorwayEnd = false) {
  * 아니면 계획 이름에서 구간·단계·사업 꼬리를 뗀다: 경의고속철도 (서울–평양) → 경의고속철도, 수원 도시철도 1호선 2단계 (정자–군포시청) → 수원 도시철도 1호선,
  * 금강산선 복원 (철원–내금강) → 금강산선, 경의고속철도 북측 (평양–신의주) → 경의고속철도, 경부고속선 수색–서울–광명 (지하) → 경부고속선
  */
-export function planLineName(plan) {
+export function planLineName(plan, { old = false } = {}) {
   if (plan.line || plan.lineName) return plan.line || plan.lineName;
-  if (plan.retireLine?.length === 1) return plan.retireLine[0];
   let n = plan.name.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+  // 옛 노선을 걷어 내는 계획은 그 노선 이름을 잇는다(충북선 고속화 → 충북선). 걷어 내지 않는 고속화는 옛 노선 곁의 새 노선: ○○신선 (태백·영동선 고속화 → 태백·영동신선).
+  // 현대화는 제자리 개량이라 늘 원래 이름 (무산선 현대화 → 무산선)
+  if (plan.retireLine?.length === 1) return plan.retireLine[0];
+  const fast = /\s고속화$/.test(n) && !plan.retireLine?.length;
   for (let k = 0; k < 3; k++) {
     const was = n;
     n = n.replace(/\s+\d+단계$/, '').replace(/\s+(\S+\s+)?연장$/, '').replace(/\s+(남북 연결 )?(복원|현대화|고속화)$/, '')
       .replace(/\s+(북측|대륙 직결|국경 구간)$/, '').replace(/\s+[^\s–]+(–[^\s–]+)+$/, '');
     if (n === was) break;
   }
+  // old: 0.5.8에서 붙였던 이름 (옛 노선 이름 그대로)
+  if (fast && !old && /[^신]선$/.test(n)) n = n.replace(/선$/, '신선');
   return n || plan.name;
 }
 
@@ -90,10 +95,15 @@ export function migratePlanLines() {
   for (const p of state.projects) {
     const pl = p.plan && plans.find((x) => x.id === p.plan);
     if (!pl) continue;
-    const to = planLineName(pl);
+    const to = planLineName(pl), was = planLineName(pl, { old: true });
     if (to === pl.name) continue;
     for (const l of state.newLinks) if (l.name === pl.name) l.name = to;
     for (const sv of state.services || []) if (sv.line === pl.name) sv.line = to;
+    // 0.5.8 저장: 고속화 새 선로를 옛 노선 이름(충북선)으로 불렀다. 이 사업이 놓은 선로만 ○○신선으로
+    if (was !== to) {
+      const mine = new Set(p.links || []), B = base.links.length;
+      for (const id of mine) { const l = state.newLinks[id - B]; if (id >= B && l?.name === was) l.name = to; }
+    }
   }
 }
 
