@@ -17,7 +17,7 @@ import { gains } from './year.js';
 import { admin, adminCache, splitUnits, subNeighbors, subRegion, unitOfficeKey, unitPick, unitPop, unitRepZone } from './region.js';
 import { stationRiders } from './svc.js';
 import { countyRep, countyZones, mayorKey } from './election.js';
-import { edgeLines, guEdit, guOfSub, guUnits, unitZones } from './bungu.js';
+import { edgeLines, guEdit, guOfSub, unitZones } from './bungu.js';
 import { drawGuMetric, GU_METRIC, GU_POP, officeParty, partyValue } from './firstyear.js';
 import { effectiveGrid, inRing } from './housing.js';
 import { extraOf, extraSubs, extrasOfParent, riPopOf, subXY } from './risplit.js';
@@ -772,7 +772,7 @@ export function paintZones() {
   // 구 색을 칠하는 존: 구 모양(guUnits)은 그 시군의 모든 존을 덮으므로 시군 색도 그 모든 존에서 지운다
   // (분구 단위 존만 지우면 편입해 온 존 등은 시군 색 위에 구 색이 겹쳐 진하게 보였다)
   const guZ = GU_METRIC[metric] || GU_POP[metric] ? new Set(Object.entries(state.local?.bungu || {}).filter(([, b]) => !b.general || GU_POP[metric])
-    .flatMap(([u]) => [...new Set(unitZones(u).map((z) => countyRep(z)))].filter((r) => guUnits.get(r)?.length > 0).flatMap((r) => countyZones(r)))) : null;
+    .flatMap(([u]) => [...new Set(unitZones(u).map((z) => countyRep(z)))].flatMap((r) => countyZones(r)))) : null;   // 자세한 경계가 아직 없어도 drawGuMetric이 읍면동 모양으로 칠한다
   const vals = new Array(zoneProps.length).fill(null), mixedZ = admin()?.mixed;
   for (let i = 0; i < zoneProps.length; i++) {
     let v = null;

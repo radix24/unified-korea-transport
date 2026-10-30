@@ -8,14 +8,14 @@ import { guideShouldAutoShow } from '../ui/guide.js';
 import { colorFor, refreshNames } from '../ui/map.js';
 import { GOALS } from '../ui/report.js';
 import { openAdminSetup } from '../ui/setup.js';
-import { draft, esc, historic, map, metric, namer, result, state, subPop0, zoneProps } from './core.js';
+import { draft, esc, historic, map, metric, namer, result, state, subPop0, subsFC, zoneProps } from './core.js';
 import { resetNamer } from './sez.js';
 import { paintZones, refreshPoints } from './mapdata.js';
 import { admin, adminInvalidate } from './region.js';
 import { drawUnivs, univList, univPersonRename, univs } from './univ.js';
 import { renderAll, showGuide } from './panels.js';
 import { countyRep, countyZones, guKey, holdElection, mayorKey, officeLine, regions, supportHTML, syncMayors } from './election.js';
-import { guSubs, guUnits, loadGuUnits, unitZones } from './bungu.js';
+import { guOfSub, guSubs, guUnits, loadGuUnits, unitZones } from './bungu.js';
 
 // ------------------------------------------------------------ 통일 첫해 행정구역 정리 (게임 시작 창)
 
@@ -172,6 +172,15 @@ export const GU_METRIC = { partyMayor: officeParty, voteMayor: (o) => pShare(o),
 /** 구마다 칠하는 인구 지표 (구의 읍면동 인구로): 일반구도 (예전에는 광역시 승격 뒤 분구해도 시군구 인구가 광역시 전체로 나왔다) */
 export const GU_POP = { pop: (p) => p, popChange: (p, p0) => p / Math.max(p0, 1) - 1 };
 export var guMetricLoading = false;
+/** 계산용 읍면동 모양의 구 조각 (자세한 경계를 받기 전 대신) */
+function coarseGuUnits(r) {
+  const out = [];
+  for (const z of countyZones(r)) zoneProps[z].subs.forEach((_, k) => {
+    const i = zoneProps[z].sub0 + k, gu = guOfSub(i), g = gu && subsFC?.features[i]?.geometry;
+    if (g) out.push({ gu, polys: g.type === 'Polygon' ? [g.coordinates] : g.coordinates, sub: i, z });
+  });
+  return out;
+}
 export function drawGuMetric() {
   if (!map?.getSource('zones')) return;
   if (!map.getSource('gu-metric')) {
@@ -188,8 +197,9 @@ export function drawGuMetric() {
         if (drawn.has(r)) continue;   // 한 시군을 두 분구 단위가 가리키면 두 번 칠해 진해졌다
         drawn.add(r);
         if (countyZones(r).some((z) => admin()?.mixed.has(z))) continue;   // 소속이 바뀐 존은 읍면동 단위 색칠(drawAdminFill)이 맡는다
-        const us = guUnits.get(r);
-        if (!us) { missing = true; continue; }
+        // 자세한 경계 조각을 아직 못 받았으면 계산용 읍면동 모양으로 먼저 칠한다 (받는 동안 구 색이 빠지고 시 하나로 칠해졌다)
+        let us = guUnits.get(r);
+        if (!us?.length) { missing ||= !us; us = coarseGuUnits(r); }
         const popOf = new Map();
         if (fp) for (const g of new Set(us.map((u) => u.gu))) { const ss = guSubs(r, g); popOf.set(g, fp(ss.reduce((t, i) => t + result.subs.pop[i], 0), ss.reduce((t, i) => t + (subPop0[i] || 0), 0))); }
         for (const u of us) {
@@ -199,12 +209,16 @@ export function drawGuMetric() {
       }
     }
     if (missing && !guMetricLoading) {
+      // 화면에 든 곳 가운데 자세한 경계를 아직 못 받은 대표 존만 받는다 (이미 받은 곳을 다시 받고 다시 칠하기를 되풀이하지 않게)
       const b = map.getBounds(), inView = new Set();
-      for (const u of Object.keys(state.local.bungu)) for (const z of unitZones(u)) if (zoneProps[z].subs.some(([x, y]) => x >= b.getWest() && x <= b.getEast() && y >= b.getSouth() && y <= b.getNorth())) inView.add(countyRep(z));
+      for (const u of Object.keys(state.local.bungu)) for (const z of unitZones(u)) {
+        const r = countyRep(z);
+        if (!guUnits.has(r) && zoneProps[z].subs.some(([x, y]) => x >= b.getWest() && x <= b.getEast() && y >= b.getSouth() && y <= b.getNorth())) inView.add(r);
+      }
       if (inView.size) {
         guMetricLoading = true;
-        const before = guUnits.size;
-        loadGuUnits(inView).then(() => { guMetricLoading = false; if (guUnits.size !== before && result) paintZones(); });
+        // 끝나면 다시 칠한다: 받는 동안 새로 분구한 곳은 그 다시 칠하기에서 받는다 (예전에는 받던 묶음에 없던 곳을 다시 챙기지 않았다)
+        loadGuUnits(inView).catch(() => {}).then(() => { guMetricLoading = false; if (result && [...inView].some((r) => guUnits.has(r))) paintZones(); });
       }
     }
   }
