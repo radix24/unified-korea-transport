@@ -66,12 +66,34 @@ export function resolveWaypoint([name, lon, lat], mode, motorwayEnd = false) {
 }
 
 /** 예전 저장: 복원 사업 구간이 계획 이름으로 따로 놓였으면 이어지는 노선 이름으로 바꾼다 (계통이 경의선 → 평부선처럼 이어지게) */
+/**
+ * 계획의 노선 이름: 사업 이름(계획 이름)과 따로. 기존 노선을 잇는 계획은 그 노선, 옛 노선을 대신하면 그 노선,
+ * 아니면 계획 이름에서 구간·단계·사업 꼬리를 뗀다: 경의고속철도 (서울–평양) → 경의고속철도, 수원 도시철도 1호선 2단계 (정자–군포시청) → 수원 도시철도 1호선,
+ * 금강산선 복원 (철원–내금강) → 금강산선, 경의고속철도 북측 (평양–신의주) → 경의고속철도, 경부고속선 수색–서울–광명 (지하) → 경부고속선
+ */
+export function planLineName(plan) {
+  if (plan.line || plan.lineName) return plan.line || plan.lineName;
+  if (plan.retireLine?.length === 1) return plan.retireLine[0];
+  let n = plan.name.replace(/\s*\([^)]*\)\s*/g, ' ').trim();
+  for (let k = 0; k < 3; k++) {
+    const was = n;
+    n = n.replace(/\s+\d+단계$/, '').replace(/\s+(\S+\s+)?연장$/, '').replace(/\s+(남북 연결 )?(복원|현대화|고속화)$/, '')
+      .replace(/\s+(북측|대륙 직결|국경 구간)$/, '').replace(/\s+[^\s–]+(–[^\s–]+)+$/, '');
+    if (n === was) break;
+  }
+  return n || plan.name;
+}
+
+/** 예전 저장: 계획 이름이 그대로 노선 이름이 된 선로를 노선 이름으로 (경의고속철도 (서울–평양) → 경의고속철도). 운행 계통도 */
 export function migratePlanLines() {
   if (!state) return;
   for (const p of state.projects) {
     const pl = p.plan && plans.find((x) => x.id === p.plan);
-    if (!pl?.line) continue;
-    for (const l of state.newLinks) if (l.name === pl.name) l.name = pl.line;
+    if (!pl) continue;
+    const to = planLineName(pl);
+    if (to === pl.name) continue;
+    for (const l of state.newLinks) if (l.name === pl.name) l.name = to;
+    for (const sv of state.services || []) if (sv.line === pl.name) sv.line = to;
   }
 }
 
@@ -122,7 +144,7 @@ export function openPlan(id) {
   if (oldStops) draft.recNote = `옛 ${plan.retireLine.join('·')} 역 ${oldStops}곳을 새 노선의 역으로 넣었습니다. 완공 때 옛 선로를 걷어 내도 이 역들의 여객 영업이 이어집니다. 서지 않을 역은 '통과'로 바꾸세요.`;
   // 복원 사업처럼 기존 노선을 잇는 계획은 그 노선 이름을 이어 쓴다 (사업 이름은 계획 이름).
   // 옛 노선을 대신하는 계획도 그 노선 이름을 잇는다 (황해청년선 현대화 → 황해청년선: 계획 이름이 노선 이름이 되어 옛 노선이 사라진 것처럼 보였다)
-  draft.lineName = plan.line || plan.lineName || (plan.retireLine?.length === 1 ? plan.retireLine[0] : plan.name);
+  draft.lineName = planLineName(plan);
   draft.lineNameEdited = true;
   if (plan.line) draft.extendOf = plan.line;
   if (draft.lineName !== plan.name) draft.planTitle = plan.name;
