@@ -282,28 +282,38 @@ export function regionOf(state, z) {
   // 통일 뒤 남북에 강원이 둘이므로 북측 강원도는 늘 강원북도 (남측은 강원특별자치도, 도 복원 뒤에는 강원남도)
   if (side === 'KP' && r === '강원도') r = '강원북도';
   const out = A.dueum === 'apply' && side === 'KP' ? dueum(r) : r;
-  return reorgRegion(L, z, L.renamedRegions?.[out] || out);   // 평양시 → 평양광역시처럼 이름만 바꾼 단체
+  return reorgRegion(L, z, L.renamedRegions?.[out] || out, annexed);   // 평양시 → 평양광역시처럼 이름만 바꾼 단체
 }
 
 /**
- * 광역 행정구역 개편 (해마다 고를 수 있다, L.regionReorg): 강원 통합(강원특별자치도·강원북도 → 강원도),
- * 전북특별자치도 → 전라북도, 전남광주통합특별시 → 전라남도 + 광주광역시(통합시의 구 다섯 곳)
+ * 광역 행정구역 개편 (해마다 고를 수 있다, L.regionReorg): 강원 통합(강원특별자치도·강원북도 → 강원도), 강원특별자치도 → 강원남도,
+ * 원산 일대(원산·천내·문천·안변·고산·법동) 함경남도 환원, 라선시 함경북도 환원, 전북특별자치도 → 전라북도,
+ * 전남광주통합특별시 → 전라남도 + 광주광역시(통합시의 구 다섯 곳)
  */
 export const REGION_REORG = {
   gangwon: { label: '강원도로 통합', from: ['강원특별자치도', '강원북도', '강원남도'], to: '강원도' },
+  gangwonNam: { label: '강원남도로 이름 변경', from: ['강원특별자치도'], to: '강원남도' },
+  // 1946년 북측이 강원도로 옮기기 전에는 함경남도 땅이었다 (이북5도위원회는 지금도 함경남도로 본다)
+  hamnam: { label: '원산 일대 함경남도 환원', from: ['강원북도', '강원도'], to: '함경남도', zones: ['원산시', '천내군', '문천시', '안변군', '고산군', '법동군'] },
+  rason: { label: '라선시 함경북도 환원', from: ['라선시', '나선시', '라선광역시', '나선광역시'], to: '함경북도' },
   jeonbuk: { label: '전라북도로 이름 변경', from: ['전북특별자치도'], to: '전라북도' },
   gwangju: { label: '전라남도·광주광역시로 분리', from: ['전남광주통합특별시'], to: '전라남도', split: '광주광역시' },
 };
-function reorgRegion(L, z, r) {
+function reorgRegion(L, z, r, annexed = false) {
   const R = L.regionReorg;
   if (!R) return r;
   for (const [k, o] of Object.entries(REGION_REORG)) {
     if (!R[k] || !o.from.includes(r)) continue;
+    // 원산 일대: 그 시군만 (편입해 온 시군은 그대로). 나머지 강원은 다음 개편으로
+    if (o.zones) { if (!annexed && z.country === 'KP' && o.zones.includes(z.name)) return o.to; continue; }
     // 광주: 통합특별시가 된 옛 광주광역시의 구 (광산구·남구·동구·북구·서구). 그 밖은 전라남도
-    return o.split && z.province === '전남광주통합특별시' && /구$/.test(z.name) ? o.split : o.to;
+    r = o.split && z.province === '전남광주통합특별시' && /구$/.test(z.name) ? o.split : o.to;
   }
   return r;
 }
+
+/** 함흥시 월경지(래일로동자구) 정리: 사이의 군을 함흥시에 편입한다 (L.regionReorg.hamheung) */
+export const HAMHEUNG_ENCLAVE = { label: '함흥시 월경지 정리', city: '함흥시', zones: ['영광군', '함주군', '대흥군'], exclave: '래일로동자구' };
 
 /** 북측 직할시(독립시): 이름을 ○○광역시로 바꿀 수 있다 */
 export const KP_DIRECT_CITIES = ['평양시', '남포시', '개성시', '라선시'];

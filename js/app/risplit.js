@@ -7,7 +7,7 @@
 // - 떼어 낸 리는 state.local.riSplit(법정리 코드, 뗀 순서)에 남는다. 다시 열면 같은 순서로 다시 뗀다.
 import { grid, map, result, setGridSent, setSubPop0, state, subsFC, worker, zoneProps } from './core.js';
 import { inRing, resetGridEff, housingPartsMemo, effectiveGrid } from './housing.js';
-import { krRiReady, loadRiFiles, riCodeMap, riFeat, subInfo } from './mapdata.js';
+import { krRi, krRiReady, loadRiFiles, riCodeMap, riFeat, subInfo } from './mapdata.js';
 import { adminInvalidate, subNbCache } from './region.js';
 import { ctx } from './year.js';
 import { setBusy } from './panels.js';
@@ -30,6 +30,18 @@ export function extrasOfZone(z) { return extraSubs.filter((e) => e.zone === z).m
 export function extrasOfParent(p) { return extraSubs.filter((e) => e.parent === p); }
 /** 법정리 코드 → 떼어 낸 소구역 번호 (안 뗐으면 -1) */
 export function splitSubOf(code) { return extraSubs.find((e) => e.code === code)?.g ?? -1; }
+/**
+ * 테두리를 그릴 소구역 모양: 리를 떼어 낸 읍면은 자료 모양이 뗀 리를 그대로 덮으므로 남은 법정리 경계들로 (받아 둔 리 경계가 모자라면 자료 모양)
+ * @returns {object[]} GeoJSON 도형들
+ */
+export function subOutlineGeoms(i) {
+  const g = subsFC?.features[i]?.geometry;
+  if (!extrasOfParent(i).length || !krRi?.[i]?.length) return g ? [g] : [];
+  const rest = krRi[i].map((r) => r[2]).filter((code) => splitSubOf(code) < 0).map((code) => riFeat.get(code)?.geometry);
+  return rest.length && rest.every(Boolean) ? rest : g ? [g] : [];
+}
+/** 리를 떼어 낸 읍면 (테두리를 따로 그려야 한다) */
+export const hasSplitRi = (i) => extrasOfParent(i).length > 0;
 /** 소구역 중심 [경도, 위도] (자료 소구역은 zones.json, 떼어 낸 리는 경계 가운데) */
 export function subXY(i) {
   const e = extraOf(i);

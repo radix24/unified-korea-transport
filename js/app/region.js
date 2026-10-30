@@ -14,8 +14,9 @@ import { drawAdmin, krRi, riAt, riCodeMap, riFeat, subInfo } from './mapdata.js'
 import { select } from './interact.js';
 import { fmtPop, renderAll } from './panels.js';
 import { countyRep, countyRepCache, countyRepFresh, setCountyRepFresh, syncMayors, zoneGus } from './election.js';
-import { guNamesOfZone, isGeneralGu, payEvent, pruneBungu, subAdjacency, unitZones } from './bungu.js';
+import { guNamesOfZone, guOfSub, isGeneralGu, payEvent, pruneBungu, subAdjacency, unitZones } from './bungu.js';
 import { endHousingPick, inRing } from './housing.js';
+import { header } from './svcmap.js';
 import { extraOf, extraSubs, extrasOfParent, extrasOfZone, padSubsFC, splitRi } from './risplit.js';
 
 // ---- 읍면동 단위 광역시 편입 (state.local.annexSub: '도|시군|읍면동' → 광역시)
@@ -618,7 +619,67 @@ export function hallList() {
     // 실제 구청이 지도 자료에 있는 일반구(수원시 장안구청 등)는 그 자리 그대로: 인구 중심에 또 찍지 않는다
     for (const [g, e] of best) if (!out.some((h) => h.name.endsWith(`${g}청`) && kmBetween(h.lon, h.lat, e.lon, e.lat) < 15)) out.push({ name: `${g}청`, kind: 'gu', lon: e.lon, lat: e.lat });
   }
+  // 도시 개발 사업으로 지은 정부 청사 (정부부산지방합동청사·평양정부청사)
+  for (const g of state.govHalls || []) out.push({ name: g.name, kind: 'gov', lon: g.lon, lat: g.lat });
+  // 옮긴 청사 (청사 이전): 청사 이름으로 찾는다
+  const mv = L.hallMove || {};
+  for (const h of out) if (mv[h.name]) { h.from = [h.lon, h.lat]; [h.lon, h.lat] = mv[h.name]; }
   return out;
+}
+
+// ---- 청사 이전: 청사를 누르면 창이 뜨고, '이전'을 누른 뒤 지도에서 새 자리를 누른다. 같은 광역 단체(도청)·시군(시군청)·구(구청) 안이어야 한다
+export const HALL_MOVE_COST = { do: 3000, gov: 1000, si: 500, gun: 500, gu: 300 };   // 억원 (새 청사 짓기)
+const HALL_KIND = { do: '도청·광역시청', gov: '정부 청사', si: '시청', gun: '군청', gu: '구청' };
+export function hallByName(name) { return hallList().find((h) => h.name === name) || null; }
+/** 청사가 선 자리의 소속 (옮길 수 있는 범위): 광역 단체, 시군, 구 */
+function hallPlace(lon, lat) {
+  const i = subAtLngLat({ lng: lon, lat });
+  return i < 0 ? null : { i, region: subRegion(i), unit: subUnit(i), gu: guOfSub(i) || null };
+}
+
+export function hallPanel(name) {
+  const h = hallByName(name);
+  if (!h) return `${header(name)}<p class="hint">청사를 찾지 못했습니다.</p>`;
+  const p = hallPlace(h.lon, h.lat), cost = HALL_MOVE_COST[h.kind] ?? 500;
+  const moved = state.local?.hallMove?.[name];
+  return `${header(name)}
+    <table class="kv">
+      <tr><td>구분</td><td>${HALL_KIND[h.kind] || '청사'}</td></tr>
+      ${p ? `<tr><td>소재지</td><td>${esc(p.region)} ${esc(unitName(p.unit))}${p.gu ? ` ${esc(p.gu)}` : ''} ${esc(subName(p.i))}</td></tr>` : ''}
+      ${moved ? `<tr><td>이전</td><td>${moved[2] || ''}${moved[2] ? '년 ' : ''}새 청사로 옮김</td></tr>` : ''}
+    </table>
+    <div class="actions"><button class="small primary" data-hall-move="${esc(name)}">청사 이전 · ${formatWon(cost)}</button></div>
+    <p class="hint">누른 뒤 지도에서 새 자리를 고릅니다. ${h.kind === 'do' || h.kind === 'gov' ? '같은 광역 단체' : h.kind === 'gu' ? '같은 구' : '같은 시군'} 안이어야 합니다.</p>`;
+}
+
+export var hallPick = null;   // {name}
+export function startHallMove(name) {
+  const h = hallByName(name);
+  if (!h) return;
+  hallPick = { name, kind: h.kind, at: hallPlace(h.from?.[0] ?? h.lon, h.from?.[1] ?? h.lat) || hallPlace(h.lon, h.lat) };
+  map.getCanvas().style.cursor = 'crosshair';
+  toast(`${name}을 옮길 자리를 지도에서 누르세요 (Esc: 취소).`);
+  const esc_ = (e) => { if (e.key === 'Escape') { hallPick = null; map.getCanvas().style.cursor = ''; document.removeEventListener('keydown', esc_); } };
+  document.addEventListener('keydown', esc_);
+}
+export function hallPickClick(ll) {
+  const pk = hallPick;
+  hallPick = null;
+  map.getCanvas().style.cursor = '';
+  const to = hallPlace(ll.lng, ll.lat), at = pk.at;
+  if (!to || !at || zoneProps[subInfo(to.i)[0]].ext) { toast('남북 땅 안을 누르세요.'); return; }
+  const wide = pk.kind === 'do' || pk.kind === 'gov';
+  const why = wide ? (to.region !== at.region ? `${at.region} 안이어야 합니다` : null)
+    : pk.kind === 'gu' ? (to.unit !== at.unit || to.gu !== at.gu ? `${at.gu || unitName(at.unit)} 안이어야 합니다` : null)
+      : to.unit !== at.unit ? `${unitName(at.unit)} 안이어야 합니다` : null;
+  if (why) { toast(`${pk.name}: ${why}.`); return; }
+  const cost = HALL_MOVE_COST[pk.kind] ?? 500;
+  if (!confirm(`${pk.name}을 ${subName(to.i)}(으)로 옮길까요? ${formatWon(cost)}`)) return;
+  if (!payEvent(cost)) return;
+  (state.local.hallMove ||= {})[pk.name] = [ll.lng, ll.lat, state.year];
+  state.log.unshift(`${state.year}년 ${pk.name} 이전: ${to.region} ${unitName(to.unit)} ${subName(to.i)}`);
+  save(state); drawHalls();
+  select({ type: 'hall', id: pk.name });
 }
 
 export let showHalls = true;

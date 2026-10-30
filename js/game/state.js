@@ -120,7 +120,7 @@ function netKey(state) {
   const osm = state.osm ? `${Object.keys(state.osm.opened || {}).length}:${Object.keys(state.osm.auto || {}).length}` : '';
   return JSON.stringify([state.year, state.projects.length, p, state.newNodes.length, state.newLinks.length, nl, state.overrides, osm, state.replaced ?? null,
     state.closedLines ?? null, state.lineFreq ?? null, state.newStations, (state.newAirports || []).map((a) => [a.id, !!a.built]), state.airportCap ?? null,
-    state.airportIntl ?? null, state.air?.routes ?? null, state.air?.banned ?? null, state.services ?? null, state.closedStations ?? null, state.transfers ?? null]);
+    state.airportIntl ?? null, state.airportClosed ?? null, state.air?.routes ?? null, state.air?.banned ?? null, state.services ?? null, state.closedStations ?? null, state.transfers ?? null]);
 }
 const netMemo = new WeakMap();   // state → {base, key, net}
 
@@ -156,7 +156,8 @@ function buildNetwork(base, state) {
   const stations = base.stations.map((s) => s[1])
     .concat((base.metro_stations || []).map((s) => s[1]), state.newStations);
   const airports = (base.airports || []).map((a) => ({ ...a, cap: state.airportCap?.[a.id] ?? a.cap }))
-    .concat((state.newAirports || []).filter((a) => a.built).map((a) => ({ ...a, cap: state.airportCap?.[a.id] ?? a.cap, intl: !!state.airportIntl?.[a.id] })));
+    .concat((state.newAirports || []).filter((a) => a.built).map((a) => ({ ...a, cap: state.airportCap?.[a.id] ?? a.cap, intl: !!state.airportIntl?.[a.id] })))
+    .filter((a) => !state.airportClosed?.[a.id]);   // 철거한 공항
   const airRoutes = Object.values(state.air?.routes || {}).map((r) => ({ a: r.a, b: r.b, freq: r.freq }));
   // 운행 계통(특급·급행·보통)은 실제 링크 뒤에 가상 링크로 붙는다
   const physCount = links.length;
@@ -925,6 +926,22 @@ export function startAirportExpand(state, airport) {
     id: crypto.randomUUID(), kind: 'airportExpand', airport: airport.id, newCap: airport.cap + AIRPORT.expand.cap, links: [],
     cost, years: AIRPORT.expand.years, label: `${airport.name} 확장 (연 ${airport.cap}→${airport.cap + AIRPORT.expand.cap}백만 명)`,
   });
+  return { ok: true };
+}
+
+/** 공항 철거 (억원): 활주로·터미널을 걷어 낸다. 그 공항의 노선은 모두 단항한다. 허브(인천)는 철거할 수 없다 */
+export const AIRPORT_REMOVE = { cost: 1500, kpCost: 800 };
+export function removeAirport(state, airport) {
+  if (!airport || airport.ext) return { ok: false, reason: '철거할 수 없는 공항입니다.' };
+  if (airport.hub) return { ok: false, reason: '허브 공항은 철거할 수 없습니다.' };
+  if (state.projects.some((p) => p.status === 'building' && p.airport === airport.id)) return { ok: false, reason: '공사 중인 공항입니다.' };
+  const cost = airport.country === 'KP' ? AIRPORT_REMOVE.kpCost : AIRPORT_REMOVE.cost;
+  if (!canAfford(state, cost, 1)) return { ok: false, reason: '예산과 차입 한도가 부족합니다.' };
+  pay(state, cost);
+  (state.airportClosed ||= {})[airport.id] = state.year;
+  let n = 0;
+  for (const [key, r] of Object.entries(state.air?.routes || {})) if (r.a === airport.id || r.b === airport.id) { delete state.air.routes[key]; n++; }
+  state.log.unshift(`${state.year}년 ${airport.name} 철거${n ? ` (노선 ${n}개 단항)` : ''}`);
   return { ok: true };
 }
 

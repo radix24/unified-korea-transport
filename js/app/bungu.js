@@ -5,7 +5,8 @@ import {
   adminNames, CITY_UP_MIN_POP, dueum, EVENT_COST, governorTitle, hasAutonomy, HISTORIC_CITIES, isMetroCity, metroName, promotedName, REGION_RENAMED, regionBase, regionOf,
   unitId,
 } from '../game/local.js';
-import { zoneDevHTML } from './zonedev.js';
+import { SPECIAL_DEV, specialZone, zoneDevHTML } from './zonedev.js';
+import { subOutlineGeoms } from './risplit.js';
 import { applyMega, kpACCost, kpDCLines, MEGA, megaGeometry, TSR_FREIGHT } from '../game/mega.js';
 import { canAfford, renameKPLines, save, startMega, startUpgrade } from '../game/state.js';
 import { t } from '../i18n.js';
@@ -992,9 +993,13 @@ export function drawSubsOutline(ids) {
     map.addSource('subs-outline', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     map.addLayer({ id: 'subs-outline', type: 'line', source: 'subs-outline', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#1f5fbf', 'line-width': 2.5 } });
   }
-  const items = ids.map((i) => subsFC?.features[i]?.geometry).filter(Boolean).map((g) => ({ key: 1, polys: g.type === 'Polygon' ? [g.coordinates] : g.coordinates }));
+  // 리를 떼어 낸 읍면은 남은 법정리 경계로 (자료 모양은 뗀 리까지 덮는다)
+  const geoms = ids.flatMap((i) => subOutlineGeoms(i)), mixed = geoms.length > ids.length;
+  const items = geoms.map((g) => ({ key: 1, polys: g.type === 'Polygon' ? [g.coordinates] : g.coordinates }));
+  // 법정리 경계는 이웃 읍면동과 꼭짓점이 조금씩 어긋나 안쪽에 짧은 토막(150m 안)이 남는다: 버린다
+  const len = (c) => c.reduce((t, q, k) => (k ? t + Math.hypot((q[0] - c[k - 1][0]) * 0.8, q[1] - c[k - 1][1]) : 0), 0);
   map.getSource('subs-outline').setData({ type: 'FeatureCollection',
-    features: (items.length ? edgeLines(items, 'outer') : []).map((c) => ({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: c } })) });
+    features: (items.length ? edgeLines(items, 'outer') : []).filter((c) => !mixed || len(c) > 0.0014).map((c) => ({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: c } })) });
 }
 
 export function drawGuSelection(sel) {
@@ -1191,7 +1196,14 @@ export function megaHTML() {
     const acInfo = m.id === 'kp-ac' ? (() => { const L = kpDCLines(base, state); return ` 남은 직류 구간 ${L.length}개 노선 ${Math.round(L.reduce((s0, g) => s0 + g.km, 0)).toLocaleString()}km.`; })() : '';
     return `<div class="item"><div class="t">${esc(m.name)} ${m.id === 'kp-ac' ? '' : `<button class="small" data-mega-show="${m.id}">선형 보기</button>`}</div>
       <div class="m">${esc(m.desc)}${m.id === 'tsr' ? ` 화물 수입 연 ${formatWon(TSR_FREIGHT)}.` : ''}${acInfo}</div><div class="row" style="display:flex;gap:4px;flex-wrap:wrap">${status}</div></div>`;
-  }).join('')}${kpStdAllHTML()}</div>`;
+  }).join('')}${kpStdAllHTML()}</div>
+    <h4>대형 도시 개발</h4>
+    <p class="hint">정해진 자리의 도시 개발 사업입니다. 착공은 그 시군 창의 '도시 개발'에서 합니다.</p>
+    <div class="list">${Object.entries(SPECIAL_DEV).map(([k, D]) => {
+    const d = (state.zoneDev || []).find((x) => x.kind === k);
+    return `<div class="item"><div class="t">${esc(D.label)}</div><div class="m">${esc(D.desc)} · ${formatWon(D.cost)} · ${D.years}년</div>
+      <div class="row" style="display:flex;gap:4px;flex-wrap:wrap">${d ? (d.done ? '<span class="pos">완공</span>' : `공사 중 · ${d.year + D.years}년 완공 예정`) : ''}<button class="small" data-special-go="${k}">시군 창 열기</button></div></div>`;
+  }).join('')}</div>`;
 }
 
 /** 북측 철도 전체를 남측 규격으로 (노선 창의 '노선 일괄'을 북측 모든 노선에 한꺼번에) */
@@ -1229,6 +1241,14 @@ ${formatWon(k.cost)} · ${k.years}년 (해마다 ${formatWon(k.cost / k.years)})
     };
   });
   el.querySelectorAll('[data-mega-show]').forEach((b) => { b.onclick = () => showMegaLine(b.dataset.megaShow); });
+  el.querySelectorAll('[data-special-go]').forEach((b) => {
+    b.onclick = () => {
+      const z = specialZone(b.dataset.specialGo);
+      if (z < 0) return;
+      map.flyTo({ center: [zoneProps[z].cx, zoneProps[z].cy], zoom: Math.max(map.getZoom(), 11) });
+      select({ type: 'zone', id: z });
+    };
+  });
   el.querySelectorAll('[data-mega-prev]').forEach((b) => { b.onclick = () => previewMega(b.dataset.megaPrev); });
 }
 
@@ -1236,10 +1256,12 @@ ${formatWon(k.cost)} · ${k.years}년 (해마다 ${formatWon(k.cost / k.years)})
 export function showMegaLine(id) {
   const g = megaGeometry(base, id);
   if (!g) return;
-  const line = smoothSegments(g.coords.map(([lon, lat]) => ({ lon, lat }))).flatMap((seg, i) => (i ? seg.slice(1) : seg));
+  // 항만 개발은 항로가 여러 갈래 (multi)
+  const lines = (g.multi || [g.coords]).map((cs) => smoothSegments(cs.map(([lon, lat]) => ({ lon, lat }))).flatMap((seg, i) => (i ? seg.slice(1) : seg)));
+  const line = lines.flat();
   map.getSource('draft').setData({ type: 'FeatureCollection', features: [
-    { type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: line } },
-    ...[g.coords[0], g.coords[g.coords.length - 1]].map((c) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: c } })),
+    ...lines.map((c) => ({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: c } })),
+    ...(g.multi || [g.coords]).flatMap((cs) => [cs[0], cs[cs.length - 1]]).map((c) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: c } })),
   ] });
   const xs = line.map((c) => c[0]), ys = line.map((c) => c[1]);
   map.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding: 80, maxZoom: 10 });
@@ -1250,9 +1272,9 @@ export function previewMega(id) {
   const m = MEGA.find((x) => x.id === id);
   const g = id === 'kp-ac' ? { coords: [] } : showMegaLine(id);
   if (!m || !g) return;
-  const km = id === 'kj-tunnel' ? 230 : id === 'jeju-hsr' ? 167 : id === 'kp-ac' ? kpDCLines(base, state).reduce((s0, x) => s0 + x.km, 0) : polylineKm(g.coords);
+  const km = id === 'kj-tunnel' ? 230 : id === 'jeju-hsr' ? 167 : id === 'kp-ac' ? kpDCLines(base, state).reduce((s0, x) => s0 + x.km, 0) : g.multi ? g.multi.reduce((s0, cs) => s0 + polylineKm(cs), 0) : polylineKm(g.coords);
   runPreview(`${m.name} 미리보기`, (c) => applyMega(base, c, id),
-    { kind: 'mega', cost: m.cost, years: m.years, km, cls: 'hsr', mode: 1, plan: true, border: id === 'tsr' });
+    { kind: 'mega', cost: m.cost, years: m.years, km, cls: m.port ? 'ferry' : 'hsr', mode: m.port ? 0 : 1, plan: true, border: id === 'tsr' || !!m.port });
 }
 
 export function payEvent(cost) {

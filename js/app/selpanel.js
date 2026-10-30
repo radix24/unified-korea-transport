@@ -2,8 +2,8 @@
 import { airlinesHTML } from '../game/airlines.js';
 import { AIRPORT, formatWon, KP_COST_FACTOR } from '../game/catalog.js';
 import { placeIntroHTML } from '../game/cities.js';
-import { dueum, EVENT_COST, governorTitle, hasAutonomy, isMetroCity, KP_DIRECT_CITIES, PARTIES, partySupport, REGION_REORG, regionOf } from '../game/local.js';
-import { AIR, effectiveNetwork, IC_REMOVE_COST, load, RENAME, save, START_YEAR } from '../game/state.js';
+import { dueum, EVENT_COST, governorTitle, hasAutonomy, isMetroCity, HAMHEUNG_ENCLAVE, KP_DIRECT_CITIES, PARTIES, partySupport, REGION_REORG, regionOf } from '../game/local.js';
+import { AIR, AIRPORT_REMOVE, effectiveNetwork, IC_REMOVE_COST, load, RENAME, save, START_YEAR } from '../game/state.js';
 import { t } from '../i18n.js';
 import { routeKey } from '../sim/model.js';
 import { refreshNames } from '../ui/map.js';
@@ -193,23 +193,62 @@ export function bindLevelLinks(el) {
   el.querySelectorAll('[data-region-sel]').forEach((x) => { x.onclick = (e) => { e.preventDefault(); select({ type: 'region', id: x.dataset.regionSel }); }; });
 }
 
+/** 광역 행정구역 개편 비용·설명 */
+const REORG_COST = { jeonbuk: 'cityUp', gangwonNam: 'cityUp', hamnam: 'annex', rason: 'annex', hamheung: 'annex' };
+function reorgDesc(k, o, r) {
+  const L = state.local;
+  if (k === 'gangwon') return [`${L.historic ? '강원남도' : '강원특별자치도'}·강원북도 → ${o.to}`, `남북의 강원을 한 도로 합칩니다. 도지사를 새로 뽑습니다${L.regionReorg?.hamnam ? '' : ' (원산 일대를 함경남도로 돌리려면 아래 환원을 함께 고르세요)'}`];
+  if (k === 'gangwonNam') return [`${r} → ${o.to}`, '남측 강원을 강원남도로 부릅니다 (북측은 강원북도). 도지사는 그대로, 이름만 바꿉니다'];
+  if (k === 'hamnam') return [`${o.zones.join('·')} → ${o.to}`, '1946년 강원도로 옮기기 전의 함경남도로 돌립니다 (이북5도위원회 기준). 도지사는 그대로입니다'];
+  if (k === 'rason') return [`${r} → ${o.to} 라선시`, '직할시를 함경북도의 시로 돌립니다. 시장을 새로 뽑고, 나눈 구는 일반구가 됩니다'];
+  if (o.split) return [`${r} → ${o.to} + ${o.split}`, '통합특별시의 구 다섯 곳(광산·남·동·북·서구)은 광주광역시, 나머지 시군은 전라남도가 됩니다. 두 단체장을 새로 뽑습니다'];
+  return [`${r} → ${o.to}`, '단체장은 그대로, 이름만 바꿉니다'];
+}
+
+/** 함흥시 월경지 정리에 넣을 존 (아직 다른 곳에 가지 않은 영광·함주·대흥군), 함흥시 존 */
+function hamheungTargets() {
+  const H = HAMHEUNG_ENCLAVE, city = zoneProps.findIndex((z) => z.country === 'KP' && z.name === H.city);
+  if (city < 0 || state.local.regionReorg?.hamheung) return null;
+  const zs = zoneProps.map((_, j) => j).filter((j) => zoneProps[j].country === 'KP' && H.zones.includes(zoneProps[j].name));
+  return zs.length ? { city, zs } : null;
+}
+
 /** 광역 행정구역 개편 (REGION_REORG): 이름 변경은 단체장 그대로, 통합·분리는 새로 뽑는다 */
 export function regionReorg(k, from) {
-  const L = state.local, o = REGION_REORG[k];
-  if (!o || L.regionReorg?.[k]) return;
-  if (!confirm(`${o.label}할까요?`)) return;
-  if (!payEvent(k === 'jeonbuk' ? EVENT_COST.cityUp : EVENT_COST.independence)) return;
+  const L = state.local, o = REGION_REORG[k], H = k === 'hamheung' ? hamheungTargets() : null;
+  if (k === 'hamheung' ? !H : !o || L.regionReorg?.[k]) return;
+  if (!confirm(`${o?.label || HAMHEUNG_ENCLAVE.label}할까요?`)) return;
+  if (!payEvent(EVENT_COST[REORG_COST[k] || 'independence'])) return;
+  const had = o ? [...new Set(zoneProps.filter((z) => !z.ext).map((z) => regionOf(state, z)))].filter((r) => o.from.includes(r)) : [];   // 개편 전 이름 (기록용)
   (L.regionReorg ||= {})[k] = state.year;
+  if (H) {
+    // 세 군의 읍면을 모두 함흥시로 (월경지 래일로동자구가 본시와 이어진다). 군수 자리는 없어진다
+    const to = `z:${countyRep(H.city)}`;
+    for (const j of H.zs) zoneProps[j].subs.forEach((_, q) => setSubUnit(zoneProps[j].sub0 + q, to));
+    state.log.unshift(`${state.year}년 ${HAMHEUNG_ENCLAVE.label}: ${HAMHEUNG_ENCLAVE.zones.join('·')}을 함흥시에 편입 (월경지 ${HAMHEUNG_ENCLAVE.exclave}가 본시와 이어짐)`);
+    adminInvalidate();
+    pruneBungu(); syncGovernors(); syncMayors(); refreshNames(map); save(state); drawAdmin(); drawBungu();
+    renderAll();
+    return;
+  }
   if (!o.split && o.from.length === 1) {   // 이름만: 단체장·지지도를 옮긴다
     const off = L.offices[`g:${from}`];
     if (off) { L.offices[`g:${o.to}`] = { ...off, region: o.to, title: governorTitle(o.to) }; delete L.offices[`g:${from}`]; }
     for (const pr of L.proposals || []) { if (pr.office === `g:${from}`) pr.office = `g:${o.to}`; if (pr.region === from) pr.region = o.to; }
   }
   for (const f of o.from) if (L.support?.[f]) { for (const t of [o.to, o.split].filter(Boolean)) L.support[t] ||= L.support[f]; }
-  state.log.unshift(`${state.year}년 광역 행정구역 개편: ${o.split ? `${from}를 ${o.to}와 ${o.split}로 나눕니다` : `${o.from.join('·')} → ${o.to}`}`);
   adminInvalidate();
-  syncGovernors(); syncMayors(); refreshNames(map); save(state); drawAdmin();
-  setSelection({ type: 'region', id: o.to });
+  // 직할시에서 도의 시로: 나눈 자치구는 일반구로 (구청장을 시장이 임명)
+  if (k === 'rason') {
+    for (const [unit, b] of Object.entries(L.bungu || {})) {
+      const z = unitZones(unit)[0];
+      if (!b.general && !unit.startsWith('split:') && z != null && !isMetroCity(regionOf(state, zoneProps[z]))) b.general = true;
+    }
+    adminInvalidate();
+  }
+  state.log.unshift(`${state.year}년 광역 행정구역 개편: ${o.split ? `${from}를 ${o.to}와 ${o.split}로 나눕니다` : o.zones ? `${o.zones.join('·')}을 ${o.to}로 환원` : k === 'rason' ? `${from}를 ${o.to}로 환원` : `${had.join('·')} → ${o.to}`}`);
+  syncGovernors(); syncMayors(); refreshNames(map); save(state); drawAdmin(); drawBungu();
+  setSelection({ type: 'region', id: o.zones ? from : o.to });
   renderAll();
 }
 
@@ -274,9 +313,15 @@ export function regionPanel(r) {
     ${tot ? `<div class="m" style="margin-top:6px">정당 지지율 (이 광역 단체)</div>
     <div style="display:flex;height:12px;border-radius:3px;overflow:hidden;margin:3px 0">${rows.map(([k, v]) => `<span title="${esc(PARTIES[k].name)} ${(v * 100).toFixed(1)}%" style="width:${v * 100}%;background:${PARTIES[k].color}"></span>`).join('')}</div>
     <div class="m">${rows.map(([k, v]) => `${partyBadge(k)} ${(v * 100).toFixed(1)}%`).join(' ')}</div>` : ''}
-    ${Object.entries(REGION_REORG).filter(([k, o]) => !L.regionReorg?.[k] && o.from.includes(r)).map(([k, o]) => `<h4>광역 행정구역 개편</h4><div class="item"><div class="t">${esc(o.label)}: ${esc(o.split ? `${r} → ${o.to} + ${o.split}` : k === 'gangwon' ? `${L.historic ? '강원남도' : '강원특별자치도'}·강원북도 → ${o.to}` : `${r} → ${o.to}`)}</div>
-      <div class="m">${o.split ? '통합특별시의 구 다섯 곳(광산·남·동·북·서구)은 광주광역시, 나머지 시군은 전라남도가 됩니다. 두 단체장을 새로 뽑습니다' : k === 'gangwon' ? '남북의 강원을 한 도로 합칩니다. 도지사를 새로 뽑습니다' : '단체장은 그대로, 이름만 바꿉니다'} · ${formatWon(k === 'jeonbuk' ? EVENT_COST.cityUp : EVENT_COST.independence)} (해마다 할 수 있습니다)</div>
-      <div class="actions"><button class="small primary" data-reorg="${k}">${esc(o.label)}</button></div></div>`).join('')}
+    ${(() => {
+      const items = Object.entries(REGION_REORG).filter(([k, o]) => !L.regionReorg?.[k] && o.from.includes(r) && (!o.zones || zs.some((j) => o.zones.includes(zoneProps[j].name) && zoneProps[j].country === 'KP')))
+        .map(([k, o]) => [k, o.label, ...reorgDesc(k, o, r)]);
+      const H = hamheungTargets();
+      if (H && regionOf(state, zoneProps[H.city]) === r) items.push(['hamheung', HAMHEUNG_ENCLAVE.label, `${HAMHEUNG_ENCLAVE.zones.join('·')} → ${HAMHEUNG_ENCLAVE.city}`, `함흥시의 월경지 ${HAMHEUNG_ENCLAVE.exclave}와 본시 사이의 군을 함흥시에 편입해 땅을 잇습니다 (군수 자리는 없어지고 그 읍면은 함흥시의 동·리가 됩니다)`]);
+      return items.length ? `<h4>광역 행정구역 개편</h4>${items.map(([k, label, what, m]) => `<div class="item"><div class="t">${esc(label)}: ${esc(what)}</div>
+      <div class="m">${m} · ${formatWon(EVENT_COST[REORG_COST[k] || 'independence'])} (해마다 할 수 있습니다)</div>
+      <div class="actions"><button class="small primary" data-reorg="${k}">${esc(label)}</button></div></div>`).join('')}` : '';
+    })()}
     ${KP_DIRECT_CITIES.includes(r) || KP_DIRECT_CITIES.map(dueum).includes(r) ? `<h4>행정 조정</h4><div class="item"><div class="t">광역시로 명칭 변경: ${esc(r)} → ${esc(r.replace(/시$/, '광역시'))}</div>
       <div class="m">직할시(독립시)를 남측처럼 광역시로 부릅니다. 단체장은 그대로 직함만 바뀌고 선거는 하지 않습니다 · ${formatWon(EVENT_COST.cityUp)}</div>
       <div class="actions"><button class="small primary" data-metro-rename="${esc(r)}">바꾸기</button></div></div>` : ''}
@@ -577,6 +622,7 @@ export function airportPanel(id) {
       : `<div class="actions"><button class="small primary" id="ap-expand">${AIRPORT.expand.label} ${formatWon(cost)} · ${AIRPORT.expand.years}년</button></div>`}
     ${!ap.ext && !ap.intl && /^NEW/.test(id) ? `<div class="actions"><button class="small" id="ap-intl">국제공항 지정 · ${formatWon(AIR.intlCost)}</button></div>
       <p class="hint">새 공항은 국내선만 뜹니다. 국제공항으로 지정하면(세관·출입국·검역) 가까운 나라 국제선이 열립니다. 장거리(동남아·미주·유럽·대양주)는 허브인 인천에서만 뜹니다.</p>` : ''}
+    ${!ap.ext && !ap.hub && !busyProj ? `<div class="actions"><button class="small danger" id="ap-remove">공항 철거 · ${formatWon(ap.country === 'KP' ? AIRPORT_REMOVE.kpCost : AIRPORT_REMOVE.cost)}</button></div>` : ''}
     ${ap.hub ? '<p class="hint">허브 공항: 국제선 운항·연결편이 많아 둘레 300km 안에서 국제선을 타러 오고, 장거리 노선이 여기서만 뜹니다. 혼잡도가 1.1을 넘는 공항에는 새 노선이 생기지 않습니다.</p>' : ''}
     ${routePanel(id, k)}`;
 }

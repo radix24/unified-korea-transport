@@ -3,7 +3,7 @@ import { DIFFICULTY, formatWon } from '../game/catalog.js';
 import { flushSave } from '../game/savestore.js';
 import { SERVICE_KINDS } from '../game/services.js';
 import { clearSim } from '../game/simstore.js';
-import { clearSave, CLOSE_APPROVAL, closeLine, closeRoute, designateIntl, effectiveNetwork, FREQ_STEPS, IC_REMOVE_COST, linkAt, newGame, removeIC, renameLine, REOPEN_PER_KM, reopenLine, save, setLineFreq, setPlaceName, startAirportExpand, startOpenRoute, startRestoreName, startUpgrade, UPGRADES } from '../game/state.js';
+import { clearSave, CLOSE_APPROVAL, closeLine, closeRoute, designateIntl, effectiveNetwork, FREQ_STEPS, IC_REMOVE_COST, linkAt, newGame, removeIC, renameLine, REOPEN_PER_KM, removeAirport, reopenLine, save, setLineFreq, setPlaceName, startAirportExpand, startOpenRoute, startRestoreName, startUpgrade, UPGRADES } from '../game/state.js';
 import { LANG, setLang, t } from '../i18n.js';
 import { getGuideMode, GUIDE_MODES, guideOnNewGame, setGuideMode } from '../ui/guide.js';
 import { refreshNames } from '../ui/map.js';
@@ -13,7 +13,7 @@ import { $, APP_VERSION, autoRenameNode, base, BUG_MAIL, esc, historic, map, nam
 import { startSEZ } from './sez.js';
 import { bindZoneDev } from './zonedev.js';
 import { allLinks, nodeNames, refreshLinks, refreshPoints, setHighlight } from './mapdata.js';
-import { admin, adminInvalidate } from './region.js';
+import { admin, adminInvalidate, hallPanel, startHallMove } from './region.js';
 import { bindUnivPanel, univPanel } from './univ.js';
 import { select } from './interact.js';
 import { renderAll, renderStatus, showGuide, switchTab } from './panels.js';
@@ -293,6 +293,7 @@ export function renderSelection() {
   else if (selection.type === 'unit') { el.innerHTML = unitPanel(selection.id); bindUnitPanel(el); }
   else if (selection.type === 'airport') el.innerHTML = airportPanel(selection.id);
   else if (selection.type === 'univ') { el.innerHTML = univPanel(selection.id); bindUnivPanel(el); }
+  else if (selection.type === 'hall') { el.innerHTML = hallPanel(selection.id); el.querySelector('[data-hall-move]')?.addEventListener('click', (e) => startHallMove(e.currentTarget.dataset.hallMove)); }
   else if (selection.type === 'multi') el.innerHTML = multiPanel(selection.ids);
   else if (selection.type === 'service') el.innerHTML = servicePanel();
   else if (selection.type === 'straighten') { el.innerHTML = straightenPanel(); bindStraighten(el); return; }
@@ -426,6 +427,13 @@ export function renderSelection() {
     const r = startAirportExpand(state, ap);
     if (!r.ok) return alert(r.reason);
     save(state); renderAll();
+  });
+  el.querySelector('#ap-remove')?.addEventListener('click', () => {
+    const ap = effectiveNetwork(base, state).airports.find((a) => a.id === selection.id);
+    if (!ap || !confirm(`${ap.name}을(를) 철거할까요? 이 공항의 노선은 모두 단항하고, 되돌릴 수 없습니다.`)) return;
+    const r = removeAirport(state, ap);
+    if (!r.ok) return alert(r.reason);
+    save(state); select(null); renderAll();
   });
   el.querySelector('#ap-intl')?.addEventListener('click', () => {
     const r = designateIntl(state, selection.id);

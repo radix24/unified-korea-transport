@@ -17,6 +17,24 @@ export const ZONE_DEV = {
   // 업무단지(도심 사무단지): 밀도 3,000명/km² 넘는 도심만. 소득 목표 +5%, 수렴 ×1.2, 편의 +0.015, 3천 명 유입
   office: { label: '업무단지 조성', years: 4, cost: 7000, kpCost: 4000, persons: 3000, income: 1.05, conv: 1.2, amenity: 0.015, minDensity: 3000 },
 };
+// 정해진 자리의 대형 도시 개발 사업 (그 시군 창의 도시 개발에 나온다). 인구는 같은 쪽 다른 곳에서 옮겨 오고, 완공되면 정부 청사가 선다
+export const SPECIAL_DEV = {
+  // 부산 북항 재개발 2단계: 자성대 부두·부산역 철도 부지 일대 228만 m², 사업비 약 20조 원, 2030년 완공 목표. 상주인구 약 10만 명
+  'busan-bukhang2': { label: '부산 북항 재개발 2단계', where: ['부산광역시', '동구'], years: 4, cost: 200000, kpCost: 200000, persons: 100000,
+    income: 1.04, conv: 1.2, amenity: 0.02, happy: 3, hall: { name: '정부부산지방합동청사', lon: 129.0618, lat: 35.1262 },
+    desc: '자성대 부두와 부산역·부산진역 철도 부지를 주거·업무·해양 관광 지구로 (2026년 착공하면 2030년 완공). 상주인구 약 10만 명, 사업 지구 안에 정부부산지방합동청사' },
+  // 평양 만수대 광장 일대를 정비하고 통일 정부의 평양정부청사(중앙 부처 분원)를 짓는다
+  'pyongyang-mansudae': { label: '평양 만수대 광장 재개발', where: ['평양시', '중구역'], years: 4, cost: 30000, kpCost: 30000, persons: 15000,
+    income: 1.05, conv: 1.2, amenity: 0.02, happy: 2, hall: { name: '평양정부청사', lon: 125.7508, lat: 39.0318 },
+    desc: '만수대 광장 일대를 정비하고 평양정부청사를 조성합니다. 공무원·업무 인구 약 1만 5천 명이 들어옵니다' },
+};
+/** 대형 도시 개발 사업이 벌어지는 존 (자료의 도·이름) */
+export function specialZone(k) {
+  const [prov, name] = SPECIAL_DEV[k].where;
+  return zoneProps.findIndex((z) => !z.ext && z.province === prov && z.name === name);
+}
+const devSpec = (kind) => ZONE_DEV[kind] || SPECIAL_DEV[kind];
+
 const UNIT_PRICE_MARGIN = 0.15, HOUSEHOLD = 2.4, UNIT_PRICE = { capital: 6, metro: 3.5, other: 2.2, kp: 0.8 };
 
 /** 대상: 존 하나(시군·북측 구역) 또는 분구한 시의 구 하나(subs) */
@@ -31,7 +49,12 @@ function targetStats(zone, subs) {
 
 /** 사업안 (안 되면 why) */
 export function zoneDevPlan(kind, zone, subs = null, name = zoneName(zone)) {
-  const D = ZONE_DEV[kind], t = targetStats(zone, subs);
+  const D = devSpec(kind), t = targetStats(zone, subs);
+  if (SPECIAL_DEV[kind]) {
+    const prev = (state.zoneDev || []).filter((d) => d.kind === kind);
+    return { kind, key: `${kind}:${zone}`, zone, name: D.label, subs: null, persons: D.persons, cost: t.kp ? D.kpCost : D.cost, revenue: 0, years: D.years,
+      why: prev.some((d) => !d.done) ? '공사 중입니다' : prev.length ? '이미 완공했습니다' : null, dens: t.dens };
+  }
   const key = `${kind}:${zone}:${name}`;
   const prev = (state.zoneDev || []).filter((d) => d.key === key);
   let why = null;
@@ -58,8 +81,15 @@ export function zoneDevHTML(zone, subs = null, name = zoneName(zone)) {
     return `<div class="item"><div class="t">${esc(D.label)}${k === 'redev' ? ` (${esc(name)})` : ''}</div><div class="m">${fx} · ${formatWon(p.cost)} · ${p.years}년${p.why ? ` · <span class="neg">${esc(p.why)}</span>` : ''}</div>
       <div class="actions"><button class="small" data-zdev="${k}" data-zdev-zone="${zone}" data-zdev-name="${esc(name)}"${subs ? ` data-zdev-subs="${subs.join(',')}"` : ''} ${p.why ? 'disabled' : ''}>${esc(D.label)}</button></div></div>`;
   });
+  // 이 자리의 대형 도시 개발 사업
+  if (!subs) for (const [k, D] of Object.entries(SPECIAL_DEV)) {
+    if (specialZone(k) !== zone) continue;
+    const p = zoneDevPlan(k, zone);
+    rows.unshift(`<div class="item"><div class="t">${esc(D.label)}</div><div class="m">${esc(D.desc)} · 인구 +${D.persons.toLocaleString()}명 · 소득 목표 +${Math.round((D.income - 1) * 100)}% · ${formatWon(p.cost)} · ${D.years}년${p.why ? ` · <span class="neg">${esc(p.why)}</span>` : ''}</div>
+      <div class="actions"><button class="small primary" data-zdev="${k}" data-zdev-zone="${zone}" data-zdev-name="${esc(D.label)}" ${p.why ? 'disabled' : ''}>착공</button></div></div>`);
+  }
   const done = (state.zoneDev || []).filter((d) => d.zone === zone && (!subs || d.name === name));
-  return `<h4>도시 개발</h4>${done.map((d) => `<p class="hint">${d.year}년 ${esc(ZONE_DEV[d.kind].label)}${d.kind === 'redev' ? ` (${esc(d.name)})` : ''} ${d.done ? '완공' : `공사 중 (${d.year + ZONE_DEV[d.kind].years}년 완공)`}</p>`).join('')}${rows.join('')}`;
+  return `<h4>도시 개발</h4>${done.map((d) => `<p class="hint">${d.year}년 ${esc(devSpec(d.kind).label)}${d.kind === 'redev' ? ` (${esc(d.name)})` : ''} ${d.done ? '완공' : `공사 중 (${d.year + devSpec(d.kind).years}년 완공)`}</p>`).join('')}${rows.join('')}`;
 }
 
 export function bindZoneDev(el, after) {
@@ -69,10 +99,11 @@ export function bindZoneDev(el, after) {
       const p = zoneDevPlan(b.dataset.zdev, +b.dataset.zdevZone, subs, b.dataset.zdevName);
       if (p.why) { alert(p.why); return; }
       if (!canAfford(state, p.cost, p.years)) { alert('예산과 차입 한도가 부족합니다.'); return; }
-      if (!confirm(`${p.name} ${ZONE_DEV[p.kind].label}: ${formatWon(p.cost)}, ${p.years}년. 착공할까요?`)) return;
+      const what = SPECIAL_DEV[p.kind] ? p.name : `${p.name} ${ZONE_DEV[p.kind].label}`;
+      if (!confirm(`${what}: ${formatWon(p.cost)}, ${p.years}년. 착공할까요?`)) return;
       const id = crypto.randomUUID();
       (state.zoneDev ||= []).push({ id, kind: p.kind, key: p.key, zone: p.zone, name: p.name, subs: p.subs, persons: p.persons, revenue: p.revenue, year: state.year, done: false, applied: false });
-      startProject(state, { id, kind: 'zonedev', links: [], stations: [], cost: p.cost, years: p.years, label: `${p.name} ${ZONE_DEV[p.kind].label}` });
+      startProject(state, { id, kind: 'zonedev', links: [], stations: [], cost: p.cost, years: p.years, label: what });
       after?.();
     };
   });
@@ -85,8 +116,10 @@ export function settleZoneDev(done) {
     if (ids.has(d.id) && !d.done) {
       d.done = true;
       state.budget += d.revenue || 0;
-      if (d.kind === 'redev') state.happyBonus[d.zone] = (state.happyBonus[d.zone] || 0) + ZONE_DEV.redev.happy;
-      state.log.unshift(`${state.year}년 ${d.name} ${ZONE_DEV[d.kind].label} 완공: 인구 ${d.persons.toLocaleString()}명 입주${d.revenue ? ` · 분양 수익 ${formatWon(d.revenue)}` : ''}`);
+      const D = devSpec(d.kind);
+      if (D.happy) state.happyBonus[d.zone] = (state.happyBonus[d.zone] || 0) + D.happy;
+      if (D.hall && !(state.govHalls ||= []).some((h) => h.name === D.hall.name)) state.govHalls.push({ ...D.hall });   // 정부 청사 (지도의 청사 표시)
+      state.log.unshift(`${state.year}년 ${SPECIAL_DEV[d.kind] ? D.label : `${d.name} ${D.label}`} 완공: 인구 ${d.persons.toLocaleString()}명 입주${d.revenue ? ` · 분양 수익 ${formatWon(d.revenue)}` : ''}${D.hall ? ` · ${D.hall.name} 개청` : ''}`);
     }
     if (d.done && !d.applied) {
       d.applied = true;
@@ -100,5 +133,5 @@ export function settleZoneDev(done) {
 
 /** 해마다 계산에 넘길 산업·업무단지 효과: [존, 소득 목표 배수, 수렴 배수, 편의 가산] */
 export function zoneDevEffects() {
-  return (state.zoneDev || []).filter((d) => d.done && d.kind !== 'redev').map((d) => [d.zone, ZONE_DEV[d.kind].income, ZONE_DEV[d.kind].conv, ZONE_DEV[d.kind].amenity]);
+  return (state.zoneDev || []).filter((d) => d.done && d.kind !== 'redev').map((d) => [d.zone, devSpec(d.kind).income, devSpec(d.kind).conv, devSpec(d.kind).amenity]);
 }

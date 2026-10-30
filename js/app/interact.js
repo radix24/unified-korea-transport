@@ -2,10 +2,11 @@
 import { regionOf } from '../game/local.js';
 import { t } from '../i18n.js';
 import { setZoneOutline } from '../ui/map.js';
-import { draft, map, measure, selection, setSelection, state, zoneProps } from './core.js';
-import { krRi, loadRiFiles, riAt, riCodeMap } from './mapdata.js';
-import { admin, isMetroBody, subAtLngLat, subKey, subRegion, subUnit, unitPick, unitPickClick, unitRepZone } from './region.js';
+import { draft, map, measure, selection, setSelection, state, subsFC, zoneProps } from './core.js';
+import { krRi, loadRiFiles, riAt, riCodeMap, subInfo } from './mapdata.js';
+import { admin, hallPick, hallPickClick, isMetroBody, showHalls, subAtLngLat, subKey, subRegion, subUnit, unitPick, unitPickClick, unitRepZone } from './region.js';
 import { univPick, univPickClick } from './univ.js';
+import { hasSplitRi } from './risplit.js';
 import { catchLabel, placeAirport } from './draw.js';
 import { addDraftPoint, draftPress, enableDraftDrag, measureClick } from './route.js';
 import { shownPlan } from './panels.js';
@@ -31,6 +32,7 @@ export function bindMap() {
     if (pointAdd) { pointAddClick(e.lngLat); return; }
     if (housingPick) { housingClick(e); return; }
     if (univPick) { univPickClick(e.lngLat); return; }
+    if (hallPick) { hallPickClick(e.lngLat); return; }
     if (unitPick) { unitPickClick(e.lngLat); return; }
     if (guEdit) { guEditClick(e.lngLat, e.point); return; }
     if (draft?.type === 'airport') { placeAirport(e.lngLat); return; }
@@ -40,6 +42,8 @@ export function bindMap() {
     if (pl) { openPlan(pl.properties.id); return; }
     const uv = map.getLayer('univs-dot') ? map.queryRenderedFeatures(box, { layers: ['univs-dot'] })[0] : null;
     if (uv) return select({ type: 'univ', id: uv.properties.key });
+    const hl = showHalls && map.getLayer('halls-dot') ? map.queryRenderedFeatures(box, { layers: ['halls-dot'] })[0] : null;
+    if (hl) return select({ type: 'hall', id: hl.properties.name });
     const ap = map.queryRenderedFeatures(box, { layers: ['airports'] })[0];
     if (ap) return select({ type: 'airport', id: ap.properties.id });
     const pt = map.queryRenderedFeatures(box, { layers: ['points'] })[0];
@@ -168,6 +172,19 @@ export function selectBox(bbox) {
   if (ids.length) select({ type: 'multi', ids });
 }
 
+/** 시군(존 선택)의 읍면동이 자료의 시군과 다르면(동·리를 떼어 주거나 받음) 지금 소속 읍면동 목록, 같으면 null */
+function movedUnitSubs(zid) {
+  const a = admin();
+  if (!a) return null;
+  const u = a.unit(`z:${countyRep(zid)}`);
+  if (!u) return null;
+  // 자료의 그 시군 소구역 (떼어 낸 남측 법정리 조각 포함)
+  const zs = new Set(countyZones(zid)), own = [];
+  for (let i = 0; i < (subsFC?.features.length || 0); i++) if (zs.has(subInfo(i)?.[0])) own.push(i);
+  const set = new Set(u.subs);
+  return u.subs.length !== own.length || own.some((i) => !set.has(i)) ? u.subs : null;
+}
+
 export var selSubIds = [];   // 강조한 읍면동(리) 번호들
 export function select(sel) {
   if (selection?.type === 'multi') for (const i of selection.ids) map.setFeatureState({ source: 'links', id: i }, { sel: false });
@@ -180,13 +197,15 @@ export function select(sel) {
   if (svcEdit && sel?.type !== 'service') { setSvcEdit(null); map.getSource('draft').setData({ type: 'FeatureCollection', features: [] }); drawServices(); }
   setSelection(sel);
   // 여러 리로 된 면(북측)·시군을 고르면 리마다 테두리를 긋지 말고 바깥 테두리만 (예전에는 면 안의 리 경계가 모두 파랗게 보였다)
-  const picked = sel?.type === 'sub' ? [sel.id] : sel?.type === 'emd' ? admin()?.emds.get(sel.id)?.subs || [] : sel?.type === 'unit' ? admin()?.unit(sel.id)?.subs || [] : [];
-  selSubIds = picked.length === 1 ? picked : [];
+  // 동·리를 떼어 주거나 받은 시군은 시군 경계가 아니라 지금 소속 읍면동의 바깥 테두리로 (예전에는 편입 전 경계대로 강조했다)
+  const moved = sel?.type === 'zone' ? movedUnitSubs(sel.id) : null;
+  const picked = moved || (sel?.type === 'sub' ? [sel.id] : sel?.type === 'emd' ? admin()?.emds.get(sel.id)?.subs || [] : sel?.type === 'unit' ? admin()?.unit(sel.id)?.subs || [] : []);
+  selSubIds = picked.length === 1 && !hasSplitRi(picked[0]) ? picked : [];   // 리를 떼어 낸 읍면은 테두리를 따로 (아래)
   for (const i of selSubIds) map.setFeatureState({ source: 'subs', id: i }, { sel: true });
-  drawSubsOutline(picked.length > 1 ? picked : []);
+  drawSubsOutline(picked.length > 1 || (picked.length === 1 && !selSubIds.length) ? picked : []);
   if (sel?.type === 'link') for (const i of sel.section?.ids || [sel.id]) map.setFeatureState({ source: 'links', id: i }, { sel: true });
   if (map.getLayer('kr-ri-sel')) map.setFilter('kr-ri-sel', ['==', ['get', 'code'], sel?.type === 'ri' ? sel.id : '']);
-  setZoneOutline(map, sel?.type === 'zone' ? countyZones(sel.id) : sel?.type === 'zones' ? sel.ids.flatMap((r) => countyZones(r))
+  setZoneOutline(map, moved ? [] : sel?.type === 'zone' ? countyZones(sel.id) : sel?.type === 'zones' ? sel.ids.flatMap((r) => countyZones(r))
     : sel?.type === 'region' ? zoneProps.map((_, j) => j).filter((j) => !zoneProps[j].ext && regionOf(state, zoneProps[j]) === sel.id) : []);
   drawGuSelection(sel?.type === 'gu' ? sel : null);
   renderSelection();
