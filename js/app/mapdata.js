@@ -17,7 +17,7 @@ import { gains } from './year.js';
 import { admin, adminCache, splitUnits, subNeighbors, subRegion, unitOfficeKey, unitPick, unitPop, unitRepZone } from './region.js';
 import { stationRiders } from './svc.js';
 import { countyRep, countyZones, mayorKey } from './election.js';
-import { edgeLines, guUnits, unitZones } from './bungu.js';
+import { edgeLines, guEdit, guOfSub, guUnits, unitZones } from './bungu.js';
 import { drawGuMetric, GU_METRIC, GU_POP, officeParty, partyValue } from './firstyear.js';
 import { effectiveGrid, inRing } from './housing.js';
 import { extraOf, extraSubs, extrasOfParent, riPopOf, subXY } from './risplit.js';
@@ -553,11 +553,18 @@ export function drawAdminFill(vals) {
   const feats = [];
   if (vals && !METRICS[metric]?.sub) {
     const colorOf = new Map();
+    // 인구·인구 변화는 분구한 곳이면 구마다 (소속이 섞인 존에서는 구 색칠이 빠져 구별 인구가 안 보였다)
+    const byGu = result && (metric === 'pop' || metric === 'popChange');
+    const guVal = (u, g) => {
+      let p = 0, p0 = 0;
+      for (const j of a.unit(u)?.subs || []) if (guOfSub(j) === g) { p += result.subs.pop[j] || 0; p0 += subPop0[j] || 0; }
+      return metric === 'pop' ? p : p / Math.max(p0, 1) - 1;
+    };
     for (const z of a.mixed) for (const i of a.subsOfZone(z)) {
-      const u = a.unitOfSub[i];
-      if (!colorOf.has(u)) { const v = unitMetric(u, vals); colorOf.set(u, v == null ? 'rgba(0,0,0,0)' : colorFor(metric, v)); }
-      const polys = adminFine.get(i) || (() => { const g = subsFC.features[i]?.geometry; return g ? (g.type === 'Polygon' ? [g.coordinates] : g.coordinates) : []; })();
-      for (const pg of polys) feats.push({ type: 'Feature', properties: { color: colorOf.get(u), unit: u }, geometry: { type: 'Polygon', coordinates: pg } });
+      const u = a.unitOfSub[i], g = byGu ? guOfSub(i) : null, key = g ? `${u}#${g}` : u;
+      if (!colorOf.has(key)) { const v = g ? guVal(u, g) : unitMetric(u, vals); colorOf.set(key, v == null ? 'rgba(0,0,0,0)' : colorFor(metric, v)); }
+      const polys = adminFine.get(i) || (() => { const g2 = subsFC.features[i]?.geometry; return g2 ? (g2.type === 'Polygon' ? [g2.coordinates] : g2.coordinates) : []; })();
+      for (const pg of polys) feats.push({ type: 'Feature', properties: { color: colorOf.get(key), unit: u }, geometry: { type: 'Polygon', coordinates: pg } });
     }
   }
   map.getSource('admin-fill').setData({ type: 'FeatureCollection', features: feats });
@@ -700,7 +707,7 @@ export function paintZones() {
   const sub = !!METRICS[metric]?.sub, lv = metricLevel(metric);
   map.setLayoutProperty('subs-fill', 'visibility', sub ? 'visible' : 'none');
   // 리 경계는 리 층위(또는 시군구 신설로 고를 때)만: 읍면동 층위에서는 읍면동 경계(drawEmdLines)를 긋는다
-  map.setLayoutProperty('subs-line', 'visibility', (sub && lv === 'ri') || unitPick ? 'visible' : 'none');
+  map.setLayoutProperty('subs-line', 'visibility', (sub && lv === 'ri') || unitPick || guEdit ? 'visible' : 'none');
   if (!result) return;
   if (sub) {
     const s = result.subs;

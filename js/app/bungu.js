@@ -861,7 +861,7 @@ export async function loadGuUnits(only = null) {
     const own = Number.isInteger(f.properties.id) ? guOfSub(f.properties.id) : null;
     const ring = polys[0][0];
     const gu = own || guByCoarse(z, ring.reduce((t, q) => t + q[0], 0) / ring.length, ring.reduce((t, q) => t + q[1], 0) / ring.length);
-    if (gu) guUnits.get(countyRep(z))?.push({ gu, polys, sub: Number.isInteger(f.properties.id) ? f.properties.id : -1 });
+    if (gu) guUnits.get(countyRep(z))?.push({ gu, polys, sub: Number.isInteger(f.properties.id) ? f.properties.id : -1, z, cx: ring.reduce((t, q) => t + q[0], 0) / ring.length, cy: ring.reduce((t, q) => t + q[1], 0) / ring.length });
   }
 }
 
@@ -894,6 +894,7 @@ export function startGuEdit(id, unit = bunguUnitOf(id)) {
   if (!unit) return;
   guEdit = { id: countyRep(id), unit };
   map.getCanvas().style.cursor = 'crosshair';
+  dongLines(true);   // 동 자리를 알아보게 동 경계와 이름을 보인다
   const esc_ = (e) => { if (e.key === 'Escape') { endGuEdit(); document.removeEventListener('keydown', esc_); } };
   document.addEventListener('keydown', esc_);
   toast('구 경계 조정: 옮길 동을 누르면 구를 고를 수 있습니다 (Esc로 끝내기)');
@@ -904,8 +905,30 @@ export function endGuEdit() {
   guEdit = null;
   document.querySelector('.st-menu')?.remove();
   if (map) map.getCanvas().style.cursor = '';
+  dongLines(false);
   renderSelection();
 }
+/** 구 경계 조정 중: 동(북측은 리) 경계를 진하게, 동 이름을 띄운다. 끝나면 지표에 맞는 보기로 되돌린다 */
+function dongLines(on) {
+  if (!map?.getLayer('subs-line')) return;
+  if (on && !map.getLayer('gu-edit-dong-label')) {
+    map.addLayer({ id: 'gu-edit-dong-label', type: 'symbol', source: 'subs', minzoom: 10, layout: { visibility: 'none', 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Regular'], 'text-size': 10.5, 'text-optional': true },
+      paint: { 'text-color': '#3b4048', 'text-halo-color': '#ffffff', 'text-halo-width': 1.2 } });
+  }
+  if (map.getLayer('gu-edit-dong-label')) map.setLayoutProperty('gu-edit-dong-label', 'visibility', on ? 'visible' : 'none');
+  map.setPaintProperty('subs-line', 'line-width', on ? ['interpolate', ['linear'], ['zoom'], 8, 0.5, 12, 1.2] : 0.4);
+  map.setPaintProperty('subs-line', 'line-opacity', on ? 0.9 : 0.6);
+  if (on) map.setLayoutProperty('subs-line', 'visibility', 'visible'); else paintZones();
+}
+
+/** 동을 옮긴 뒤: 이 대표 존의 자세한 경계 조각마다 구를 다시 정한다 (번호 없는 조각은 자리로). 조각 하나만 고치면 회색 구 경계가 처음 경계로 남았다 */
+function reassignGuUnits(r) {
+  for (const u of guUnits.get(r) || []) {
+    const g = (u.sub >= 0 && guOfSub(u.sub)) || (u.z != null ? guByCoarse(u.z, u.cx, u.cy) : null);
+    if (g) u.gu = g;
+  }
+}
+
 export function guEditClick(ll, pt) {
   const unit = guEdit.unit, b = unit && state.local.bungu?.[unit];
   if (!b) { endGuEdit(); return; }
@@ -950,7 +973,7 @@ export function guEditClick(ll, pt) {
       b.gu[key] = to;
       // 빠르게: 자세한 경계는 다시 받지 않고 그 동 조각의 구만 바꾸고, 이 단위의 구 경계·이름과 창만 다시 그린다.
       // 저장(게임 전체를 문자열로)은 잇달아 옮길 때 한 번만
-      for (const u of guUnits.get(countyRep(hit < 0 ? guEdit.id : subInfo(hit)[0])) || []) if (u.sub === hit) u.gu = to;
+      for (const r of new Set(unitZones(unit).map((z) => countyRep(z)))) reassignGuUnits(r);
       bunguLineCache.delete(unit);
       toast(`${nm}: ${from} → ${to}`);
       clearTimeout(guSaveT); guSaveT = setTimeout(() => save(state), 800);
