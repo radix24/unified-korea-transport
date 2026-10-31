@@ -31,7 +31,8 @@
       window.uktRefresh = function () { return refresh(j, true); };
       if (old === j.v) return j.v;
       // 캐시에 든 main.js가 이미 이 판이면 (처음 온 사람 등) 다시 받을 것이 없다
-      return f0('js/main.js').then(function (r) { return r.text(); }).catch(function () { return ''; }).then(function (t) {
+      // 판 번호는 0.5.0부터 js/app/core.js에 있다 (main.js에서 찾으면 처음 온 사람도 늘 한 번 더 받아 다시 열었다)
+      return f0('js/app/core.js').then(function (r) { return r.text(); }).catch(function () { return ''; }).then(function (t) {
         if (t.indexOf("APP_VERSION = '" + j.v + "'") >= 0) { try { localStorage.setItem(K, j.v); } catch (e) {} return j.v; }
         return refresh(j, true).then(function () { return j.v; });
       });
@@ -113,7 +114,7 @@
   <div id="loading" role="status" aria-live="polite">
     <div class="ld-card">
       <div class="ld-logo"><img src="assets/brand/mark.svg" alt="" width="56" height="56">
-        <div class="ld-title">통일 한반도 교통망<small>UNIFIED KOREA TRANSPORT</small><span class="ld-ver">Version Alpha 0.5.13</span></div></div>
+        <div class="ld-title">통일 한반도 교통망<small>UNIFIED KOREA TRANSPORT</small><span class="ld-ver">Version Alpha 0.5.14</span></div></div>
       <p class="ld-sub">2026년, 남북이 오늘 통일되었습니다. 한정된 SOC 예산으로 고속도로·철도·도시철도를 놓고 국토를 다시 짜 보세요.</p>
       <ol class="ld-steps">
         <li data-stage="data"><span class="t">데이터 내려받기</span><span class="s">도로·철도·인구 격자</span><div class="bar"><div class="p"></div></div></li>

@@ -40,6 +40,8 @@ export const PROMOTE_MIN_POP = 500_000;
 export const ELECTION = { firstYear: 2030, every: 4 };
 export const EVENT_COST = { historic: 5000, autonomy: 2000, independence: 1000, admin: 3000, cityUp: 300, annex: 1000, annexSub: 200 };   // 억원 (표지판·행정 전산·청사)
 export const CITY_UP_MIN_POP = 100_000;   // 군 → 시 승격 인구 (지방자치법 도농복합형태 시 기준 15만을 게임에서는 10만으로: 15만 넘는 남측 군은 모두 광역시 소속)
+/** 시군구 신설 최소 인구: 시는 지방자치법의 시 기준(5만), 군·자치구는 1만 (리 하나로 시를 세우던 것) */
+export const NEW_UNIT_MIN_POP = { si: 50_000, gun: 10_000, gu: 10_000 };
 
 /** 군→시 승격·광역시 편입의 열쇠: 자료의 도 + 이름 (자료가 바뀌어 존 번호가 달라져도 그대로, 옛 군 땅 조각도 함께) */
 export const countyId = (z) => `${z.province}|${z.name}`;

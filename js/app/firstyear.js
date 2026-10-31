@@ -11,7 +11,7 @@ import { openAdminSetup } from '../ui/setup.js';
 import { draft, esc, historic, map, metric, namer, result, state, subPop0, subsFC, zoneProps } from './core.js';
 import { resetNamer } from './sez.js';
 import { paintZones, refreshPoints } from './mapdata.js';
-import { admin, adminInvalidate } from './region.js';
+import { admin, adminInvalidate, renameRegionRefs } from './region.js';
 import { drawUnivs, univList, univPersonRename, univs } from './univ.js';
 import { renderAll, showGuide } from './panels.js';
 import { countyRep, countyZones, guKey, holdElection, mayorKey, officeLine, regions, supportHTML, syncMayors } from './election.js';
@@ -132,8 +132,12 @@ export function reorganize(change, logMsg) {
       L.offices[`g:${r}`] = { ...off, region: r, title: governorTitle(r) };
       delete L.offices[`g:${old}`];
       for (const pr of L.proposals || []) if (pr.office === `g:${old}`) pr.office = `g:${r}`;
+      // 정당 지지 변동과 신설 시군·옮긴 읍면동에 적어 둔 광역 이름도 함께 (metroRename과 같다)
+      if (L.support?.[old]) { L.support[r] = L.support[old]; delete L.support[old]; }
+      renameRegionRefs(old, r);
     } else changed.push(r);
   }
+  renameRegionRefs();   // 나뉘거나 합쳐져 없어진 광역 이름: 그 땅이 지금 든 광역으로
   for (const k of Object.keys(L.offices)) if (k.startsWith('g:') && !regions().has(k.slice(2))) delete L.offices[k];
   holdElection(changed, '행정구역 개편 뒤 광역단체장 선거');
   syncMayors();

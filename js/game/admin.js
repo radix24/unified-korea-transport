@@ -17,6 +17,11 @@ export function buildAdmin(d, L) {
   zoneProps.forEach((z, j) => { if (!z.ext) { const k = d.unitId(j); if (!repOfUnitId.has(k)) repOfUnitId.set(k, d.countyRep(j)); } });
   const A = L?.annexSubUnit || {}, R = L?.annexSub || {}, SP = L?.splitUnit || {};
   const unitOfSub = new Array(S), regionOfSub = new Array(S), moved = new Uint8Array(S);
+  // 지금 있는 광역 단체 이름: 신설 시군·옮긴 읍면동에 적어 둔 광역이 분도·개칭으로 없어졌으면(경기도 → 경기북도·경기남도)
+  // 그 땅이 지금 든 광역을 따른다 (예전에는 '경기도'에 남아 경기도 창이 빈 광역으로 나왔다)
+  const live = new Set();
+  zoneProps.forEach((z, j) => { if (!z.ext) live.add(d.regionOf(j)); });
+  const liveOr = (r, fb) => (r && live.has(r) ? r : fb);
   const units = new Map();
   const unit = (id, init) => { let u = units.get(id); if (!u) units.set(id, (u = { id, subs: [], zones: new Set(), ...init() })); return u; };
   for (let i = 0; i < S; i++) {
@@ -31,10 +36,13 @@ export function buildAdmin(d, L) {
     const home = `z:${d.countyRep(z)}`;
     if (id !== home) moved[i] = 1;
     unitOfSub[i] = id;
-    regionOfSub[i] = R[key] || (SP[id]?.region) || d.regionOf(id.startsWith('z:') ? +id.slice(2) : z);
+    // 다른 시군으로 옮긴 읍면동은 그 시군의 광역 단체를 따른다: 옮길 때 적은 광역(annexSub)을 앞세우면 그 시군이 뒤에
+    // 다른 광역으로 편입돼도 그 읍면동만 옛 광역에 남아 월경지가 됐다 (단월면 → 홍천군 → 경기도). annexSub는 시군 없이
+    // 광역시로만 옮긴 예전 기록에만 쓴다
+    regionOfSub[i] = SP[id] ? liveOr(SP[id].region, d.regionOf(z)) : id !== home ? d.regionOf(+id.slice(2)) : liveOr(R[key], d.regionOf(z));
     const u = unit(id, () => (id.startsWith('z:')
       ? { split: false, rep: +id.slice(2), name: null, region: null }
-      : { split: true, rep: -1, name: SP[id].name, home: SP[id].home, year: SP[id].year, region: SP[id].region }));
+      : { split: true, rep: -1, name: SP[id].name, home: SP[id].home, year: SP[id].year, region: liveOr(SP[id].region, d.regionOf(z)) }));
     u.subs.push(i); u.zones.add(z);
   }
   for (const u of units.values()) {

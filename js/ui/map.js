@@ -375,6 +375,8 @@ export const METRICS = {
   emdChange: { label: '읍면동 인구 변화 (시작 대비)', sub: true, ramp: ['#b2182b', '#f4a582', '#f7f7f7', '#92c5de', '#2166ac'], stops: [-0.2, -0.05, 0, 0.05, 0.2], fmt: (v) => `${(v * 100).toFixed(0)}%` },
   emdTransit: { label: '읍면동 대중교통 접근 (분)', sub: true, ramp: ['#1d5c3a', '#5aa36b', '#f5e08a', '#e88a3c', '#8f2318'], stops: [5, 10, 20, 35, 60], fmt: (v) => `${Math.round(v)}분` },
   emdHappy: { label: '읍면동 주민 행복도', sub: true, ramp: ['#8f2318', '#e88a3c', '#f5e08a', '#7fc29b', '#1f6f4a'], stops: [40, 50, 60, 70, 80], fmt: (v) => v.toFixed(0) },
+  // 읍면동 층위의 단체장 지도: 그 읍면동을 맡은 시군·구 단체장 (신설·편입 반영)
+  emdParty: { label: '읍면동을 맡은 단체장 소속 정당', sub: true, ...PARTY_MAP },
   // 리 단위 (남측은 읍면동과 같다)
   subPop: { label: '리 인구', sub: true, ramp: ['#f7f4ea', '#f2c48d', '#d9682e', '#8f2318'], stops: [0, 1000, 5000, 20000], fmt: (v) => `${Math.round(v / 1000)}천` },
 };
@@ -386,6 +388,7 @@ const LV = {
   popSido: ['sido', 'pop'], sidoChange: ['sido', 'change'], sidoDensity: ['sido', 'dens'], sidoHdi: ['sido', 'hdi'], sidoIncome: ['sido', 'income'], sidoHappy: ['sido', 'happy'], partyGov: ['sido', 'party'],
   pop: ['sgg', 'pop'], popChange: ['sgg', 'change'], hdi: ['sgg', 'hdi'], income: ['sgg', 'income'], happiness: ['sgg', 'happy'], partyMayor: ['sgg', 'party'], access: ['sgg', 'access'],
   emdPop: ['emd', 'pop'], emdDensity: ['emd', 'dens'], emdChange: ['emd', 'change'], emdTransit: ['emd', 'transit'], emdHappy: ['emd', 'happy'],
+  emdParty: ['emd', 'party'], emdApproval: ['emd', 'approval'], govApproval: ['sido', 'approval'],
   subPop: ['ri', 'pop'], subDensity: ['ri', 'dens'], subChange: ['ri', 'change'], subTransit: ['ri', 'transit'],
   voteGov: ['sido', 'vote'], voteMayor: ['sgg', 'vote'], mayorApproval: ['sgg', 'approval'], subHappy: ['ri', 'happy'], subApproval: ['ri', 'approval'], subGain: ['ri', 'gain'],
 };

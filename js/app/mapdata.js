@@ -16,7 +16,7 @@ import { base, grid, happiness, historic, map, median, metric, result, state, su
 import { gains } from './year.js';
 import { admin, adminCache, splitUnits, subNeighbors, subRegion, unitOfficeKey, unitPick, unitPop, unitRepZone } from './region.js';
 import { stationRiders } from './svc.js';
-import { countyRep, countyZones, mayorKey } from './election.js';
+import { countyRep, countyZones, mayorKey, subOfficeKey } from './election.js';
 import { edgeLines, guEdit, guOfSub, unitZones } from './bungu.js';
 import { drawGuMetric, GU_METRIC, GU_POP, officeParty, partyValue } from './firstyear.js';
 import { effectiveGrid, inRing } from './housing.js';
@@ -638,7 +638,12 @@ export async function drawRiLayer() {
     map.addLayer({ id: 'kr-ri-sel', type: 'line', source: 'kr-ri', filter: ['==', ['get', 'code'], ''], paint: { 'line-color': '#1d4e89', 'line-width': 2.2 } });
   }
   if (!riMoveHooked) { riMoveHooked = true; let t = 0; map.on('moveend', () => { clearTimeout(t); t = setTimeout(drawRiLayer, 300); }); }
-  if (metricLevel(metric) !== 'ri' || !METRICS[metric]?.sub || map.getZoom() < 8.5 || !krRi || !result) { map.getSource('kr-ri').setData({ type: 'FeatureCollection', features: [] }); return; }
+  if (metricLevel(metric) !== 'ri' || !METRICS[metric]?.sub || map.getZoom() < 8.5 || !krRi || !result) {
+    map.getSource('kr-ri').setData({ type: 'FeatureCollection', features: [] });
+    if (metricLevel(metric) === 'ri' && METRICS[metric]?.sub && krRi && result) setRiFallback(true);
+    return;
+  }
+  setRiFallback(false);
   const b = map.getBounds();
   await loadRiFiles(b.getWest(), b.getSouth(), b.getEast(), b.getNorth());
   const s0 = result.subs, feats = [];
@@ -667,23 +672,36 @@ export function drawEmdLines() {
   const a = admin();
   if (metricLevel(metric) !== 'emd' || map.getZoom() < 7.5 || !a) { map.getSource('emd-lines').setData({ type: 'FeatureCollection', features: [] }); return; }
   const sig = adminCache?.sig || '';
-  const b = map.getBounds(), feats = [];
+  const b = map.getBounds(), zs = [];
   zoneProps.forEach((q, z) => {
     if (q.ext || !q.subs.some(([x, y]) => x >= b.getWest() - 0.1 && x <= b.getEast() + 0.1 && y >= b.getSouth() - 0.1 && y <= b.getNorth() + 0.1)) return;
-    let c = emdLineCache.get(z);
-    if (c?.sig !== sig) {
-      const items = [];
+    zs.push(z);
+  });
+  // 경계선을 처음 셀 때는 존마다 오래 걸린다(수도권을 처음 열면 2.8초 멈췄다): 한 번에 40ms씩 나눠 세며 센 만큼 바로 그린다
+  const gen = ++emdLineGen;
+  const draw = () => {
+    const feats = [];
+    for (const z of zs) { const c = emdLineCache.get(z); if (c?.sig === sig) for (const line of c.lines) feats.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: line } }); }
+    map.getSource('emd-lines').setData({ type: 'FeatureCollection', features: feats });
+  };
+  const todo = zs.filter((z) => emdLineCache.get(z)?.sig !== sig);
+  const step = () => {
+    if (gen !== emdLineGen) return;   // 그 사이 다시 그리기 시작했다
+    const t0 = performance.now();
+    while (todo.length && performance.now() - t0 < 40) {
+      const z = todo.shift(), q = zoneProps[z], items = [];
       for (let k = 0; k < q.subs.length; k++) {
         const i = q.sub0 + k, g = subsFC.features[i]?.geometry;
         if (g) items.push({ key: a.emdOf[i] || `s:${i}`, polys: g.type === 'Polygon' ? [g.coordinates] : g.coordinates });
       }
-      c = { sig, lines: items.length > 1 ? edgeLines(items, 'between') : [] };
-      emdLineCache.set(z, c);
+      emdLineCache.set(z, { sig, lines: items.length > 1 ? edgeLines(items, 'between') : [] });
     }
-    for (const line of c.lines) feats.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: line } });
-  });
-  map.getSource('emd-lines').setData({ type: 'FeatureCollection', features: feats });
+    draw();
+    if (todo.length) setTimeout(step, 0);
+  };
+  if (todo.length) setTimeout(step, 0); else draw();
 }
+let emdLineGen = 0;
 
 /** 시군 id의 지도 값: 인구는 읍면동을 더하고, 단체장 값은 그 시군 단체장, 나머지는 대표 존 값 */
 export function unitMetric(id, vals) {
@@ -698,6 +716,7 @@ export function unitMetric(id, vals) {
   if (metric === 'mayorApproval') return off?.approval ?? null;
   if (metric === 'partyGov') return officeParty(L.offices[`g:${u.region}`]);
   if (metric === 'voteGov') return pShare(L.offices[`g:${u.region}`]);
+  if (metric === 'govApproval') return L.offices[`g:${u.region}`]?.approval ?? null;
   return rep >= 0 ? vals[rep] : null;
 }
 
@@ -710,7 +729,7 @@ export function paintZones() {
   map.setLayoutProperty('subs-line', 'visibility', (sub && lv === 'ri') || unitPick || guEdit ? 'visible' : 'none');
   if (!result) return;
   if (sub) {
-    const s = result.subs;
+    const s = result.subs, cols = new Array(s.pop.length).fill(null);
     if (lv === 'emd') {
       // 읍면동(북측은 면) 묶음 값: 인구·밀도·변화는 합으로, 접근·행복도는 인구 가중
       const a = admin();
@@ -722,21 +741,19 @@ export function paintZones() {
           if (hv != null) { h += hv * Math.max(s.pop[i], 1); hw += Math.max(s.pop[i], 1); }
         }
         const w = g.subs.reduce((x, i) => x + Math.max(s.pop[i], 1), 0);
+        // 단체장 지도: 묶음은 한 시군 안이라 첫 읍면동을 맡은 단체장 (자치구로 나눈 곳은 그 구청장)
+        const off = metric === 'emdParty' || metric === 'emdApproval' ? state.local.offices[subOfficeKey(g.subs[0]) || ''] : null;
         const v = metric === 'emdPop' ? p : metric === 'emdDensity' ? p / Math.max(ar, 0.01) : metric === 'emdChange' ? p / Math.max(p0, 1) - 1
-          : metric === 'emdTransit' ? t / w : hw ? h / hw : null;
+          : metric === 'emdTransit' ? t / w : metric === 'emdParty' ? officeParty(off) : metric === 'emdApproval' ? off?.approval ?? null : hw ? h / hw : null;
         const c = v == null ? null : colorFor(metric, v);
-        for (const i of g.subs) map.setFeatureState({ source: 'subs', id: i }, { color: c });
+        for (const i of g.subs) cols[i] = c;
       }
     } else for (let i = 0; i < s.pop.length; i++) {
-      let v;
-      if (krRi?.[i] && zoneProps[subInfo(i)[0]].country === 'KR') { map.setFeatureState({ source: 'subs', id: i }, { color: null }); continue; }   // 리 층(drawRiLayer)이 칠한다
-      if (metric === 'subDensity') v = s.pop[i] / subArea(i);
-      else if (metric === 'subPop') v = s.pop[i];
-      else if (metric === 'subChange') v = s.pop[i] / Math.max(subPop0[i], 1) - 1;
-      else if (['subHappy', 'subApproval', 'subGain'].includes(metric)) v = subMetric(metric, i);
-      else v = s.transit[i];
-      map.setFeatureState({ source: 'subs', id: i }, { color: colorFor(metric, v) });
+      if (krRi?.[i] && zoneProps[subInfo(i)[0]].country === 'KR') { cols[i] = null; continue; }   // 리 층(drawRiLayer)이 칠한다
+      cols[i] = colorFor(metric, subLevelValue(metric, i));
     }
+    applySubColors(cols);
+    if (lv === 'ri') riFallback = false;
   }
   const z = result.zones;
   const accRef = median(Array.from(z.access));
@@ -754,9 +771,17 @@ export function paintZones() {
   const sido = metric === 'popSido' || lv === 'sido' ? provincePops() : null;
   // 광역 단체 값 (인구·변화·밀도는 읍면동을 합쳐서, HDI·소득·행복도는 존 인구 가중)
   const regionVal = new Map();
-  if (lv === 'sido' && !['popSido', 'partyGov', 'voteGov'].includes(metric)) {
-    const acc = new Map();
-    zoneProps.forEach((q, j) => {
+  if (lv === 'sido' && !['popSido', 'partyGov', 'voteGov', 'govApproval'].includes(metric)) {
+    const acc = new Map(), a = admin();
+    // 읍면동이 지금 든 광역으로 모은다 (존으로 모으면 면 단위 편입·신설로 옮긴 땅이 옛 광역에 섞였다). 존 값은 읍면동 인구로 가중
+    if (a) for (let i = 0; i < a.regionOfSub.length; i++) {
+      const r = a.regionOfSub[i];
+      if (!r) continue;
+      const j = subInfo(i)[0], e = acc.get(r) || { w: 0, hdi: 0, inc: 0, hap: 0, area: 0 }, w = Math.max(result.subs.pop[i], 1);
+      e.w += w; e.hdi += z.hdi[j] * w; e.inc += z.income[j] * w; e.hap += (happiness ? happiness[j] : 0) * w; e.area += subArea(i);
+      acc.set(r, e);
+    }
+    else zoneProps.forEach((q, j) => {
       if (q.ext) return;
       const r = regionOf(state, q), e = acc.get(r) || { w: 0, hdi: 0, inc: 0, hap: 0, area: 0 }, w = Math.max(z.pop[j], 1);
       e.w += w; e.hdi += z.hdi[j] * w; e.inc += z.income[j] * w; e.hap += (happiness ? happiness[j] : 0) * w; e.area += q.area || 0;
@@ -788,6 +813,7 @@ export function paintZones() {
     else if (metric === 'partyGov') v = partyValue(i, 'gov');
     else if (metric === 'voteMayor') v = pShare(state.local.offices[mayorKey(i)]);
     else if (metric === 'voteGov') v = zoneProps[i].ext ? null : pShare(state.local.offices[`g:${regionOf(state, zoneProps[i])}`]);
+    else if (metric === 'govApproval') v = zoneProps[i].ext ? null : state.local.offices[`g:${regionOf(state, zoneProps[i])}`]?.approval ?? null;
     else if (metric === 'mayorApproval') v = state.local.offices[mayorKey(i)]?.approval ?? null;
     vals[i] = v;
     map.setFeatureState({ source: 'zones', id: i }, { color: sub || guZ?.has(i) || mixedZ?.has(i) ? null : colorFor(metric, v) });
@@ -796,11 +822,55 @@ export function paintZones() {
   drawRiLayer();
 }
 
+/**
+ * 읍면동 색 칠하기: 지난번과 같은 색은 건너뛰고, 화면 안 읍면동을 먼저 칠한 뒤 나머지는 조금씩 나눠 칠한다.
+ * 전국 읍면동 8천여 곳을 한 번에 setFeatureState하면 읍면동 층위로 바꿀 때 화면이 2.7초 멈췄다
+ */
+let subColorNow = [], subPaintGen = 0;
+function applySubColors(cols) {
+  const gen = ++subPaintGen, todo = [];
+  const b = map.getBounds(), w = b.getWest() - 0.3, e = b.getEast() + 0.3, so = b.getSouth() - 0.3, n = b.getNorth() + 0.3;
+  for (let i = 0; i < cols.length; i++) {
+    if (subColorNow[i] === cols[i]) continue;
+    const [x, y] = subXY(i);
+    if (x >= w && x <= e && y >= so && y <= n) { map.setFeatureState({ source: 'subs', id: i }, { color: cols[i] }); subColorNow[i] = cols[i]; } else todo.push(i);
+  }
+  const step = () => {
+    if (gen !== subPaintGen) return;   // 그 사이 다시 칠하기 시작했다
+    for (const i of todo.splice(0, 800)) { map.setFeatureState({ source: 'subs', id: i }, { color: cols[i] }); subColorNow[i] = cols[i]; }
+    if (todo.length) setTimeout(step, 0);
+  };
+  if (todo.length) setTimeout(step, 0);
+}
+
+/** 리 층위의 읍면동 값 (남측 읍·면은 리 경계를 받기 전·멀리서 볼 때 이 값으로 칠한다) */
+function subLevelValue(metric, i) {
+  const s = result.subs;
+  if (metric === 'subDensity') return s.pop[i] / subArea(i);
+  if (metric === 'subPop') return s.pop[i];
+  if (metric === 'subChange') return s.pop[i] / Math.max(subPop0[i], 1) - 1;
+  if (['subHappy', 'subApproval', 'subGain'].includes(metric)) return subMetric(metric, i);
+  return s.transit[i];
+}
+/** 리 층위에서 남측 읍·면을 읍·면 값으로 칠하고 있는지 (확대 8.5 미만이면 리 경계를 그리지 않아 읍·면이 하얗게 비었다) */
+let riFallback = false;
+function setRiFallback(on) {
+  if (riFallback === on || !result || !krRi) return;
+  riFallback = on;
+  for (let i = 0; i < result.subs.pop.length; i++) {
+    if (!krRi[i] || zoneProps[subInfo(i)[0]]?.country !== 'KR') continue;
+    const c = on ? colorFor(metric, subLevelValue(metric, i)) : null;
+    map.setFeatureState({ source: 'subs', id: i }, { color: c }); subColorNow[i] = c;
+  }
+}
+
 /** 읍면동 행복도·지지율·체감 개선 */
 export function subMetric(metric, i) {
   const [z] = subInfo(i);
   if (zoneProps[z].ext) return null;
-  return subValue(metric, { zoneHappy: happiness?.[z], approval: state.approval, mayor: state.local.offices[mayorKey(z)]?.approval, gain: gains?.[i] || 0 });
+  // 단체장은 지금 그 읍면동을 맡은 시군·구 (신설·편입한 땅에 원래 시군 단체장 값이 나오던 것)
+  const ok = subOfficeKey(i) || mayorKey(z);
+  return subValue(metric, { zoneHappy: happiness?.[z], approval: state.approval, mayor: state.local.offices[ok]?.approval, gain: gains?.[i] || 0 });
 }
 
 export let subIndex = null;

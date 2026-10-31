@@ -6,7 +6,7 @@ import { draft, map, measure, selection, setSelection, state, subsFC, zoneProps 
 import { krRi, loadRiFiles, riAt, riCodeMap, subInfo } from './mapdata.js';
 import { admin, hallPick, hallPickClick, isMetroBody, showHalls, subAtLngLat, subKey, subRegion, subUnit, unitPick, unitPickClick, unitRepZone } from './region.js';
 import { univPick, univPickClick } from './univ.js';
-import { extrasOfZone, hasSplitRi } from './risplit.js';
+import { extraOf, extrasOfZone, hasSplitRi } from './risplit.js';
 import { catchLabel, placeAirport } from './draw.js';
 import { addDraftPoint, draftPress, enableDraftDrag, measureClick } from './route.js';
 import { shownPlan } from './panels.js';
@@ -99,7 +99,10 @@ export function drillSelect(zid, ll) {
   const level2 = split ? { type: 'unit', id: u } : autoGu ? { type: 'gu', id: countyRep(rep), gu: autoGu } : { type: 'zone', id: rep };
   const sel = selection, sameGu = (g) => sel?.type === 'gu' && countyRep(sel.id) === countyRep(rep) && sel.gu === g;
   const inUnit = sel && ((sel.type === 'unit' && sel.id === u) || (sel.type === 'zone' && !split && countyRep(sel.id) === rep) || (autoGu && sameGu(autoGu)));
-  const many = (a.emds.get(emd)?.subs.length || 1) > 1, hasRi = !many && krRi?.[i]?.length > 0;
+  // 떼어 낸 남측 법정리가 원래 읍·면과 같은 시군에 남으면 같은 묶음에 든다: 그 리는 '여러 리로 된 묶음'으로 치지 않고
+  // 리 단계·법정리 목록은 원래 읍·면(부모) 소구역으로 본다 (예전에는 다시 합치면 남은 법정리로 갈 수 없었다)
+  const pi = extraOf(i)?.parent ?? i;
+  const many = (a.emds.get(emd)?.subs.filter((j) => !extraOf(j)).length || 1) > 1, hasRi = !many && krRi?.[pi]?.length > 0;
   // 구로 나누지 않은 광역시(광역시 몸통)는 광역 바로 밑이 동
   if (sel?.type === 'region' && sel.id === r) return !g0 && isMetroBody(u) ? select({ type: 'emd', id: emd }) : select(level2);
   if (inUnit && genGu) return select({ type: 'gu', id: countyRep(rep), gu: genGu });
@@ -108,9 +111,9 @@ export function drillSelect(zid, ll) {
     return select({ type: 'emd', id: emd });
   }
   // 남측 읍·면: 법정리 (경계를 받은 뒤 누른 자리의 리)
-  const toRi = () => riAt(ll, i).then((code) => select(code ? { type: 'ri', id: code } : { type: 'region', id: r }));
+  const toRi = () => riAt(ll, pi).then((code) => select(code ? { type: 'ri', id: code } : { type: 'region', id: r }));
   if (sel?.type === 'emd' && sel.id === emd && hasRi) return toRi();
-  if (sel?.type === 'ri' && riCodeMap?.get(sel.id)?.sub === i) return riAt(ll, i).then((code) => select(code && code !== sel.id ? { type: 'ri', id: code } : { type: 'region', id: r }));
+  if (sel?.type === 'ri' && riCodeMap?.get(sel.id)?.sub === pi) return riAt(ll, pi).then((code) => select(code && code !== sel.id ? { type: 'ri', id: code } : { type: 'region', id: r }));
   if (sel?.type === 'emd' && sel.id === emd) return select(many ? { type: 'sub', id: i } : { type: 'region', id: r });
   if (sel?.type === 'sub' && a.emdOf[sel.id] === emd && many && sel.id !== i) return select({ type: 'sub', id: i });
   return select({ type: 'region', id: r });
