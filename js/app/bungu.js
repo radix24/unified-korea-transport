@@ -20,7 +20,7 @@ import { select } from './interact.js';
 import { fmtPop, pct, renderAll } from './panels.js';
 import { renderRequests } from './budget.js';
 import { renderSelection } from './econ.js';
-import { bunguElectionNotice, countyRep, countyZones, guKey, holdElection, mayorKey, mayorTitleOf, officeLine, regions, supportHTML, syncAppointed, syncMayors, zoneAdminHTML, zoneGus, zonePop } from './election.js';
+import { bunguElectionNotice, cityZoneMatch, countyRep, countyZones, guKey, holdElection, mayorKey, mayorTitleOf, officeLine, regions, supportHTML, syncAppointed, syncMayors, zoneAdminHTML, zoneGus, zonePop } from './election.js';
 import { adminSetup, drawGuMetric, setAdmin } from './firstyear.js';
 import { inRing } from './housing.js';
 import { runPreview } from './preview.js';
@@ -305,7 +305,7 @@ export function makeBungu(unit, n, opts = {}) {
   subs.forEach((s, j) => { gu[subKey(s.i)] = shown[lab[j]]; });
   (state.local.bungu ||= {})[unit] = { n, gu, core: core >= 0 ? shown[core] : null, dirV: 2, ...(general ? { general: true } : {}) };
   guUnits.clear();   // 자세한 경계의 구 배정을 다시 한다
-  const where = general ? `${zoneName(zs[0])} 일반구` : pre ? `${annexRegion(unit)} ${pre}구` : metroName(unit);
+  const where = general ? `${unit.startsWith('split:') ? state.local.splitUnit[unit].name : zoneName(zs[0])} 일반구` : pre ? `${annexRegion(unit)} ${pre}구` : unit.startsWith('split:') ? state.local.splitUnit[unit].region : metroName(unit);
   state.log.unshift(`${state.year}년 ${where} 분구: ${[...new Set(shown)].join('·')}`);
   return true;
 }
@@ -1512,9 +1512,11 @@ export function bindLocalSettings(el) {
       const c = b.dataset.evCity;
       if (!confirm(`${c}를 ${metroName(c)}로 ${L.historic && HISTORIC_CITIES.includes(c) ? '독립' : '승격'}할까요? 도에서 떨어져 나와 광역 단체가 되고, 시장·도지사를 다시 뽑습니다. ${formatWon(EVENT_COST.independence)}`)) return;
       if (!payEvent(EVENT_COST.independence)) return;
-      // 도시가 빠진 도와 새 광역시의 단체장을 다시 뽑는다
-      const zc = zoneProps.find((z) => z.province === c || promotedName(state, z) === c);   // 군에서 승격한 시도
-      const parent = zc ? regionOf(state, zc) : null;
+      // 도시가 빠진 도와 새 광역시의 단체장을 다시 뽑는다. 원래 도는 지금 소속표의 그 도시 시군으로 (예전에는 이름이 맞는 첫 존 하나로
+      // 찾아, 다른 도로 편입했다가 돌아온 조각·떨어진 존이 앞에 있으면 엉뚱한 도를 다시 뽑고 정작 원래 도는 빠졌다)
+      const a = admin(), hits = a ? [...a.units.values()].filter((u) => !u.split && cityZoneMatch(c, zoneProps[u.rep])).sort((x, y) => a.pop(y.id).pop - a.pop(x.id).pop) : [];
+      const zc = hits.length ? zoneProps[hits[0].rep] : zoneProps.find((z) => !z.ext && cityZoneMatch(c, z));   // 군에서 승격한 시도
+      const parents = hits.length ? [...new Set(hits.map((u) => u.region))] : zc ? [regionOf(state, zc)] : [];
       L.independent.push(c);
       adminInvalidate();
       const nGu = +(el.querySelector('#bungu-n')?.value || 1);
@@ -1522,7 +1524,7 @@ export function bindLocalSettings(el) {
       if (old?.general) { if (nGu > 1) delete L.bungu[unitId(state, zc)]; else { delete old.general; setCoreGu(unitId(state, zc)); } }   // 일반구 → 자치구 (구청장 선거)
       if (nGu > 1) makeBungu(c, nGu);
       drawBungu();
-      holdElection([metroName(c), parent].filter(Boolean), `${metroName(c)} ${L.historic ? '독립' : '광역시 승격'} 선거`);
+      holdElection([metroName(c), ...parents.filter((r) => r !== metroName(c))], `${metroName(c)} ${L.historic ? '독립' : '광역시 승격'} 선거`);
       syncMayors();   // 승격한 도시 자체(한 존)는 중구가 된다: 시장 → 중구청장
       refreshNames(map);
       save(state); renderAll();

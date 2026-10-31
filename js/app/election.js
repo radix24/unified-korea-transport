@@ -10,7 +10,7 @@ import { toast } from '../ui/panel.js';
 import { base, CLASS_LABEL, esc, map, requests, result, setRequests, state, zoneProps } from './core.js';
 import { countyKey, officeName, zoneName } from './year.js';
 import { nodeCoord, paintZones, refreshLinks, subInfo } from './mapdata.js';
-import { admin, adminInvalidate, kpMyeon, kpUnitKind, krSi, splitUnits, subAtLngLat, subRegion, unitMyeonList, unitOfficeKey, unitPop, unitRepZone } from './region.js';
+import { admin, adminInvalidate, kpMyeon, kpUnitKind, krSi, splitUnits, subAtLngLat, subKey, subRegion, unitMyeonList, unitOfficeKey, unitPop, unitRepZone } from './region.js';
 import { fmtPop, renderAll } from './panels.js';
 import { gotoLinks, renderRequests, spanText } from './budget.js';
 import {
@@ -31,7 +31,27 @@ export function regions() {
     if (!out.has(r)) out.set(r, []);
     out.get(r).push(i);
   });
+  // 광역시로 승격한 신설 시: 존이 없는 광역 단체 (광역단체장 선거·자리 정리에 빠지지 않게)
+  for (const u of splitUnits()) {
+    if (!u.metro || out.has(u.region)) continue;
+    const rep = unitRepZone(u.id);
+    if (rep >= 0 && hasAutonomy(state, zoneProps[rep])) out.set(u.region, []);
+  }
   return out;
+}
+
+/** 새로 세운 시군의 자치구 (광역시로 승격한 신설 시): 가운데 구 먼저. 일반구·분구 전이면 null */
+export function splitGus(id) {
+  const b = state.local?.bungu?.[id];
+  if (!b || b.general || !admin()?.unit(id)?.metro) return null;
+  const gs = [...new Set(Object.values(b.gu))];
+  if (!gs.length) return null;
+  return gs.sort((x, y) => (y === b.core) - (x === b.core) || x.localeCompare(y, 'ko'));
+}
+/** 새로 세운 시군 단체장 직함: 광역시로 승격한 신설 시는 가운데 구청장(구가 없으면 없음) */
+export function splitTitle(u) {
+  const gs = splitGus(u.id);
+  return gs ? `${gs[0]}청장` : u.metro ? null : countyTitle(u.name, u.region);
 }
 
 export function zonePop(i) { return result ? result.zones.pop[i] : zoneProps[i].pop; }
@@ -103,7 +123,7 @@ export function holdElection(only = 'all', reason = '') {
         if (u.region !== r || (only === 'kp' && zoneProps[unitRepZone(u.id)].country !== 'KP')) continue;
         if (!hasAutonomy(state, zoneProps[unitRepZone(u.id)])) continue;
         const was = L.offices[unitOfficeKey(u.id)], wasParty = was && !was.appointed ? was.party : null;
-        const won = electUnitMayor(u.id, mood, (w) => { if (w === 'limit') limited++; else if (w === 'retire') retired++; });
+        const won = electUnitMayor(u.id, mood, (w) => { if (w === 'limit') limited++; else if (w === 'retire') retired++; }, may);
         if (won) may[won] = (may[won] || 0) + 1;
         if (won && wasParty && wasParty !== won) flips.push(L.offices[unitOfficeKey(u.id)].title);
       }
@@ -312,6 +332,7 @@ export function syncAppointed() {
     if (!regs.has(r)) regs.set(r, []);
     regs.get(r).push(i);
   });
+  for (const u of splitUnits()) { const rep = unitRepZone(u.id); if (u.metro && rep >= 0 && !hasAutonomy(state, zoneProps[rep]) && !regs.has(u.region)) regs.set(u.region, []); }
   const stale = (o) => o?.appointed && state.year - o.since >= ELECTION.every;   // 4년마다 인사
   const want = new Set();
   for (const [r, zs] of regs) {
@@ -332,10 +353,13 @@ export function syncAppointed() {
   for (const u of splitUnits()) {
     const rep = unitRepZone(u.id);
     if (rep < 0 || hasAutonomy(state, zoneProps[rep])) continue;
-    const mk = unitOfficeKey(u.id), t = countyTitle(u.name, u.region);
-    want.add(mk);
-    if (!L.offices[mk] || stale(L.offices[mk])) L.offices[mk] = { appointed: true, title: t, name: personName(rng, 'KP'), zone: rep, unit: u.id, since: state.year, approval: 50, accepted: 0, delivered: 0, terms: 1 };
-    else if (L.offices[mk].appointed) L.offices[mk].title = t;
+    const mk = unitOfficeKey(u.id), gs = splitGus(u.id) || [];
+    for (const [k, t] of [[mk, splitTitle(u)], ...gs.slice(1).map((g) => [`${mk}#${g}`, `${g}청장`])]) {
+      if (!t) continue;
+      want.add(k);
+      if (!L.offices[k] || stale(L.offices[k])) L.offices[k] = { appointed: true, title: t, name: personName(rng, 'KP'), zone: rep, unit: u.id, since: state.year, approval: 50, accepted: 0, delivered: 0, terms: 1 };
+      else if (L.offices[k].appointed) L.offices[k].title = t;
+    }
   }
   // 지방자치를 시행한 곳의 관선 단체장은 민선이 대신한다 (첫 선거에서 바뀐다)
   for (const [k, o] of Object.entries(L.offices)) if (o.appointed && !want.has(k)) delete L.offices[k];
@@ -402,9 +426,13 @@ export function syncMayors() {
     if (!k.startsWith('m:')) continue;
     // 새로 세운 시군의 단체장: 그 시군이 있으면 둔다 (직함은 지금 이름으로)
     if (k.startsWith('m:split:')) {
-      const u = admin()?.unit(k.slice(2));
-      if (!L.splitUnit?.[k.slice(2)] || (admin() && !u)) delete L.offices[k];
-      else if (u) L.offices[k].title = countyTitle(u.name, u.region);
+      const [sid, gu] = k.slice(2).split('#'), u = admin()?.unit(sid);
+      if (!L.splitUnit?.[sid] || (admin() && !u)) { delete L.offices[k]; continue; }
+      if (!u) continue;
+      // 광역시로 승격한 신설 시: 몸통 자리는 가운데 구청장(구가 없으면 없음), 나머지 구는 #구
+      const gs = splitGus(sid), title = gu ? (gs?.slice(1).includes(gu) ? `${gu}청장` : null) : splitTitle(u);
+      if (!title) delete L.offices[k];
+      else L.offices[k].title = title;
       continue;
     }
     const [id, gu] = k.slice(2).split('#'), i = +id;
@@ -421,26 +449,41 @@ export function syncMayors() {
     }
   }
   // 새로 세운 시군: 단체장이 없으면 뽑는다 (북측은 지방자치를 시작한 뒤)
-  for (const u of splitUnits()) if (!L.offices[unitOfficeKey(u.id)] && hasAutonomy(state, zoneProps[unitRepZone(u.id)])) electUnitMayor(u.id);
+  for (const u of splitUnits()) {
+    if (!hasAutonomy(state, zoneProps[unitRepZone(u.id)])) continue;
+    const k = unitOfficeKey(u.id), gs = splitGus(u.id) || [];
+    if ((splitTitle(u) && (!L.offices[k] || L.offices[k].appointed)) || gs.slice(1).some((g) => !L.offices[`${k}#${g}`])) electUnitMayor(u.id);
+  }
   syncAppointed();
   if (result && map) paintZones();
 }
 
 /** 새로 세운 시군의 단체장 선거: 그 읍면동이 든 존들의 지역 성향을 인구로 가중 */
-export function electUnitMayor(id, mood = 0, onOut = null) {
+export function electUnitMayor(id, mood = 0, onOut = null, tally = null) {
   const L = state.local, u = admin()?.unit(id);
   if (!u) return null;
-  const key = unitOfficeKey(id), cur0 = L.offices[key];
-  let w = 0, s = 0;
-  for (const i of u.subs) { const p = Math.max(1, result ? result.subs.pop[i] : 1); w += p; s += p * leanP(zoneProps[subInfo(i)[0]]); }
-  const { cur, why } = incumbent(cur0);
-  if (why) onOut?.(why);
-  const rm = runElection(s / w + supportShift(u.region), cur, rng, mood, waveSup(L.support?.[u.region]));
-  const title = countyTitle(u.name, u.region), rep = unitRepZone(id);
-  if (cur && cur.party === rm.party) { cur.approval = 50 + (cur.approval - 50) / 2; cur.terms = (cur.terms || 1) + 1; cur.title = title; }
-  else L.offices[key] = { title, name: personName(rng, zoneProps[rep].country), zone: rep, unit: id, party: rm.party, since: state.year, approval: 50, accepted: 0, delivered: 0, terms: 1 };
-  L.offices[key].share = rm.share;
-  return rm.party;
+  const key = unitOfficeKey(id), rep = unitRepZone(id), gs = splitGus(id), b = L.bungu?.[id];
+  // 광역시로 승격한 신설 시는 구마다 (가운데 구는 몸통 자리), 아니면 시군 전체로
+  const one = (k, title, subs, extra = {}) => {
+    let w = 0, s = 0;
+    for (const i of subs) { const p = Math.max(1, result ? result.subs.pop[i] : 1); w += p; s += p * leanP(zoneProps[subInfo(i)[0]]); }
+    const { cur, why } = incumbent(L.offices[k]);
+    if (why) onOut?.(why);
+    const rm = runElection((w > 0 ? s / w : 0.5) + supportShift(u.region), cur, rng, mood, waveSup(L.support?.[u.region]));
+    if (cur && cur.party === rm.party) { cur.approval = 50 + (cur.approval - 50) / 2; cur.terms = (cur.terms || 1) + 1; cur.title = title; }
+    else L.offices[k] = { title, name: personName(rng, zoneProps[rep].country), zone: rep, unit: id, ...extra, party: rm.party, since: state.year, approval: 50, accepted: 0, delivered: 0, terms: 1 };
+    L.offices[k].share = rm.share;
+    return rm.party;
+  };
+  const title = splitTitle(u);
+  if (!title) { delete L.offices[key]; return null; }   // 구 없는 광역시 몸통: 기초단체장 없음
+  const subsOf = (g) => u.subs.filter((i) => b.gu[subKey(i)] === g);
+  const won = one(key, title, gs ? subsOf(gs[0]) : u.subs);
+  for (const g of (gs || []).slice(1)) {
+    const p = one(`${key}#${g}`, `${g}청장`, subsOf(g), { gu: g });
+    if (tally) tally[p] = (tally[p] || 0) + 1;
+  }
+  return won;
 }
 
 /** 단체장 제안: 자기 지역의 혼잡 민원 가운데 가장 급한 것 (광역단체장은 해마다 1건, 시군구청장은 전국에서 6건) */

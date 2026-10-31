@@ -21,6 +21,8 @@ export function buildAdmin(d, L) {
   // 그 땅이 지금 든 광역을 따른다 (예전에는 '경기도'에 남아 경기도 창이 빈 광역으로 나왔다)
   const live = new Set();
   zoneProps.forEach((z, j) => { if (!z.ext) live.add(d.regionOf(j)); });
+  // 광역시로 승격한 신설 시: 그 시 자체가 광역 단체 (존에는 없는 이름)
+  for (const s of Object.values(SP)) if (s.metro && s.region) live.add(s.region);
   const liveOr = (r, fb) => (r && live.has(r) ? r : fb);
   const units = new Map();
   const unit = (id, init) => { let u = units.get(id); if (!u) units.set(id, (u = { id, subs: [], zones: new Set(), ...init() })); return u; };
@@ -42,7 +44,7 @@ export function buildAdmin(d, L) {
     regionOfSub[i] = SP[id] ? liveOr(SP[id].region, d.regionOf(z)) : id !== home ? d.regionOf(+id.slice(2)) : liveOr(R[key], d.regionOf(z));
     const u = unit(id, () => (id.startsWith('z:')
       ? { split: false, rep: +id.slice(2), name: null, region: null }
-      : { split: true, rep: -1, name: SP[id].name, home: SP[id].home, year: SP[id].year, region: liveOr(SP[id].region, d.regionOf(z)) }));
+      : { split: true, rep: -1, name: SP[id].metro ? SP[id].region : SP[id].name, metro: !!SP[id].metro, home: SP[id].home, year: SP[id].year, region: liveOr(SP[id].region, d.regionOf(z)) }));
     u.subs.push(i); u.zones.add(z);
   }
   for (const u of units.values()) {

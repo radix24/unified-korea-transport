@@ -447,7 +447,8 @@ export function provincePops() {
   });
   // 읍면동 단위로 다시 센다 (광역시·다른 도로 편입한 읍면동, 새로 세운 시군): 소속표가 있으면
   const a = admin();
-  if (a) for (const [r, e] of a.regionPops()) { const o = out.get(r); if (o) { o.pop = e.pop; o.pop0 = e.pop0; } }
+  // 존이 없는 광역 단체(광역시로 승격한 신설 시)도 넣는다
+  if (a) for (const [r, e] of a.regionPops()) { const o = out.get(r); if (o) { o.pop = e.pop; o.pop0 = e.pop0; } else out.set(r, { pop: e.pop, pop0: e.pop0, country: zoneProps[[...e.zones][0]]?.country, zones: [] }); }
   return out;
 }
 

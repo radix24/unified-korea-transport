@@ -13,7 +13,7 @@ import { officeName, zoneName } from './year.js';
 import { drawAdmin, krRi, riAt, riCodeMap, riFeat, subInfo } from './mapdata.js';
 import { select } from './interact.js';
 import { fmtPop, renderAll } from './panels.js';
-import { countyRep, countyRepCache, countyRepFresh, setCountyRepFresh, syncMayors, zoneGus } from './election.js';
+import { countyRep, countyRepCache, countyRepFresh, holdElection, setCountyRepFresh, syncMayors, zoneGus } from './election.js';
 import { guNamesOfZone, guOfSub, isGeneralGu, payEvent, pruneBungu, subAdjacency, unitMembers, unitSubs, unitZones } from './bungu.js';
 import { endHousingPick, inRing } from './housing.js';
 import { header } from './svcmap.js';
@@ -568,11 +568,18 @@ export function mergeSplitUnit(key) {
   for (const [k, v] of Object.entries(state.local.annexSubUnit || {})) if (v === key) { delete state.local.annexSubUnit[k]; delete state.local.annexSub?.[k]; }
   delete state.local.splitUnit[key];
   delete state.local.offices[unitOfficeKey(key)];
+  // 광역시로 승격했던 신설 시: 그 광역시가 없어지니 광역단체장 자리도 없애고, 돌아간 도의 도지사를 다시 뽑는다
+  if (S.metro) delete state.local.offices[`g:${S.region}`];
   // 이 시군에서 다시 떼어 세운 시군은 이제 원래 시군에서 나온 것으로
   for (const C of Object.values(state.local.splitUnit || {})) if (C.home === key) C.home = S.home;
   // 구 배정(떠날 때 적어 둔 구로 되돌림)·이 시군의 분구 기록·구청장 자리 정리는 소속표를 다시 만들 때 (bungu.js syncGuMembers)
   adminInvalidate(); admin();
   syncMayors();
+  if (S.metro) {
+    const hz = S.home.startsWith('split:') ? -1 : zoneProps.findIndex((z) => !z.ext && unitId(state, z) === S.home);
+    const r = S.home.startsWith('split:') ? admin()?.unit(S.home)?.region : hz >= 0 ? regionOf(state, zoneProps[hz]) : null;
+    if (r) holdElection([r], `${S.region} 폐지 선거`);
+  }
   state.log.unshift(`${state.year}년 ${S.name}, ${S.home.split('|')[1] || S.home}에 다시 합침`);
   save(state); drawAdmin(); renderAll();
   if (selection?.type === 'unit' && selection.id === key) select(null);
