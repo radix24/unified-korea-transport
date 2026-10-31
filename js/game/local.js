@@ -297,7 +297,12 @@ export const REGION_REORG = {
   hamnam: { label: '원산 일대 함경남도 환원', from: ['강원북도', '강원도'], to: '함경남도', zones: ['원산시', '천내군', '문천시', '안변군', '고산군', '법동군'] },
   rason: { label: '라선시 함경북도 환원', from: ['라선시', '나선시', '라선광역시', '나선광역시'], to: '함경북도' },
   jeonbuk: { label: '전라북도로 이름 변경', from: ['전북특별자치도'], to: '전라북도' },
-  gwangju: { label: '전라남도·광주광역시로 분리', from: ['전남광주통합특별시'], to: '전라남도', split: '광주광역시' },
+  // 광주: 통합특별시가 된 옛 광주광역시의 구 (광산구·남구·동구·북구·서구). 그 밖은 전라남도
+  gwangju: { label: '전라남도·광주광역시로 분리', from: ['전남광주통합특별시'], to: '전라남도', split: '광주광역시', inSplit: (z) => z.province === '전남광주통합특별시' && /구$/.test(z.name) },
+  // 경기 분도: 한강 북쪽 10개 시군(경기북부특별자치도 설치 구상의 범위)은 경기북도, 나머지는 경기남도. 1945년 도 복원으로 경기도가 된 북측(개성 등)도 경기북도
+  gyeonggi: { label: '경기북도·경기남도로 분도', from: ['경기도'], to: '경기남도', split: '경기북도',
+    zones: ['고양시', '의정부시', '남양주시', '파주시', '양주시', '구리시', '포천시', '동두천시', '가평군', '연천군'],
+    inSplit: (z) => z.country === 'KP' || (z.province === '경기도' && REGION_REORG.gyeonggi.zones.includes(z.name)) },
 };
 function reorgRegion(L, z, r, annexed = false) {
   const R = L.regionReorg;
@@ -305,9 +310,9 @@ function reorgRegion(L, z, r, annexed = false) {
   for (const [k, o] of Object.entries(REGION_REORG)) {
     if (!R[k] || !o.from.includes(r)) continue;
     // 원산 일대: 그 시군만 (편입해 온 시군은 그대로). 나머지 강원은 다음 개편으로
-    if (o.zones) { if (!annexed && z.country === 'KP' && o.zones.includes(z.name)) return o.to; continue; }
-    // 광주: 통합특별시가 된 옛 광주광역시의 구 (광산구·남구·동구·북구·서구). 그 밖은 전라남도
-    r = o.split && z.province === '전남광주통합특별시' && /구$/.test(z.name) ? o.split : o.to;
+    if (o.zones && !o.split) { if (!annexed && z.country === 'KP' && o.zones.includes(z.name)) return o.to; continue; }
+    // 나누는 개편: 떼어 낼 쪽(inSplit)이면 새 단체, 아니면 남는 단체
+    r = o.split && o.inSplit(z) ? o.split : o.to;
   }
   return r;
 }

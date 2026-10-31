@@ -6,7 +6,7 @@ import { draft, map, measure, selection, setSelection, state, subsFC, zoneProps 
 import { krRi, loadRiFiles, riAt, riCodeMap, subInfo } from './mapdata.js';
 import { admin, hallPick, hallPickClick, isMetroBody, showHalls, subAtLngLat, subKey, subRegion, subUnit, unitPick, unitPickClick, unitRepZone } from './region.js';
 import { univPick, univPickClick } from './univ.js';
-import { hasSplitRi } from './risplit.js';
+import { extrasOfZone, hasSplitRi } from './risplit.js';
 import { catchLabel, placeAirport } from './draw.js';
 import { addDraftPoint, draftPress, enableDraftDrag, measureClick } from './route.js';
 import { shownPlan } from './panels.js';
@@ -185,6 +185,18 @@ function movedUnitSubs(zid) {
   return u.subs.length !== own.length || own.some((i) => !set.has(i)) ? u.subs : null;
 }
 
+/** 광역 단체에 읍면동 단위로 드나든 곳이 있으면 지금 소속 읍면동 목록, 없으면 null (시군 경계로 그린다) */
+function movedRegionSubs(r) {
+  const a = admin();
+  if (!a) return null;
+  const subs = [...a.units.values()].filter((u) => u.region === r).flatMap((u) => u.subs);
+  const zs = new Set(subs.map((i) => subInfo(i)?.[0]));
+  const own = zoneProps.map((_, j) => j).filter((j) => !zoneProps[j].ext && regionOf(state, zoneProps[j]) === r);
+  const n = own.reduce((t, j) => t + zoneProps[j].subs.length, 0) + extrasCount(own);
+  return own.length !== zs.size || own.some((j) => !zs.has(j)) || n !== subs.length ? subs : null;
+}
+const extrasCount = (zs) => zs.reduce((t, z) => t + extrasOfZone(z).length, 0);
+
 export var selSubIds = [];   // 강조한 읍면동(리) 번호들
 export function select(sel) {
   if (selection?.type === 'multi') for (const i of selection.ids) map.setFeatureState({ source: 'links', id: i }, { sel: false });
@@ -198,7 +210,7 @@ export function select(sel) {
   setSelection(sel);
   // 여러 리로 된 면(북측)·시군을 고르면 리마다 테두리를 긋지 말고 바깥 테두리만 (예전에는 면 안의 리 경계가 모두 파랗게 보였다)
   // 동·리를 떼어 주거나 받은 시군은 시군 경계가 아니라 지금 소속 읍면동의 바깥 테두리로 (예전에는 편입 전 경계대로 강조했다)
-  const moved = sel?.type === 'zone' ? movedUnitSubs(sel.id) : null;
+  const moved = sel?.type === 'zone' ? movedUnitSubs(sel.id) : sel?.type === 'region' ? movedRegionSubs(sel.id) : null;
   const picked = moved || (sel?.type === 'sub' ? [sel.id] : sel?.type === 'emd' ? admin()?.emds.get(sel.id)?.subs || [] : sel?.type === 'unit' ? admin()?.unit(sel.id)?.subs || [] : []);
   selSubIds = picked.length === 1 && !hasSplitRi(picked[0]) ? picked : [];   // 리를 떼어 낸 읍면은 테두리를 따로 (아래)
   for (const i of selSubIds) map.setFeatureState({ source: 'subs', id: i }, { sel: true });

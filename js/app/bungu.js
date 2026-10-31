@@ -6,7 +6,7 @@ import {
   unitId,
 } from '../game/local.js';
 import { SPECIAL_DEV, specialZone, zoneDevHTML } from './zonedev.js';
-import { subOutlineGeoms } from './risplit.js';
+import { subOutlineGeoms, subXY } from './risplit.js';
 import { applyMega, kpACCost, kpDCLines, MEGA, megaGeometry, TSR_FREIGHT } from '../game/mega.js';
 import { canAfford, renameKPLines, save, startMega, startUpgrade } from '../game/state.js';
 import { t } from '../i18n.js';
@@ -154,6 +154,14 @@ export function unitZones(unit) {
   return unit.includes('|') ? zoneProps.map((z, i) => i).filter((i) => !zoneProps[i].ext && !zoneProps[i].city && unitId(state, zoneProps[i]) === unit) : cityCoreZones(unit);
 }
 
+/** 분구 단위에 지금 든 읍면동 (소속표 기준): 새로 세운 시군은 그 단위, 나머지는 대표 존의 시군 단위. 소속표가 없으면 null */
+export function unitMembers(unit, zs = unitZones(unit)) {
+  const a = admin();
+  if (!a) return null;
+  const u = unit.startsWith('split:') ? a.unit(unit) : zs.length ? a.unit(`z:${countyRep(zs[0])}`) : null;
+  return u ? new Set(u.subs) : null;
+}
+
 /** 편입한 시면 이름 앞머리 (벽성시 → 벽성), 승격한 도시면 '' */
 export const unitPrefix = (unit) => (unit.includes('|') ? unit.split('|')[1].replace(/(시|군|구역|구)$/, '') : '');
 
@@ -165,10 +173,12 @@ export function makeBungu(unit, n, opts = {}) {
   const zs = unitZones(unit);
   // 앞머리가 그 광역시 이름 줄기와 같으면(구 없는 라선시를 나눌 때) 붙이지 않는다: 라선광역시 라선구가 되지 않게
   const pre0 = general ? '' : unitPrefix(unit), pre = pre0 && guParentStem(unit, false) === stemOf(pre0) ? '' : pre0;
-  // 새로 세운 시군은 그 시군의 읍면동만 (존에는 원래 시군 읍면동도 섞여 있다)
-  const members = unit.startsWith('split:') ? new Set(admin()?.unit(unit)?.subs || []) : null;
-  const subs = zs.flatMap((z) => zoneProps[z].subs.map((s, k) => ({ i: zoneProps[z].sub0 + k, x: s[0], y: s[1], w: Math.max(1, result ? result.subs.pop[zoneProps[z].sub0 + k] : s[2] * zoneProps[z].pop) })))
-    .filter((s) => (!members || members.has(s.i)) && (!opts.only || opts.only.has(s.i)));
+  // 지금 그 시군에 든 읍면동 (새로 세운 시군은 그 시군 것만, 읍면동 단위로 편입해 온 이웃 군의 읍면도 넣고 떼어 준 것은 뺀다)
+  // 예전에는 존 단위로만 모아 함주군 읍면을 편입한 함흥시를 광역시로 올리면 원래 함흥시 땅만 나뉘었다
+  const members = unitMembers(unit, zs);
+  const subs = [...new Set([...zs.flatMap((z) => zoneProps[z].subs.map((_, k) => zoneProps[z].sub0 + k)), ...(members || [])])]
+    .filter((i) => (!members || members.has(i)) && (!opts.only || opts.only.has(i)))
+    .map((i) => { const [z, k] = subInfo(i), s = k >= 0 ? zoneProps[z].subs[k] : [...subXY(i), 0]; return { i, x: s[0], y: s[1], w: Math.max(1, result ? result.subs.pop[i] : s[2] * zoneProps[z].pop) }; });
   if (subs.length < n || n < 2) return false;
   const W = subs.reduce((t, s) => t + s.w, 0);
   const cx = subs.reduce((t, s) => t + s.x * s.w, 0) / W, cy = subs.reduce((t, s) => t + s.y * s.w, 0) / W;
@@ -731,6 +741,9 @@ export function guAt(z, lon, lat) {
 export function guSubs(z, gu) {
   const out = [];
   for (const zz of countyZones(z)) { const q = zoneProps[zz]; for (let k = 0; k < q.subs.length; k++) if (guOfSub(q.sub0 + k) === gu) out.push(q.sub0 + k); }
+  // 읍면동 단위로 편입해 온 이웃 시군의 읍면 (그 구에 든 것)
+  const u = admin()?.unit(`z:${countyRep(z)}`), own = new Set(out);
+  for (const i of u?.subs || []) if (!own.has(i) && guOfSub(i) === gu) out.push(i);
   return out;
 }
 

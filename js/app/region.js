@@ -1,7 +1,7 @@
 // 행정: 읍면동 편입, 북측 1945년 면, 행정 소속표, 시군구 신설, 청사.
 import { adminSig, buildAdmin } from '../game/admin.js';
 import { formatWon } from '../game/catalog.js';
-import { countyDisplayName, dueum, EVENT_COST, isMetroCity, metroName, PARTIES, promotedName, regionOf, unitId } from '../game/local.js';
+import { countyDisplayName, dueum, EVENT_COST, isMetroCity, metroName, PARTIES, promotedName, REGION_REORG, regionOf, unitId } from '../game/local.js';
 import { stem } from '../game/naming.js';
 import { placeName, save } from '../game/state.js';
 import { t } from '../i18n.js';
@@ -618,6 +618,12 @@ export function hallList() {
     });
     // 실제 구청이 지도 자료에 있는 일반구(수원시 장안구청 등)는 그 자리 그대로: 인구 중심에 또 찍지 않는다
     for (const [g, e] of best) if (!out.some((h) => h.name.endsWith(`${g}청`) && kmBetween(h.lon, h.lat, e.lon, e.lat) < 15)) out.push({ name: `${g}청`, kind: 'gu', lon: e.lon, lat: e.lat });
+  }
+  // 나누는 개편으로 새로 생긴 도(경기북도)·광역시: 청사 자료에 없으면 그 단체에서 가장 큰 시의 시청 곁에
+  for (const [k, o] of Object.entries(REGION_REORG)) {
+    if (!o.split || !L.regionReorg?.[k] || out.some((h) => h.kind === 'do' && h.region === o.split)) continue;
+    const seat = provinceSeat(o.split);
+    if (seat) out.push({ name: `${o.split}청`, kind: 'do', lon: seat[0], lat: seat[1], region: o.split });
   }
   // 도시 개발 사업으로 지은 정부 청사 (정부부산지방합동청사·평양정부청사)
   for (const g of state.govHalls || []) out.push({ name: g.name, kind: 'gov', lon: g.lon, lat: g.lat });

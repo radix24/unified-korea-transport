@@ -201,6 +201,7 @@ function reorgDesc(k, o, r) {
   if (k === 'gangwonNam') return [`${r} → ${o.to}`, '남측 강원을 강원남도로 부릅니다 (북측은 강원북도). 도지사는 그대로, 이름만 바꿉니다'];
   if (k === 'hamnam') return [`${o.zones.join('·')} → ${o.to}`, '1946년 강원도로 옮기기 전의 함경남도로 돌립니다 (이북5도위원회 기준). 도지사는 그대로입니다'];
   if (k === 'rason') return [`${r} → ${o.to} 라선시`, '직할시를 함경북도의 시로 돌립니다. 시장을 새로 뽑고, 나눈 구는 일반구가 됩니다'];
+  if (k === 'gyeonggi') return [`${r} → ${o.to} + ${o.split}`, `한강 북쪽 ${o.zones.join('·')}(경기북부특별자치도 구상의 10개 시군)은 경기북도, 나머지 시군은 경기남도가 됩니다. 두 도지사를 새로 뽑고, 경기북도청은 그 도에서 가장 큰 시에 섭니다`];
   if (o.split) return [`${r} → ${o.to} + ${o.split}`, '통합특별시의 구 다섯 곳(광산·남·동·북·서구)은 광주광역시, 나머지 시군은 전라남도가 됩니다. 두 단체장을 새로 뽑습니다'];
   return [`${r} → ${o.to}`, '단체장은 그대로, 이름만 바꿉니다'];
 }
@@ -209,7 +210,10 @@ function reorgDesc(k, o, r) {
 function hamheungTargets() {
   const H = HAMHEUNG_ENCLAVE, city = zoneProps.findIndex((z) => z.country === 'KP' && z.name === H.city);
   if (city < 0 || state.local.regionReorg?.hamheung) return null;
-  const zs = zoneProps.map((_, j) => j).filter((j) => zoneProps[j].country === 'KP' && H.zones.includes(zoneProps[j].name));
+  // 이미 함흥시에 든 군(읍면동 단위로 편입)은 뺀다
+  const own = new Set(admin()?.unit(`z:${countyRep(city)}`)?.subs || []);
+  const zs = zoneProps.map((_, j) => j).filter((j) => zoneProps[j].country === 'KP' && H.zones.includes(zoneProps[j].name)
+    && zoneProps[j].subs.some((_, q) => !own.has(zoneProps[j].sub0 + q)));
   return zs.length ? { city, zs } : null;
 }
 
@@ -225,7 +229,7 @@ export function regionReorg(k, from) {
     // 세 군의 읍면을 모두 함흥시로 (월경지 래일로동자구가 본시와 이어진다). 군수 자리는 없어진다
     const to = `z:${countyRep(H.city)}`;
     for (const j of H.zs) zoneProps[j].subs.forEach((_, q) => setSubUnit(zoneProps[j].sub0 + q, to));
-    state.log.unshift(`${state.year}년 ${HAMHEUNG_ENCLAVE.label}: ${HAMHEUNG_ENCLAVE.zones.join('·')}을 함흥시에 편입 (월경지 ${HAMHEUNG_ENCLAVE.exclave}가 본시와 이어짐)`);
+    state.log.unshift(`${state.year}년 ${HAMHEUNG_ENCLAVE.label}: ${H.zs.map((j) => zoneProps[j].name).join('·')}을 ${unitName(to)}에 편입 (월경지 ${HAMHEUNG_ENCLAVE.exclave}가 본시와 이어짐)`);
     adminInvalidate();
     pruneBungu(); syncGovernors(); syncMayors(); refreshNames(map); save(state); drawAdmin(); drawBungu();
     renderAll();
@@ -246,9 +250,9 @@ export function regionReorg(k, from) {
     }
     adminInvalidate();
   }
-  state.log.unshift(`${state.year}년 광역 행정구역 개편: ${o.split ? `${from}를 ${o.to}와 ${o.split}로 나눕니다` : o.zones ? `${o.zones.join('·')}을 ${o.to}로 환원` : k === 'rason' ? `${from}를 ${o.to}로 환원` : `${had.join('·')} → ${o.to}`}`);
+  state.log.unshift(`${state.year}년 광역 행정구역 개편: ${o.split ? `${from}를 ${o.to}와 ${o.split}로 나눕니다` : o.zones && !o.split ? `${o.zones.join('·')}을 ${o.to}로 환원` : k === 'rason' ? `${from}를 ${o.to}로 환원` : `${had.join('·')} → ${o.to}`}`);
   syncGovernors(); syncMayors(); refreshNames(map); save(state); drawAdmin(); drawBungu();
-  setSelection({ type: 'region', id: o.zones ? from : o.to });
+  setSelection({ type: 'region', id: o.zones && !o.split ? from : o.to });
   renderAll();
 }
 
@@ -314,10 +318,10 @@ export function regionPanel(r) {
     <div style="display:flex;height:12px;border-radius:3px;overflow:hidden;margin:3px 0">${rows.map(([k, v]) => `<span title="${esc(PARTIES[k].name)} ${(v * 100).toFixed(1)}%" style="width:${v * 100}%;background:${PARTIES[k].color}"></span>`).join('')}</div>
     <div class="m">${rows.map(([k, v]) => `${partyBadge(k)} ${(v * 100).toFixed(1)}%`).join(' ')}</div>` : ''}
     ${(() => {
-      const items = Object.entries(REGION_REORG).filter(([k, o]) => !L.regionReorg?.[k] && o.from.includes(r) && (!o.zones || zs.some((j) => o.zones.includes(zoneProps[j].name) && zoneProps[j].country === 'KP')))
+      const items = Object.entries(REGION_REORG).filter(([k, o]) => !L.regionReorg?.[k] && o.from.includes(r) && (!o.zones || o.split || zs.some((j) => o.zones.includes(zoneProps[j].name) && zoneProps[j].country === 'KP')))
         .map(([k, o]) => [k, o.label, ...reorgDesc(k, o, r)]);
       const H = hamheungTargets();
-      if (H && regionOf(state, zoneProps[H.city]) === r) items.push(['hamheung', HAMHEUNG_ENCLAVE.label, `${HAMHEUNG_ENCLAVE.zones.join('·')} → ${HAMHEUNG_ENCLAVE.city}`, `함흥시의 월경지 ${HAMHEUNG_ENCLAVE.exclave}와 본시 사이의 군을 함흥시에 편입해 땅을 잇습니다 (군수 자리는 없어지고 그 읍면은 함흥시의 동·리가 됩니다)`]);
+      if (H && regionOf(state, zoneProps[H.city]) === r) items.push(['hamheung', HAMHEUNG_ENCLAVE.label, `${H.zs.map((j) => zoneProps[j].name).join('·')} → ${unitName(`z:${countyRep(H.city)}`)}`, `함흥시의 월경지 ${HAMHEUNG_ENCLAVE.exclave}와 본시 사이의 군을 함흥시에 편입해 땅을 잇습니다 (군수 자리는 없어지고 그 읍면은 함흥시의 동·리가 됩니다)`]);
       return items.length ? `<h4>광역 행정구역 개편</h4>${items.map(([k, label, what, m]) => `<div class="item"><div class="t">${esc(label)}: ${esc(what)}</div>
       <div class="m">${m} · ${formatWon(EVENT_COST[REORG_COST[k] || 'independence'])} (해마다 할 수 있습니다)</div>
       <div class="actions"><button class="small primary" data-reorg="${k}">${esc(label)}</button></div></div>`).join('')}` : '';
