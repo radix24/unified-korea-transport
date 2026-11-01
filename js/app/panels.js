@@ -510,7 +510,7 @@ export function renderBuild() {
       ${retireChoiceHTML()}
       ${draft.points.length > 1 ? `<p class="hint">${draft.extendOf ? `기존선 연장: ${esc(draft.extendOf)}의 종점에서 이어 같은 노선 이름을 씁니다.` : '신설 노선: 새 노선 이름을 붙입니다.'}</p>` : ''}
       <p class="hint">기존 ${spec.mode ? '선로' : '도로'} 근처를 누르면 연결됩니다. ${spec.mode ? '각 점은 역이 됩니다.' : '끝점이 기존 도로 0.5km 안이면 그 도로에 이어지고, 더 멀면 막다른 도로로 그 자리에서 끝납니다.'}
-      <b>Shift+누르기</b>: 역 없는 경유점 · <b>점 끌기</b>: 역·경유점 옮기기 · Backspace: 마지막 점 지우기 · Enter: 착공 · Esc: 취소</p>
+      <b>Shift+누르기</b>: 역 없는 경유점 · <b>점 끌기</b>: 역·경유점 옮기기 · <b>선 끌기</b>: 경유점을 끼워 선형 바꾸기 · Backspace: 마지막 점 지우기 · Enter: 착공 · Esc: 취소</p>
       <div>${draft.points.map((p, i) => (p.via ? '' : pointRow(p, i))).join('') || '<p class="hint">시작점을 누르세요.</p>'}</div>
       ${draft.points.some((p) => p.via) ? `<p class="hint">선형을 잡는 경유점 ${draft.points.filter((p) => p.via).length}개 (역·IC 없음)</p>` : ''}
       ${(() => { const pl = draft.plan && plans.find((x) => x.id === draft.plan); return pl?.source ? `<p class="hint"><b>계획 근거</b>: ${esc(pl.source)}${pl.stationSource ? `<br>역: ${esc(pl.stationSource)}` : ''}</p>` : ''; })()}

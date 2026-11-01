@@ -767,6 +767,9 @@ export function addLayers(map, zonesFC, linksFC, subsFC) {
   map.addSource('draft', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
   map.addLayer({ id: 'draft-line', type: 'line', source: 'draft', filter: ['==', ['geometry-type'], 'LineString'],
     paint: { 'line-color': '#1f5fbf', 'line-width': 3, 'line-dasharray': [1.5, 1] } });
+  // 선을 잡아 끄는 자리 (route.js enableDraftDrag): 보이지 않는 넓은 선. 3px 선은 정확히 누르기 어려웠다
+  map.addLayer({ id: 'draft-line-hit', type: 'line', source: 'draft', filter: ['==', ['geometry-type'], 'LineString'],
+    paint: { 'line-color': '#000', 'line-opacity': 0.01, 'line-width': 14 } });
   // 급곡선 자리 (route.js drawDraft): 역·경유점 밑에
   map.addLayer({ id: 'draft-sharp', type: 'circle', source: 'draft', filter: ['has', 'sharp'],
     paint: { 'circle-radius': 5, 'circle-color': '#d62828', 'circle-opacity': 0.85, 'circle-stroke-color': '#fff', 'circle-stroke-width': 1 } });

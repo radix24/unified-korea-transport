@@ -232,7 +232,34 @@ export function enableDraftDrag() {
     }, { once: true });
     draftPress = performance.now();
   });
+  // 노선 선을 눌러 끌면 그 자리에 경유점을 끼워 끌어 선형을 바꾼다 (누르기만 하면 예전처럼 그 자리에 역을 끼운다)
+  let pull = null;
+  map.on('mousedown', 'draft-line-hit', (e) => {
+    if (!draft || drag || draft.type === 'airport' || e.originalEvent.button !== 0 || e.originalEvent.shiftKey) return;
+    if (map.queryRenderedFeatures(e.point, { layers: ['draft-pts'] }).length) return;   // 점 위면 점 끌기
+    const ins = draftInsertAt(e.lngLat);
+    if (!ins) return;
+    map.dragPan.disable();
+    pull = { ins, x: e.point.x, y: e.point.y };
+    window.addEventListener('mouseup', () => { if (pull) { pull = null; map.dragPan.enable(); } }, { once: true });
+  });
+  map.on('mouseenter', 'draft-line-hit', () => { if (draft && !drag && draft.type !== 'airport') map.getCanvas().style.cursor = 'grab'; });
+  map.on('mouseleave', 'draft-line-hit', () => { if (draft && !drag) map.getCanvas().style.cursor = 'crosshair'; });
   map.on('mousemove', (e) => {
+    if (pull && !drag) {
+      if (Math.hypot(e.point.x - pull.x, e.point.y - pull.y) < 5) return;
+      const { ins } = pull;
+      pull = null;
+      draft.points.splice(ins.index, 0, { node: null, lon: e.lngLat.lng, lat: e.lngLat.lat, split: null, kind: null, name: null });
+      drag = { i: ins.index, x: e.point.x, y: e.point.y, moved: true };
+      window.addEventListener('mouseup', () => {
+        if (!drag) return;
+        drag = null;
+        map.dragPan.enable();
+        drawDraft(); renderBuild();
+      }, { once: true });
+      draftPress = performance.now();
+    }
     if (!drag) return;
     const p = draft?.points[drag.i];
     if (!p) { drag = null; return; }
@@ -243,6 +270,7 @@ export function enableDraftDrag() {
     drawDraft();
   });
   map.on('mouseup', (e) => {
+    if (pull) { pull = null; map.dragPan.enable(); }
     if (!drag) return;
     const d = drag;
     drag = null;
@@ -528,7 +556,7 @@ export function terrainAlign() {
   const dist = (p, q) => kmBetween(p.lon, p.lat, q.lon, q.lat);
   const dry = (lon, lat) => { const t = terrainAt(lon, lat); return !(t && t.sea); };
   if (changed) {
-    const st = out.filter((p) => !p.via);
+    const st = out.filter((p) => !p.via && p.kind);   // 역·IC (끌어 끼운 경유점은 선형만 지난다)
     for (let k = out.length - 1; k >= 0; k--) if (out[k].via && !out[k].leadPt && st.some((q) => dist(out[k], q) < 2 * L)) out.splice(k, 1);
     // 끝 역의 접선 이끎 점: 지형 경로가 실제로 나가는 쪽(다음 점)과 37° 넘게 어긋나면 뺀다 (접선으로 나갔다 되돌아 U자가 생겼다)
     const bend = (A, B, C) => {
@@ -540,7 +568,7 @@ export function terrainAlign() {
     if (n > 2 && out[n - 2]?.leadPt && bend(out[n - 3], out[n - 2], out[n - 1]) < 0.8) out.splice(n - 2, 1);
     for (let k = 1; k + 1 < out.length; k++) {
       const S = out[k];
-      if (S.via) continue;
+      if (S.via || !S.kind) continue;
       // 지나는 방향은 들어오는 방향과 나가는 방향의 이등분 (꺾임을 역 앞뒤에 반씩 나눈다)
       const P = out[k - 1], N = out[k + 1], ck = Math.cos((S.lat * Math.PI) / 180);
       const ix = (S.lon - P.lon) * ck, iy = S.lat - P.lat, il = Math.hypot(ix, iy) || 1, ox = (N.lon - S.lon) * ck, oy = N.lat - S.lat, ol = Math.hypot(ox, oy) || 1;
