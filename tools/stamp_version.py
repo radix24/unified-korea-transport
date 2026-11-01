@@ -7,6 +7,7 @@ iPad Safari 등은 JS 모듈·데이터를 HTTP 캐시에서 오래 쓰기 때�
 실행: python tools/stamp_version.py
 """
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -22,8 +23,11 @@ def main():
     files = sorted(p.relative_to(ROOT).as_posix() for d in ("js", "css") for p in (ROOT / d).rglob("*") if p.suffix in (".js", ".css"))
     # 시작할 때 받는 큰 데이터 (index.html의 preload). 나머지 data/는 index.html이 받을 때마다 서버에 바뀌었는지 묻게 한다
     files += re.findall(r'<link rel="preload" href="([^"]+)"', html)
-    (ROOT / "version.json").write_text(json.dumps({"v": v, "files": files}, ensure_ascii=False, indent=0) + "\n", encoding="utf-8")
-    print(v, len(files))
+    # 파일마다 내용 해시: 판 번호가 같아도 바뀐 파일만 새로 받는다 (같은 판에서 고친 모듈을 브라우저가 캐시에서 계속 썼다)
+    h = {f: hashlib.sha1((ROOT / f).read_bytes()).hexdigest()[:10] for f in files if (ROOT / f).exists()}
+    allh = hashlib.sha1("".join(f + h[f] for f in sorted(h)).encode()).hexdigest()[:10]
+    (ROOT / "version.json").write_text(json.dumps({"v": v, "h": allh, "files": files, "hash": h}, ensure_ascii=False, indent=0) + "\n", encoding="utf-8")
+    print(v, allh, len(files))
 
 
 if __name__ == "__main__":

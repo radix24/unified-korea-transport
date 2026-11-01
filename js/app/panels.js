@@ -23,7 +23,7 @@ import { adminInvalidate, drawHalls, setShowHalls, showHalls } from './region.js
 import { drawUnivs, setShowUnivs, showUnivs, startUnivPick } from './univ.js';
 import { select } from './interact.js';
 import { cancelDraft, catchKm, fmtPeople, popNear, startDraft } from './draw.js';
-import { commitDraft, draftCost, draftLineName, drawDraft, endMeasure, startMeasure, terrainAlign } from './route.js';
+import { commitDraft, draftCost, draftLineName, drawDraft, endMeasure, startMeasure, terrainAlign, undoDraft } from './route.js';
 import { gotoLinks, renderProjects, renderRequests, renderStats } from './budget.js';
 import { renderOps, renderSelection, renderSettings } from './econ.js';
 import { bindFund, fundSelect } from './operators.js';
@@ -113,6 +113,8 @@ export function bindUI() {
     if (e.key === 'Escape') { cancelDraft(); endHousingPick(); }
     if (e.key === 'Enter') commitDraft();
     if (e.key === 'Backspace') removeLastPoint();
+    // Ctrl+Z(맥은 ⌘Z): 노선 편집 한 단계 되돌리기 (점 찍기·끌기·지우기·지형 맞추기)
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); if (!undoDraft()) toast('되돌릴 것이 없습니다.'); }
   });
 }
 
@@ -508,9 +510,10 @@ export function renderBuild() {
       ${draft.extendOf || draft.extend === false ? `<div class="name-row"><label><input type="checkbox" id="draft-extend" ${draft.extendOf ? 'checked' : ''}>
         기존 노선의 연장으로 놓기${draft.extendOf ? ` (${esc(draft.extendOf)})` : ''}</label></div>` : ''}
       ${retireChoiceHTML()}
+      ${draft.revise ? `<p class="hint"><b>설계 변경</b>: 선을 끌거나 역을 옮겨 선형을 고친 뒤 착공하면 원래 사업과 바뀝니다. 이미 낸 공사비의 80%를 이어 받고, 지지율은 내려가지 않습니다.</p>` : ''}
       ${draft.points.length > 1 ? `<p class="hint">${draft.extendOf ? `기존선 연장: ${esc(draft.extendOf)}의 종점에서 이어 같은 노선 이름을 씁니다.` : '신설 노선: 새 노선 이름을 붙입니다.'}</p>` : ''}
       <p class="hint">기존 ${spec.mode ? '선로' : '도로'} 근처를 누르면 연결됩니다. ${spec.mode ? '각 점은 역이 됩니다.' : '끝점이 기존 도로 0.5km 안이면 그 도로에 이어지고, 더 멀면 막다른 도로로 그 자리에서 끝납니다.'}
-      <b>Shift+누르기</b>: 역 없는 경유점 · <b>점 끌기</b>: 역·경유점 옮기기 · <b>선 끌기</b>: 경유점을 끼워 선형 바꾸기 · Backspace: 마지막 점 지우기 · Enter: 착공 · Esc: 취소</p>
+      <b>Shift+누르기</b>: 역 없는 경유점 · <b>점 끌기</b>: 역·경유점 옮기기 · <b>선 끌기</b>: 경유점을 끼워 선형 바꾸기 · Backspace: 마지막 점 지우기 · Ctrl+Z: 되돌리기 · Enter: 착공 · Esc: 취소</p>
       <div>${draft.points.map((p, i) => (p.via ? '' : pointRow(p, i))).join('') || '<p class="hint">시작점을 누르세요.</p>'}</div>
       ${draft.points.some((p) => p.via) ? `<p class="hint">선형을 잡는 경유점 ${draft.points.filter((p) => p.via).length}개 (역·IC 없음)</p>` : ''}
       ${(() => { const pl = draft.plan && plans.find((x) => x.id === draft.plan); return pl?.source ? `<p class="hint"><b>계획 근거</b>: ${esc(pl.source)}${pl.stationSource ? `<br>역: ${esc(pl.stationSource)}` : ''}</p>` : ''; })()}

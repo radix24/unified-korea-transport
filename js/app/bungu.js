@@ -15,7 +15,7 @@ import { toast } from '../ui/panel.js';
 import { base, esc, grid, map, median, result, selection, state, subPop0, subsFC, zoneProps } from './core.js';
 import { officeName, zoneName } from './year.js';
 import { bunguLabels, drawAdmin, nodeNames, paintZones, provincePops, pushExtraLabels, refreshLinks, setBunguLabels, subInfo, subMetric } from './mapdata.js';
-import { admin, adminInvalidate, countyNameOf, kpMyeon, mergeSplitUnit, myeonDongDialog, setOnAdminBuilt, setSubUnit, startUnitPick, subKey, subName, subNeighbors, subRegion, unitName } from './region.js';
+import { admin, adminInvalidate, countyNameOf, isMetroBody, kpMyeon, mergeSplitUnit, myeonDongDialog, setOnAdminBuilt, setSubUnit, startUnitPick, subKey, subName, subNeighbors, subRegion, unitName } from './region.js';
 import { select } from './interact.js';
 import { fmtPop, pct, renderAll } from './panels.js';
 import { renderRequests } from './budget.js';
@@ -1439,7 +1439,11 @@ export function bindAnnexBtns(el) {
       const k = b.dataset.annex, to = b.dataset.annexTo, c = counties().get(k);
       const nGu = b.dataset.annexGu ? +(el.querySelector(`#${b.dataset.annexGu}`)?.value || 1) : 1;
       const cost = EVENT_COST.annex + (nGu > 1 ? EVENT_COST.cityUp : 0);
-      if (!c || !confirm(`${c.name}(${c.region})을(를) ${to}에 편입할까요?${nGu > 1 ? ` ${nGu}개 자치구로 나눕니다.` : ''} 두 광역 단체장을 다시 뽑습니다. ${formatWon(cost)}`)) return;
+      // 구로 나누지 않은 광역시(몸통 밑이 바로 동)에 시군을 편입하면 자치구와 구 없는 동이 섞인다: 몸통도 자치구 둘로 나눈다
+      const body = [...(admin()?.units.values() || [])].find((u) => u.region === to && isMetroBody(u.id));
+      const bodyKey = body ? (body.split ? body.id : unitId(state, zoneProps[body.rep])) : null;
+      const bodyNote = body && !L.bungu?.[bodyKey] ? ` 구가 없는 ${to}도 자치구 둘로 나눕니다.` : '';
+      if (!c || !confirm(`${c.name}(${c.region})을(를) ${to}에 편입할까요?${nGu > 1 ? ` ${nGu}개 자치구로 나눕니다.` : ''}${bodyNote} 두 광역 단체장을 다시 뽑습니다. ${formatWon(cost)}`)) return;
       if (!payEvent(cost)) return;
       (L.annex ||= {})[k] = annexBase(to, +b.dataset.annexZone);
       adminInvalidate();
@@ -1449,6 +1453,7 @@ export function bindAnnexBtns(el) {
       // 원래 일반구는 적어 두었다가 편입을 되돌리면 되살린다 (새로 나눈 구를 일반구로 남기면 '용인시 용인구'가 생겼다)
       if (old?.general) { (L.annexBungu ||= {})[k] = JSON.parse(JSON.stringify(old)); if (nGu > 1) delete L.bungu[k]; else { delete old.general; setCoreGu(k); } adminInvalidate(); }
       if (nGu > 1) makeBungu(k, nGu);
+      if (bodyNote && makeBungu(bodyKey, 2)) { setCoreGu(bodyKey); state.log.unshift(`${state.year}년 ${to} 몸통을 자치구 둘로 나눔 (편입한 ${c.name}와 함께 모두 자치구)`); }
       drawBungu();
       holdElection([to, c.region], `${to} 시군 편입 선거`);
       syncMayors();   // 편입한 시·군은 구: 시장·군수 → 구청장

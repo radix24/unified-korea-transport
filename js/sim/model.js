@@ -243,10 +243,23 @@ export class Model {
       const extra = lv.trains * ((lv.seatCap || P.railPaxPerTrain[lv.cls]) - P.railPaxPerTrain[lv.cls]) * longF;
       if (extra > 0) for (const u of new Set(lv.via)) this.capacity[u] += extra;
     }
-    if (!this.volume || this.volume.length !== L.length) {
-      const old = this.volume;
+    // 지난 교통량은 구간 열쇠로 옮긴다: 실제 선로는 번호(뒤에만 붙는다), 운행 계통 가상 링크는 계통·구간 번호.
+    // 번호 그대로 옮기면 새 선로를 놓은 해에 가상 링크가 그만큼 뒤로 밀려, 새 선로가 지난해 KTX 계통 같은 가상 링크의
+    // 이용객(십수만 명)을 물려받았다 (인구가 적은 곳의 막다른 노선 이용객이 지나치게 많게 나오던 것)
+    const keys = L.map((l, i) => (l.via ? `s${l.service}|${l.seg}` : i));
+    const old = this.volume, oldKeys = this.linkKeys;
+    this.linkKeys = keys;
+    if (!old) this.volume = new Float64Array(L.length);
+    else if (old.length !== L.length || (oldKeys && keys.some((k, i) => k !== oldKeys[i]))) {
       this.volume = new Float64Array(L.length);
-      if (old) this.volume.set(old.subarray(0, Math.min(old.length, L.length)));
+      if (oldKeys) {
+        const at = new Map(oldKeys.map((k, i) => [k, i]));
+        keys.forEach((k, i) => { const j = at.get(k); if (j != null) this.volume[i] = old[j]; });
+      } else {
+        // 열쇠를 모르는 첫 망(저장에서 읽은 교통량): 실제 선로만 번호로 옮긴다
+        const nOld = Math.min(old.length, this.nPhys);
+        this.volume.set(old.subarray(0, nOld));
+      }
     }
     this.cost = new Float64Array(L.length);
     // 역세권·환승 계산(약 3초)은 노드·역 구성이 바뀐 해에만 다시 한다 (개량은 속도·용량만 바꾼다)

@@ -3,15 +3,16 @@ import { trackHeadings } from '../game/branch.js';
 import { KP_COST_FACTOR } from '../game/catalog.js';
 import { curveSpeed, easeCurves, minRadiusKm, polylineKm, sharpSpots, smoothSegments, tangentCurve } from '../game/curve.js';
 import { autoLineName } from '../game/lines.js';
-import { canAfford, effectiveNetwork, isKP, linkAt, NEW_BUILDS, save, splitLink, startNewBuild } from '../game/state.js';
+import { canAfford, effectiveNetwork, isKP, linkAt, NEW_BUILDS, reviseProject, save, splitLink, startNewBuild } from '../game/state.js';
 import { loadTerrain, terrainAt, terrainCostFactor, terrainProfile, terrainReady, terrainRoute, terrainRule } from '../game/terrain.js';
 import { t } from '../i18n.js';
+import { toast } from '../ui/panel.js';
 import { kmBetween } from '../sim/model.js';
 import { $, base, draft, esc, isForeign, map, measure, MID_COST, namer, REST, result, setDraft, setMeasure, snap, state, worker } from './core.js';
 import { PY_METRO } from './sez.js';
 import { allLinks, nodeCoord, nodeNames, refreshLinks, refreshPoints } from './mapdata.js';
 import { select } from './interact.js';
-import { cancelDraft, endDraftView, nearestNode, nearestOnLink, nearestRailStation } from './draw.js';
+import { cancelDraft, endDraftView, nearestNode, nearestOnLink, nearestRailStation, startDraft } from './draw.js';
 import { renderAll, renderBuild } from './panels.js';
 import { autoJCTs, plans, startedNotice } from './plans.js';
 import { planRetire } from './straighten.js';
@@ -161,8 +162,33 @@ export function addDraftPoint(lngLat, { pass = false } = {}) {
   const pt = { node: null, lon: lngLat.lng, lat: lngLat.lat, split: null };
   draft.points.push(pt);
   placeDraftPoint(pt, lngLat);
+  avoidSea(draft.points.length - 1);
   drawDraft();
   renderBuild();
+}
+
+/**
+ * 점 i 앞뒤 구간이 바다를 0.5km 넘게 지나면 육지로 도는 선형 점을 끼운다 (해저터널이 아닌 노선이 바다 위로 곧게 그어지던 것).
+ * 바다를 피해 1.4배 넘게 돌아야 하면(섬·만) 그대로 건너고 교량 길이를 알린다
+ */
+export function avoidSea(i) {
+  const rule = terrainRule(draft?.type);
+  if (!rule || !terrainReady()) return;
+  const msgs = [];
+  for (const back of [true, false]) {
+    const k = back ? i : i + 1, a = draft.points[k - 1], b = draft.points[k];
+    if (!a || !b) continue;
+    const seaOf = (line) => terrainProfile(line, rule).seaKm;
+    const straight = seaOf([[a.lon, a.lat], [b.lon, b.lat]]);
+    if (straight < 0.5) continue;
+    const via = terrainRoute([a.lon, a.lat], [b.lon, b.lat], rule);
+    const after = via ? seaOf([[a.lon, a.lat], ...via, [b.lon, b.lat]]) : straight;
+    if (!via || after > straight - 0.3) { msgs.push(`바다 ${straight.toFixed(1)}km를 건넙니다 (교량)`); continue; }
+    draft.points.splice(k, 0, ...via.map(([lon, lat]) => ({ node: null, lon, lat, split: null, via: true })));
+    if (back) i += via.length;   // 앞 구간에 끼웠으면 뒤 구간 번호가 밀린다
+    msgs.push(after > 0.1 ? `바다를 피해 돌았습니다 (남은 바다 ${after.toFixed(1)}km)` : '바다를 피해 해안 안쪽으로 돌았습니다');
+  }
+  if (msgs.length) toast(msgs.join(' · '));
 }
 
 /** 점을 누른 자리에 놓는다: 기존 역·노드(24px)나 선(16px), 공항 가까이면 거기에 붙이고 이름을 정한다 */
@@ -224,11 +250,12 @@ export function enableDraftDrag() {
     drag = { i, x: e.point.x, y: e.point.y, moved: false };
     // 지도 밖에서 손을 떼면 지도의 mouseup이 오지 않는다: 끌기를 그 자리에서 끝낸다
     window.addEventListener('mouseup', () => {
+      draftDragging = false;
       if (!drag) return;
       const d = drag, p = draft?.points[d.i];
       drag = null;
       map.dragPan.enable();
-      if (d.moved && p) { moveDraftPoint(d.i, { lng: p.lon, lat: p.lat }); drawDraft(); renderBuild(); }
+      if (d.moved && p) { moveDraftPoint(d.i, { lng: p.lon, lat: p.lat }); avoidSea(d.i); drawDraft(); renderBuild(); }
     }, { once: true });
     draftPress = performance.now();
   });
@@ -252,7 +279,9 @@ export function enableDraftDrag() {
       pull = null;
       draft.points.splice(ins.index, 0, { node: null, lon: e.lngLat.lng, lat: e.lngLat.lat, split: null, kind: null, name: null });
       drag = { i: ins.index, x: e.point.x, y: e.point.y, moved: true };
+      draftDragging = true;
       window.addEventListener('mouseup', () => {
+        draftDragging = false;
         if (!drag) return;
         drag = null;
         map.dragPan.enable();
@@ -265,12 +294,14 @@ export function enableDraftDrag() {
     if (!p) { drag = null; return; }
     if (!drag.moved && Math.hypot(e.point.x - drag.x, e.point.y - drag.y) < 4) return;
     drag.moved = true;
+    draftDragging = true;
     map.getCanvas().style.cursor = 'grabbing';
     p.lon = e.lngLat.lng; p.lat = e.lngLat.lat;
     drawDraft();
   });
   map.on('mouseup', (e) => {
     if (pull) { pull = null; map.dragPan.enable(); }
+    draftDragging = false;
     if (!drag) return;
     const d = drag;
     drag = null;
@@ -280,6 +311,7 @@ export function enableDraftDrag() {
     if (!d.moved) { if (d.i === 0 && draft?.points.length >= 3) draftPress = 0; return; }
     draftPress = performance.now();
     moveDraftPoint(d.i, e.lngLat);
+    avoidSea(d.i);
     drawDraft();
     renderBuild();
   });
@@ -473,7 +505,28 @@ export function draftPoints() {
   return withTangents(draft.points, NEW_BUILDS[draft.type].mode);
 }
 
+// ---- 되돌리기 (Ctrl+Z): 그릴 때마다 점 상태를 적어 두고, 끄는 동안은 적지 않는다 (놓은 뒤 한 번)
+let undoStack = [], undoOf = null, draftDragging = false;
+function recordDraft() {
+  if (!draft || draftDragging) return;
+  if (undoOf !== draft) { undoStack = []; undoOf = draft; }
+  const s = JSON.stringify(draft.points);
+  if (undoStack[undoStack.length - 1] !== s) { undoStack.push(s); if (undoStack.length > 100) undoStack.shift(); }
+}
+/** 그리는 노선을 한 단계 전으로. 되돌릴 것이 없으면 false */
+export function undoDraft() {
+  if (!draft || undoOf !== draft || undoStack.length < 2) return false;
+  undoStack.pop();
+  const pts = JSON.parse(undoStack[undoStack.length - 1]);
+  // 되살린 역 이름은 다시 잡아 둔다 (지우며 놓아준 이름을 다른 역이 받지 않게)
+  for (const p of pts) if (p.reserved && p.name && p.kind) namer.reserve(p.name, p.kind);
+  draft.points = pts;
+  drawDraft(); renderBuild();
+  return true;
+}
+
 export function drawDraft() {
+  recordDraft();
   // 선형 점(via)은 노선 모양만 잡고 역·IC가 아니므로 그리지 않는다
   // i: 끌어 옮길 점 번호, pass: 역·IC가 없는 경유점 (작고 속이 빈 점)
   const f = draft.points.map((p, i) => (p.via ? null : { type: 'Feature', properties: { i, pass: p.name || p.kind ? 0 : 1 }, geometry: { type: 'Point', coordinates: [p.lon, p.lat] } })).filter(Boolean);
@@ -724,6 +777,11 @@ export async function commitDraft() {
   }
   draft.points.forEach((p) => { p.reserved = false; });
   const builtProj = state.projects[state.projects.length - 1];
+  // 설계 변경: 원래 사업을 거두고 낸 돈을 이어 받는다
+  if (draft.revise) {
+    const rv = reviseProject(base, state, draft.revise, builtProj);
+    for (const nm of rv.dropped || []) namer?.release(nm.name, nm.kind);
+  }
   // 고속화·현대화 계획: 완공되면 같은 구간의 옛 선로를 폐선하고 옛 역은 가까운 새 역으로 넘긴다 (직선화와 같다)
   const retirePlan = draft.retireLines !== undefined ? draft.retireLines : draft.plan && plans.find((x) => x.id === draft.plan)?.retireLine;
   if (retirePlan?.length) planRetire(builtProj, retirePlan);
@@ -748,3 +806,42 @@ export async function commitDraft() {
 }
 
 export function addFeatureStatesAfterRebuild() { refreshLinks(); }
+
+/**
+ * 착공한 새 노선을 다시 초안으로 연다 (설계 변경): 역·IC는 그 자리, 선형은 지금 모양을 1km쯤마다 선형 점으로 둔다.
+ * 선을 끌거나 역을 옮긴 뒤 착공하면 commitDraft가 원래 사업과 바꾼다 (state.js reviseProject)
+ */
+export function startRevise(p) {
+  const links = (p?.links || []).map((id) => state.newLinks[id - base.links.length]).filter((l) => l && !l.built);
+  if (!links.length || !NEW_BUILDS[p.type]) { alert('선형을 바꿀 수 있는 사업이 아닙니다.'); return; }
+  const mine = new Set(p.links);
+  const all = allLinks();
+  // 이 사업 밖의 선로에도 닿은 노드(기존 역·IC에 이은 끝)는 그 노드에 그대로 붙인다
+  const shared = (n) => all.some((l, i) => !mine.has(i) && !l.replaced && (l.a === n || l.b === n));
+  const ptOf = (n) => {
+    const c = nodeCoord(n), nm = state.names[n] || nodeNames().get(n), sh = shared(n);   // 기존 역 이름은 기본 자료에 있다
+    return { node: sh ? n : null, lon: c[0], lat: c[1], split: null, name: nm?.name || null, kind: nm?.kind || null, auto: false, existing: sh && !!nm, reserved: false };
+  };
+  const pts = [ptOf(links[0].a)];
+  for (const l of links) {
+    const g = [];
+    for (let k = 0; k + 1 < (l.geom || []).length; k += 2) g.push([l.geom[k], l.geom[k + 1]]);
+    let run = 0;
+    for (let k = 1; k + 1 < g.length; k++) {
+      run += kmBetween(g[k - 1][0], g[k - 1][1], g[k][0], g[k][1]);
+      if (run >= 1) { pts.push({ node: null, lon: g[k][0], lat: g[k][1], split: null, via: true }); run = 0; }
+    }
+    pts.push(ptOf(l.b));
+  }
+  startDraft(p.type);
+  if (!draft) return;
+  draft.points = pts;
+  draft.revise = p.id;
+  draft.lineName = links[0].name || '';
+  draft.lineNameEdited = !!draft.lineName;   // 노선 이름은 그대로 (원래 사업 선로가 아직 있어 그 노선의 연장으로 잡히지 않게)
+  draft.extend = false;
+  drawDraft(); renderBuild();
+  const xs = pts.map((q) => q.lon), ys = pts.map((q) => q.lat);
+  map.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding: 80, maxZoom: 12 });
+  toast('설계 변경: 선을 끌거나 역을 옮긴 뒤 착공하면 원래 사업과 바뀝니다 (낸 공사비의 80%를 이어 받습니다)');
+}

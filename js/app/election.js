@@ -414,6 +414,14 @@ export function emptyCounty(i) { const a = admin(); return !!a && !a.unit(`z:${c
 export function countyZones(i) { const r = countyRep(i); return zoneProps.map((_, j) => j).filter((j) => countyRep(j) === r); }
 
 /** 행정구역을 바꾼 뒤 시군 단체장 정리: 대표가 아닌 존의 단체장은 없애고, 단체장이 없는 시군은 새로 뽑고, 직함은 지금 이름으로 */
+/**
+ * 시장·군수 자리가 구청장 자리로 바뀌는지 (일반구가 자치구가 되거나 시군이 광역시의 구가 될 때).
+ * 그 자리는 지우고 아래에서 새로 뽑는다: 시장이 가장 큰 구의 구청장 자리를 그대로 이어받던 것 (실제로는 구청장을 모두 새로 뽑는다)
+ */
+function mayorBecomesGu(off, title) {
+  return !!off && !off.appointed && /(시장|군수)$/.test(off.title || '') && /구청장$/.test(title);
+}
+
 export function syncMayors() {
   adminInvalidate();
   const L = state.local;
@@ -431,14 +439,14 @@ export function syncMayors() {
       if (!u) continue;
       // 광역시로 승격한 신설 시: 몸통 자리는 가운데 구청장(구가 없으면 없음), 나머지 구는 #구
       const gs = splitGus(sid), title = gu ? (gs?.slice(1).includes(gu) ? `${gu}청장` : null) : splitTitle(u);
-      if (!title) delete L.offices[k];
+      if (!title || mayorBecomesGu(L.offices[k], title)) delete L.offices[k];
       else L.offices[k].title = title;
       continue;
     }
     const [id, gu] = k.slice(2).split('#'), i = +id;
     const title = gu ? (zoneGus(i)?.slice(1).includes(gu) ? `${gu}청장` : null) : mayorTitleOf(i);
     if (L.offices[k].appointed) continue;   // 관선은 syncAppointed가 맡는다
-    if (countyRep(i) !== i || !hasAutonomy(state, zoneProps[i]) || !title || emptyCounty(i)) { delete L.offices[k]; continue; }
+    if (countyRep(i) !== i || !hasAutonomy(state, zoneProps[i]) || !title || emptyCounty(i) || mayorBecomesGu(L.offices[k], title)) { delete L.offices[k]; continue; }
     L.offices[k].title = title;
   }
   for (const [, zs] of regions()) {

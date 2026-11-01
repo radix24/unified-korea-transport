@@ -23,6 +23,7 @@ import { header } from './svcmap.js';
 import { refreshClosed } from './reopen.js';
 import { airportName } from './selpanel.js';
 import { showGazette } from './gazette.js';
+import { startRevise } from './route.js';
 
 // ---- 부채 상환: 남은 예산으로 언제든 갚고, 해마다 자동으로 갚을 몫을 고른다
 export function debtHTML(annual) {
@@ -73,6 +74,7 @@ export function renderProjects() {
       ${['service', 'vehicles', 'airRoute', 'rename'].includes(p.kind) ? '' : `<div class="pace">투입 속도 ${PACES.map((x) =>
         `<button class="small ${x === pace ? 'on' : ''}" data-pace="${p.id}" data-v="${x}">${Math.round(x * 100)}%</button>`).join('')}</div>`}
       <div class="actions">${p.kind === 'new' || p.kind === 'upgrade' ? `<button class="small" data-gazette="${p.id}" title="이 사업의 고시문 (노선도·정거장 계획·위치도)">고시문</button>` : ''}
+        ${p.kind === 'new' && !cancelBlocked(p) && p.type && p.type !== 'airport' ? `<button class="small" data-revise-proj="${p.id}" title="노선을 다시 초안으로 열어 선을 끌거나 역을 옮겨 선형을 바꿉니다. 낸 공사비의 80%를 이어 받습니다">선형 바꾸기</button>` : ''}
         ${cancelBlocked(p) ? '' : `<button class="small danger" data-cancel-proj="${p.id}" title="이미 낸 돈은 돌려받지 못하고 남은 사업비만 아낍니다">사업 취소</button>`}</div></div>`;
   };
   const ongoing = building.filter((p) => p.kind === 'osm'), mine = building.filter((p) => p.kind !== 'osm');
@@ -97,6 +99,7 @@ export function renderProjects() {
   el.querySelectorAll('[data-pace]').forEach((b) => {
     b.onclick = () => { setProjectPace(state, b.dataset.pace, +b.dataset.v); save(state); renderProjects(); renderTop(); };
   });
+  el.querySelectorAll('[data-revise-proj]').forEach((b) => { b.onclick = () => startRevise(state.projects.find((x) => x.id === b.dataset.reviseProj)); });
   el.querySelectorAll('[data-cancel-proj]').forEach((b) => {
     b.onclick = () => {
       const p = state.projects.find((x) => x.id === b.dataset.cancelProj);

@@ -287,6 +287,27 @@ export function setProjectPace(state, id, pace) {
   p.doneYear = state.year + Math.max(1, Math.ceil(newRemaining / p.annual));
 }
 
+/** 설계 변경에서 이어 받는 몫: 이미 낸 돈의 80% (나머지는 뜯어내고 다시 짓는 손실) */
+export const REVISE_CARRY = 0.8;
+/**
+ * 착공한 새 노선의 선형을 바꾼다 (설계 변경): 새 선형으로 막 착공한 사업 neu에 옛 사업 old가 낸 돈의 80%를 넣고
+ * 옛 사업은 지지율 감점 없이 거둔다. 완공 연도는 남은 사업비를 연 투입액으로 나눠 다시 잡는다
+ */
+export function reviseProject(base, state, oldId, neu) {
+  const old = state.projects.find((x) => x.id === oldId);
+  if (!old || old.status !== 'building' || !neu) return { ok: false, reason: '바꿀 사업을 찾지 못했습니다.' };
+  const carry = Math.min(Math.round(old.paid * REVISE_CARRY), Math.max(0, neu.cost - neu.annual));
+  // 착공하며 첫해 몫을 냈다: 이어 받는 돈이 그만큼을 덮으면 첫해 몫은 돌려준다 (같은 공사에 두 번 내지 않게)
+  const back = neu.fund === 'gov' ? Math.min(neu.annual, carry) : 0;   // 운영사 재원은 그 회사 돈이라 정부 예산으로 돌려주지 않는다
+  state.budget += back;
+  neu.paid += carry - back;
+  neu.revisedFrom = old.id;
+  neu.doneYear = state.year + Math.max(1, Math.ceil(Math.max(0, neu.cost - neu.paid) / neu.annual));
+  const r = cancelProject(base, state, old.id, { revised: neu.id });
+  state.log.unshift(`${state.year}년 설계 변경: ${old.label} → ${neu.label} (낸 ${formatWon(old.paid)} 가운데 ${formatWon(carry)} 이어 받음, ${neu.doneYear}년 완공 예정)`);
+  return { ok: true, carry, dropped: r.dropped };
+}
+
 /** 취소할 수 없는 사업: 민자(협약 해지 보상 문제), 차량 구입(이미 편성에 넣었다), 운행 계통·항공 노선 준비(1년짜리) */
 export function cancelBlocked(p) {
   if (p.status !== 'building') return '진행 중인 사업이 아닙니다.';
@@ -299,11 +320,12 @@ export function cancelBlocked(p) {
  * 진행 중인 사업 취소: 이미 낸 돈은 돌려받지 못하고, 앞으로 낼 돈만 아낀다.
  * 새로 깔던 구간은 폐선 처리(replaced)해서 지도와 계산에서 뺀다 (링크 번호는 그대로 둔다).
  */
-export function cancelProject(base, state, id) {
+export function cancelProject(base, state, id, { revised = null } = {}) {
   const p = state.projects.find((x) => x.id === id);
   const why = p ? cancelBlocked(p) : '사업을 찾지 못했습니다.';
   if (why) return { ok: false, reason: why };
   p.status = 'cancelled';
+  if (revised) p.revisedTo = revised;
   p.cancelYear = state.year;
   if (p.kind !== 'upgrade' && p.kind !== 'osm') {
     for (const lid of p.links || []) {
@@ -316,9 +338,10 @@ export function cancelProject(base, state, id) {
   if (p.kind === 'housing') cancelHousingPhase(state, p);
   if (state.restAreas) state.restAreas = state.restAreas.filter((r) => r.built || (r.project !== p.id && !(p.links || []).includes(r.links[0])));
   // 시민들은 짓다 만 사업을 반기지 않는다: 큰 사업일수록 지지율이 조금 내린다
-  const hit = p.cost >= 50000 ? 2 : p.cost >= 10000 ? 1 : 0;
+  // 설계 변경(선형 바꾸기)은 짓다 만 사업이 아니라 이어 짓는 것이라 지지율을 깎지 않는다
+  const hit = revised ? 0 : p.cost >= 50000 ? 2 : p.cost >= 10000 ? 1 : 0;
   state.approval = Math.max(0, state.approval - hit);
-  state.log.unshift(`${state.year}년 사업 취소: ${p.label} (투입한 ${formatWon(p.paid)}은 돌려받지 못합니다, 남은 ${formatWon(Math.max(0, p.cost - p.paid))} 절감${hit ? `, 지지율 −${hit}` : ''})`);
+  if (!revised) state.log.unshift(`${state.year}년 사업 취소: ${p.label} (투입한 ${formatWon(p.paid)}은 돌려받지 못합니다, 남은 ${formatWon(Math.max(0, p.cost - p.paid))} 절감${hit ? `, 지지율 −${hit}` : ''})`);
   // 짓다 만 노선의 IC·역 이름은 착공할 때 붙어, 취소해도 지도에 남았다 (잔여 IC): 이 사업이 붙인 이름은 그 전 이름으로 되돌리고,
   // 지나는 구간이 없어진 새 노드의 이름은 지운다
   const dropped = [];
