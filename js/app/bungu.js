@@ -66,7 +66,7 @@ export function adjacency() {
     }
     zoneAdj.ready = true;
     renderRequests();
-    if (selection?.type === 'zone') renderSelection();
+    if (selection?.type === 'zone' || selection?.type === 'unit') renderSelection();
   });
   return zoneAdj;
 }
@@ -78,7 +78,7 @@ export function adjacency() {
 export function annexTargets() {
   const adj = adjacency();
   if (!adj.ready) return null;
-  const L = state.local, cs = counties();
+  const L = state.local, cs = counties(), a = admin();
   const byZone = new Map();
   for (const c of cs.values()) for (const i of c.zones) byZone.set(i, c);
   const regionAt = (i) => byZone.get(i)?.region ?? (zoneProps[i]?.ext ? null : regionOf(state, zoneProps[i]));
@@ -98,12 +98,27 @@ export function annexTargets() {
       out.get(r).set(d.key, { ...d, via: i });
     }
   });
+  // 광역시로 승격한 신설 시: 존이 없어 위에서 빠진다. 그 읍면동과 맞닿은 읍면동이 든 시·군·구를 받는다
+  // (존으로 보면 화성시 존에 맞닿은 안산시까지 동탄광역시에 맞닿은 것으로 나왔다)
+  for (const u of a ? a.splits() : []) {
+    if (!u.metro) continue;
+    const near = new Set();
+    for (const i of u.subs) for (const j of subNeighbors(i)) { const id = a.unitOfSub[j]; if (id?.startsWith('z:')) near.add(+id.slice(2)); }
+    for (const j of near) {
+      const d = byZone.get(j);
+      if (!d || d.region === u.region || L.independent.includes(d.name) || !/[시군구]$/.test(d.name)) continue;
+      if (!out.has(u.region)) out.set(u.region, new Map());
+      out.get(u.region).set(d.key, { ...d, via: [...u.zones][0] });
+    }
+  }
   return [...out].map(([r, m]) => [r, [...m.values()].sort((a, b) => b.pop - a.pop)])
     .sort((a, b) => (isMetroCity(b[0]) - isMetroCity(a[0])) || a[0].localeCompare(b[0], 'ko'));
 }
 
 /** 편입할 때 적어 둘 대상 단체의 바탕: 맞닿은 그 단체 존의 바탕, 승격한 도시면 그 도시 이름 */
 export function annexBase(to, zi) {
+  // 광역시로 승격한 신설 시는 존 바탕이 없다: 단체 이름을 그대로 적는다 (regionOf가 문자열 편입을 그대로 쓴다)
+  if (admin()?.splits().some((u) => u.metro && u.region === to)) return to;
   const b = regionBase(state, zoneProps[zi]);
   const c = state.local.independent.find((x) => metroName(x) === to);
   return { prov: c || b.prov, side: b.side };
@@ -1396,6 +1411,33 @@ export function bindBunguBtns(el) {
   });
 }
 
+/** 편입 단추 (시군 창·신설 광역시 창) */
+export function bindAnnexBtns(el) {
+  const L = state.local;
+  el.querySelectorAll('[data-annex]').forEach((b) => {
+    b.onclick = () => {
+      const k = b.dataset.annex, to = b.dataset.annexTo, c = counties().get(k);
+      const nGu = b.dataset.annexGu ? +(el.querySelector(`#${b.dataset.annexGu}`)?.value || 1) : 1;
+      const cost = EVENT_COST.annex + (nGu > 1 ? EVENT_COST.cityUp : 0);
+      if (!c || !confirm(`${c.name}(${c.region})을(를) ${to}에 편입할까요?${nGu > 1 ? ` ${nGu}개 자치구로 나눕니다.` : ''} 두 광역 단체장을 다시 뽑습니다. ${formatWon(cost)}`)) return;
+      if (!payEvent(cost)) return;
+      (L.annex ||= {})[k] = annexBase(to, +b.dataset.annexZone);
+      adminInvalidate();
+      state.log.unshift(`${state.year}년 ${c.name}, ${c.region}에서 ${to}로 편입`);
+      // 일반구가 있던 시: 그 구들이 각각 광역시의 자치구가 된다 (구청장 선거). 새로 나누면 일반구는 지운다
+      const old = L.bungu?.[k];
+      if (old?.general) { if (nGu > 1) delete L.bungu[k]; else { delete old.general; setCoreGu(k); } adminInvalidate(); }
+      if (nGu > 1) makeBungu(k, nGu);
+      drawBungu();
+      holdElection([to, c.region], `${to} 시군 편입 선거`);
+      syncMayors();   // 편입한 시·군은 구: 시장·군수 → 구청장
+      refreshNames(map);
+      save(state); renderAll();
+      if (nGu > 1) guNamingDialog(k);
+    };
+  });
+}
+
 export function bindLocalSettings(el) {
   const L = state.local;
   el.querySelector('#ev-autonomy')?.addEventListener('click', () => {
@@ -1459,28 +1501,7 @@ export function bindLocalSettings(el) {
   el.querySelectorAll('[data-split-unit]').forEach((b) => { b.onclick = () => startUnitPick(); });
   el.querySelectorAll('[data-unit-go]').forEach((a) => { a.onclick = (e) => { e.preventDefault(); select({ type: 'unit', id: a.dataset.unitGo }); }; });
   el.querySelectorAll('[data-merge-split]').forEach((b) => { b.onclick = () => { if (confirm('나눠 세운 시군을 원래 시군에 다시 합칠까요?')) mergeSplitUnit(b.dataset.mergeSplit); }; });
-  el.querySelectorAll('[data-annex]').forEach((b) => {
-    b.onclick = () => {
-      const k = b.dataset.annex, to = b.dataset.annexTo, c = counties().get(k);
-      const nGu = b.dataset.annexGu ? +(el.querySelector(`#${b.dataset.annexGu}`)?.value || 1) : 1;
-      const cost = EVENT_COST.annex + (nGu > 1 ? EVENT_COST.cityUp : 0);
-      if (!c || !confirm(`${c.name}(${c.region})을(를) ${to}에 편입할까요?${nGu > 1 ? ` ${nGu}개 자치구로 나눕니다.` : ''} 두 광역 단체장을 다시 뽑습니다. ${formatWon(cost)}`)) return;
-      if (!payEvent(cost)) return;
-      (L.annex ||= {})[k] = annexBase(to, +b.dataset.annexZone);
-      adminInvalidate();
-      state.log.unshift(`${state.year}년 ${c.name}, ${c.region}에서 ${to}로 편입`);
-      // 일반구가 있던 시: 그 구들이 각각 광역시의 자치구가 된다 (구청장 선거). 새로 나누면 일반구는 지운다
-      const old = L.bungu?.[k];
-      if (old?.general) { if (nGu > 1) delete L.bungu[k]; else { delete old.general; setCoreGu(k); } adminInvalidate(); }
-      if (nGu > 1) makeBungu(k, nGu);
-      drawBungu();
-      holdElection([to, c.region], `${to} 시군 편입 선거`);
-      syncMayors();   // 편입한 시·군은 구: 시장·군수 → 구청장
-      refreshNames(map);
-      save(state); renderAll();
-      if (nGu > 1) guNamingDialog(k);
-    };
-  });
+  bindAnnexBtns(el);
   el.querySelectorAll('[data-annex-undo]').forEach((b) => {
     b.onclick = () => {
       const k = b.dataset.annexUndo, home = b.dataset.annexHome, c = counties().get(k), from = c?.region;

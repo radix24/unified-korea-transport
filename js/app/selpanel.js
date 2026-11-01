@@ -20,7 +20,7 @@ import { select } from './interact.js';
 import { fmtPop, pct, renderAll } from './panels.js';
 import { foreignCountry } from './operators.js';
 import { countyRep, countyZones, holdElection, mayorKey, partyBadge, syncMayors, zoneAdminHTML, zoneGus } from './election.js';
-import { bunguSelect, bunguUnits, drawBungu, syncGovernors, guNamesOfZone, guNamingDialog, guOfSub, guSubs, makeBungu, payEvent, pruneBungu, setCoreGu, unitZones } from './bungu.js';
+import { adjacency, annexTargets, bindAnnexBtns, bunguSelect, bunguUnits, drawBungu, syncGovernors, guNamesOfZone, guNamingDialog, guOfSub, guSubs, makeBungu, payEvent, pruneBungu, setCoreGu, unitZones } from './bungu.js';
 import { localZoneHTML } from './firstyear.js';
 import { REST_REMOVE_COST } from './housing.js';
 import { header } from './svcmap.js';
@@ -506,6 +506,13 @@ export function splitAdminHTML(id) {
       rows.push(item('자치구로 분구', `광역시를 자치구 여럿으로 나눕니다 (구마다 구청장 선거) · ${formatWon(EVENT_COST.cityUp)}`,
         `${bunguSelect('split-bungu-n', '나누지 않음', 2)} <button class="small primary" data-split-bungu>분구</button>`));
     }
+    // 맞닿은 시·군·구 편입 (존 광역시와 같다: 시는 구가 되고, 일반구가 있던 시는 그 구들이 자치구가 된다)
+    const inn = (annexTargets() || []).find(([g]) => g === u.region)?.[1] || [];
+    if (inn.length) rows.push(`<details class="item"><summary class="t">맞닿은 시군을 ${esc(u.region)}에 편입 (${inn.length}곳)</summary>
+      <div class="m">광역시는 맞닿은 시·군·구를 편입합니다 (시는 광역시 밑에 둘 수 없어 구가 되고, 일반구가 있던 시는 그 구들이 각각 자치구가 된다) · 한 곳 ${formatWon(EVENT_COST.annex)}</div>
+      ${inn.some((c) => /시$/.test(c.name)) ? `<div class="m" style="margin-top:4px">시를 편입할 때 ${bunguSelect('annex-gu-in', '한 자치구로')}</div>` : ''}
+      <div class="row" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${inn.map((c) => `<button class="small" data-annex="${esc(c.key)}" data-annex-to="${esc(u.region)}" data-annex-zone="${c.via}"${/시$/.test(c.name) ? ' data-annex-gu="annex-gu-in"' : ''} title="${esc(c.region)}에서 ${esc(u.region)}로">${esc(c.name)} <span class="m">${esc(c.region)} ${fmtPop(c.pop)}</span></button>`).join('')}</div></details>`);
+    else if (!annexTargets()) adjacency();   // 경계 자료를 받는 중: 다 받으면 창을 다시 그린다
     return `<h4>행정 조정</h4><div class="list">${rows.join('')}</div>`;
   }
   // 광역시 승격: 존 시군과 같은 인구 기준 (지금 그 시의 읍면동 인구)
@@ -596,6 +603,7 @@ export function bindGuSplit(el) {
 
 export function bindUnitPanel(el) {
   bindGuSplit(el);
+  bindAnnexBtns(el);   // 신설 광역시의 맞닿은 시군 편입
   const id = selection.id, L = state.local;
   el.querySelector('[data-split-up]')?.addEventListener('click', () => {
     const S = L.splitUnit?.[id];
