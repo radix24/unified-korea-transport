@@ -376,7 +376,8 @@ export function renameRegionRefs(from = null, to = null) {
   const a = admin();
   if (!a) return;
   for (const [key, S] of Object.entries(L.splitUnit || {})) { const u = a.unit(key); if (u && u.region !== S.region) S.region = u.region; }
-  for (let i = 0; i < a.regionOfSub.length; i++) { const k = subKey(i); if (L.annexSub?.[k] && L.annexSub[k] !== a.regionOfSub[i]) L.annexSub[k] = a.regionOfSub[i]; }
+  // 읍면동마다 열쇠를 만드는 데 개편 한 번에 0.1초쯤 들었다: 따로 옮긴 읍면동이 없으면 건너뛴다
+  if (Object.keys(L.annexSub || {}).length) for (let i = 0; i < a.regionOfSub.length; i++) { const k = subKey(i); if (L.annexSub[k] && L.annexSub[k] !== a.regionOfSub[i]) L.annexSub[k] = a.regionOfSub[i]; }
   adminInvalidate();
 }
 

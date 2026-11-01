@@ -335,7 +335,10 @@ export function renderAllPanels() {
   renderRegions();
   // 다 지은 택지지구는 배경 지도에 시가지로 (반지름은 여기 크기표를 따른다: 지도 쪽 표에 1기 신도시급이 없어 1km 원으로 그리던 것)
   if (map) { setHousing(map, (state.housing || []).map((h) => ({ ...h, R: housingR(h) }))); setHousingVisible(map, showHousing); }
-  renderTop(); renderLegend(); renderStatus(); renderBuild(); renderProjects(); renderRequests(); renderOps(); renderSettings(); renderStats(); renderSelection();
+  renderTop(); renderLegend(); renderSelection();
+  // 오른쪽 탭은 보이는 것만 지금 그리고 나머지는 열 때 (행정 개편 한 번에 숨은 탭 그리기만 0.1초 넘게 걸렸다)
+  const on = document.querySelector('.panel.on')?.dataset.panel;
+  for (const [tab, fn] of Object.entries(PANEL_RENDER())) { if (tab === on) fn(); else stalePanels.add(tab); }
   drawServices();
   drawHalls();
   drawUnivs();
