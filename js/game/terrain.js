@@ -54,10 +54,10 @@ export function terrainCostFactor(p) {
 const cellOf = (x, y) => [Math.floor((x - T.x0) / T.dx), Math.floor((y - T.y0) / T.dy)];
 const inside = (c, r) => c >= 0 && r >= 0 && c < T.cols && r < T.rows;
 
-/** 칸 사이 한 걸음의 가중치(평지 1km = 1): 경사가 기준을 넘는 만큼·거칠수록 터널, 물 위는 교량 */
-function stepFactor(rule, i0, i1, km) {
+/** 칸 사이 한 걸음의 가중치(평지 1km = 1): 경사가 기준을 넘는 만큼·거칠수록 터널, 물 위는 교량. seaOk가 false면 바다 칸은 못 지난다 */
+function stepFactor(rule, i0, i1, km, seaOk = true) {
   const e0 = T.elev[i0], e1 = T.elev[i1];
-  if (e1 === T.sea) return rule.sea;
+  if (e1 === T.sea) return seaOk ? rule.sea : Infinity;
   if (e1 === T.water) return rule.bridge;
   if (e0 <= T.water + 1) return 1;
   const grade = Math.abs(e1 - e0) / (km * 1000);
@@ -72,6 +72,15 @@ function stepFactor(rule, i0, i1, km) {
  */
 export function terrainRoute(a, b, rule) {
   if (!T || !rule) return null;
+  // 바다 위로는 긋지 않는다: 바다를 막고 먼저 찾고, 섬처럼 바다를 건너야만 닿으면 그때만 바다를 비싸게 쳐서 건넌다
+  // 바다를 피하느라 크게 돌면(바다를 건너는 길보다 1.4배 넘게 길면) 짧게 건넌다 (여수–남해처럼 다리를 놓아야 하는 곳)
+  const land = routeOnce(a, b, rule, false), sea = routeOnce(a, b, rule, true);
+  if (!land || !sea) return land || sea;
+  const len = (v) => [a, ...v, b].reduce((t, p, k, l) => t + (k ? kmBetween(l[k - 1][0], l[k - 1][1], p[0], p[1]) : 0), 0);
+  return len(land) <= len(sea) * 1.4 ? land : sea;
+}
+
+function routeOnce(a, b, rule, seaOk) {
   const km = kmBetween(a[0], a[1], b[0], b[1]);
   if (km < 3 || km > 600) return null;
   const [ca, ra] = cellOf(a[0], a[1]), [cb, rb] = cellOf(b[0], b[1]);
@@ -125,7 +134,9 @@ export function terrainRoute(a, b, rule) {
       if (closed[nk]) continue;
       const i1 = (nr + r0) * T.cols + (nc + c0);
       const step = Math.hypot(dc * kx(r), dr * ky);
-      const ng = g[k] + step * stepFactor(rule, i0, i1, step);
+      // 양 끝 가까이(2칸)는 바다 칸도 지난다: 해안 역은 칸이 바다로 잡히기도 한다
+      const near = Math.abs(nc + c0 - cb) + Math.abs(nr + r0 - rb) <= 2 || Math.abs(nc + c0 - ca) + Math.abs(nr + r0 - ra) <= 2;
+      const ng = g[k] + step * stepFactor(rule, i0, i1, step, seaOk || near);
       if (ng < g[nk]) { g[nk] = ng; prev[nk] = k; push(ng + h(nc + c0, nr + r0), nk); }
     }
   }
@@ -133,6 +144,7 @@ export function terrainRoute(a, b, rule) {
   const cells = [];
   for (let k = goal; k >= 0; k = prev[k]) cells.push(k);
   cells.reverse();
+  if (!Number.isFinite(g[goal])) return null;
   const pts = cells.map((k) => [T.x0 + ((k % W) + c0 + 0.5) * T.dx, T.y0 + (Math.floor(k / W) + r0 + 0.5) * T.dy]);
   pts[0] = a; pts[pts.length - 1] = b;
   return simplify(pts, rule.simplifyKm).slice(1, -1);

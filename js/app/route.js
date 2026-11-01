@@ -490,10 +490,10 @@ export function terrainAlign() {
     if (d < 1.5) return null;
     const ck = Math.cos((p.lat * Math.PI) / 180);
     const e = tan[0] * ck, nn = tan[1], m = Math.hypot(e, nn) || 1;   // 경위도 방향 → 실제 거리 L(도)만큼
-    // 접선이 상대 끝 쪽과 어긋날수록 곧게 나가는 거리를 줄인다 (75° 넘게 어긋나면 두지 않는다: 크게 돌아 S자가 생긴다)
+    // 접선이 상대 끝 쪽과 어긋날수록 곧게 나가는 거리를 줄인다 (37° 넘게 어긋나면 두지 않는다: 접선으로 나갔다 크게 꺾여 역 앞에 U자 개다리가 생겼다)
     const ox = (other.lon - p.lon) * ck, oy = other.lat - p.lat, ol = Math.hypot(ox, oy) || 1;
     const cos = (e * ox + nn * oy) / (m * ol);
-    if (cos < 0.26) return null;
+    if (cos < 0.8) return null;
     const L = Math.min(4, Math.max(0.5, d * 0.25)) * cos * cos / 111;
     const q = { node: null, lon: p.lon + (e / m) * L / ck, lat: p.lat + (nn / m) * L, split: null, via: true, leadPt: true };
     // 이끎 점이 바다·호수 위면 두지 않는다 (항구역에서 접선이 바다를 향하면 그리로 나갔다가 되돌아 고리가 생긴다)
@@ -522,8 +522,38 @@ export function terrainAlign() {
     for (const [lon, lat] of via) out.push({ node: null, lon, lat, split: null, via: true });
     if (li) out.push(li);
   });
-  // 지형 경로는 칸을 따라 꺾이므로, 수단별 최소 곡선반경을 지키게 선형 점을 편다 (역·IC·접선 이끎 점은 그대로)
+  // 역 앞뒤는 곧게: 지형 경로는 역이 든 칸에서 칸 방향(가로·세로·대각)으로 꺾여 나가, 역 바로 앞뒤에 개다리가 생겼다.
+  // 역에서 2L km 안의 지형 선형 점은 빼고(곡선이 펴질 자리), 가운데 역은 앞뒤 L km가 한 직선이 되게 이끎 점을 둔다
+  const L = Math.max(1.5, Math.min(4, 1.5 * rule.minRadiusKm));
+  const dist = (p, q) => kmBetween(p.lon, p.lat, q.lon, q.lat);
   const dry = (lon, lat) => { const t = terrainAt(lon, lat); return !(t && t.sea); };
+  if (changed) {
+    const st = out.filter((p) => !p.via);
+    for (let k = out.length - 1; k >= 0; k--) if (out[k].via && !out[k].leadPt && st.some((q) => dist(out[k], q) < 2 * L)) out.splice(k, 1);
+    // 끝 역의 접선 이끎 점: 지형 경로가 실제로 나가는 쪽(다음 점)과 37° 넘게 어긋나면 뺀다 (접선으로 나갔다 되돌아 U자가 생겼다)
+    const bend = (A, B, C) => {
+      const ck = Math.cos((B.lat * Math.PI) / 180), ux = (B.lon - A.lon) * ck, uy = B.lat - A.lat, vx = (C.lon - B.lon) * ck, vy = C.lat - B.lat;
+      return (ux * vx + uy * vy) / ((Math.hypot(ux, uy) * Math.hypot(vx, vy)) || 1);
+    };
+    if (out[1]?.leadPt && out[2] && bend(out[0], out[1], out[2]) < 0.8) out.splice(1, 1);
+    const n = out.length;
+    if (n > 2 && out[n - 2]?.leadPt && bend(out[n - 3], out[n - 2], out[n - 1]) < 0.8) out.splice(n - 2, 1);
+    for (let k = 1; k + 1 < out.length; k++) {
+      const S = out[k];
+      if (S.via) continue;
+      // 지나는 방향은 들어오는 방향과 나가는 방향의 이등분 (꺾임을 역 앞뒤에 반씩 나눈다)
+      const P = out[k - 1], N = out[k + 1], ck = Math.cos((S.lat * Math.PI) / 180);
+      const ix = (S.lon - P.lon) * ck, iy = S.lat - P.lat, il = Math.hypot(ix, iy) || 1, ox = (N.lon - S.lon) * ck, oy = N.lat - S.lat, ol = Math.hypot(ox, oy) || 1;
+      const dx = ix / il + ox / ol, dy = iy / il + oy / ol, dl = Math.hypot(dx, dy);
+      const Lt = Math.min(L, 0.4 * dist(S, P), 0.4 * dist(S, N));
+      if (!(dl > 0) || Lt < 0.3) continue;
+      const at = (sg) => ({ node: null, lon: S.lon + (sg * dx / dl) * (Lt / 111.32) / ck, lat: S.lat + (sg * dy / dl) * (Lt / 111.32), split: null, via: true, leadPt: true });
+      const before = at(-1), after = at(1);
+      if (!dry(before.lon, before.lat) || !dry(after.lon, after.lat)) continue;
+      out.splice(k, 0, before); out.splice(k + 2, 0, after); k += 2;
+    }
+  }
+  // 지형 경로는 칸을 따라 꺾이므로, 수단별 최소 곡선반경을 지키게 선형 점을 편다 (역·IC·접선 이끎 점은 그대로)
   const kinds = out.map((p) => (!p.via ? 2 : p.leadPt ? 1 : 0));
   draft.points = changed ? easeCurves(out, kinds, rule.minRadiusKm * 1.1, ({ lon, lat }) => ({ node: null, lon, lat, split: null, via: true }), dry) : out;
   drawDraft();
