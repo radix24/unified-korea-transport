@@ -24,6 +24,16 @@ export function buildAdmin(d, L) {
   // 광역시로 승격한 신설 시: 그 시 자체가 광역 단체 (존에는 없는 이름)
   for (const s of Object.values(SP)) if (s.metro && s.region) live.add(s.region);
   const liveOr = (r, fb) => (r && live.has(r) ? r : fb);
+  // 신설 시군의 광역: 광역시로 승격한 신설 시는 그 자신, 신설 광역시 안에서 세운 구는 그 광역시, 나머지는 원래 시군(home)이
+  // 지금 든 광역을 따른다 (적어 둔 이름을 그대로 쓰면 원산 일대를 함경남도로 돌려도 원산에서 세운 시가 강원북도에 남았다)
+  const metroRegs = new Set(Object.values(SP).filter((s) => s.metro && s.region).map((s) => s.region));
+  const splitRegion = (id, z, depth = 0) => {
+    const s = SP[id];
+    if (s.metro || metroRegs.has(s.region)) return s.region;
+    if (SP[s.home] && depth < 8) return splitRegion(s.home, z, depth + 1);
+    if (repOfUnitId.has(s.home)) return d.regionOf(repOfUnitId.get(s.home));
+    return liveOr(s.region, d.regionOf(z));
+  };
   const units = new Map();
   const unit = (id, init) => { let u = units.get(id); if (!u) units.set(id, (u = { id, subs: [], zones: new Set(), ...init() })); return u; };
   for (let i = 0; i < S; i++) {
@@ -41,10 +51,10 @@ export function buildAdmin(d, L) {
     // 다른 시군으로 옮긴 읍면동은 그 시군의 광역 단체를 따른다: 옮길 때 적은 광역(annexSub)을 앞세우면 그 시군이 뒤에
     // 다른 광역으로 편입돼도 그 읍면동만 옛 광역에 남아 월경지가 됐다 (단월면 → 홍천군 → 경기도). annexSub는 시군 없이
     // 광역시로만 옮긴 예전 기록에만 쓴다
-    regionOfSub[i] = SP[id] ? liveOr(SP[id].region, d.regionOf(z)) : id !== home ? d.regionOf(+id.slice(2)) : liveOr(R[key], d.regionOf(z));
+    regionOfSub[i] = SP[id] ? splitRegion(id, z) : id !== home ? d.regionOf(+id.slice(2)) : liveOr(R[key], d.regionOf(z));
     const u = unit(id, () => (id.startsWith('z:')
       ? { split: false, rep: +id.slice(2), name: null, region: null }
-      : { split: true, rep: -1, name: SP[id].metro ? SP[id].region : SP[id].name, metro: !!SP[id].metro, home: SP[id].home, year: SP[id].year, region: liveOr(SP[id].region, d.regionOf(z)) }));
+      : { split: true, rep: -1, name: SP[id].metro ? SP[id].region : SP[id].name, metro: !!SP[id].metro, home: SP[id].home, year: SP[id].year, region: splitRegion(id, z) }));
     u.subs.push(i); u.zones.add(z);
   }
   for (const u of units.values()) {

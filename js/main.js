@@ -254,6 +254,9 @@ async function init() {
       try { guUnits.clear(); } catch { /* 아직 준비 전이면 처음 그릴 때 채운다 */ }
       syncMayors(); save(state);
       if (map) { drawBungu(); refreshNames(map); }
+    } else if (['splitUnit', 'annexSubUnit', 'regionReorg'].some((k) => Object.keys(state.local?.[k] || {}).length)) {
+      // 위의 단체장 정리는 소속표 없이 돌았다: 읍면동을 모두 내준 시군의 관선 단체장이 되살아나고 신설 광역시장이 빠졌다
+      syncGovernors(); syncMayors();
     }
   });
 

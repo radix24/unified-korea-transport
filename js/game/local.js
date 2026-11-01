@@ -341,10 +341,11 @@ export function governorTitle(region) {
   return `${region.replace(/도$/, '')}도지사`;
 }
 
-/** 시군 단체장 직함. 광역시로 승격한 도시 전체가 한 시군(존)이면 따로 뽑는 기초단체장이 없다
+/** 시군 단체장 직함. 광역시(직할시·특별자치시)로 승격한 도시 전체가 한 시군(존)이면 따로 뽑는 기초단체장이 없다
  *  (청진시 → 청진광역시: 그 땅의 단체장은 청진광역시장뿐, "청진광역시 구청장"은 없는 직책): null */
 export function countyTitle(name, region) {
-  if (/광역시$/.test(region) && (name === region || name.replace(/시$/, '') === region.replace(/광역시$/, ''))) return null;
+  // 직할시·특별자치시도 같다 (라선시 밑 라선시: 광역 라선시장과 기초 라선시장이 함께 있었다)
+  if (isMetroCity(region) && (name === region || name.replace(/시$/, '') === region.replace(/(특별자치시|특별시|광역시|직할시|시)$/, ''))) return null;
   return mayorTitle(name);
 }
 

@@ -32,11 +32,11 @@ export function regions() {
     out.get(r).push(i);
   });
   // 광역시로 승격한 신설 시: 존이 없는 광역 단체 (광역단체장 선거·자리 정리에 빠지지 않게)
-  for (const u of splitUnits()) {
-    if (!u.metro || out.has(u.region)) continue;
-    const rep = unitRepZone(u.id);
-    if (rep >= 0 && hasAutonomy(state, zoneProps[rep])) out.set(u.region, []);
-  }
+  // 소속표가 아직 없으면(저장 판을 여는 중, 읍면동 경계를 받기 전) 적어 둔 신설 기록에서 바로 찾는다: 이때 지우면 광역시장이 사라졌다
+  const a = admin();
+  const metros = a ? splitUnits().filter((u) => u.metro).map((u) => [u.region, unitRepZone(u.id)])
+    : Object.values(state.local?.splitUnit || {}).filter((s) => s.metro && s.region).map((s) => [s.region, zoneProps.findIndex((z) => !z.ext && unitId(state, z) === s.home)]);
+  for (const [r, rep] of metros) if (!out.has(r) && rep >= 0 && hasAutonomy(state, zoneProps[rep])) out.set(r, []);
   return out;
 }
 
@@ -516,7 +516,9 @@ export function proposeProjects() {
   // (제1야당만이 아니다: 3당 제안을 받아 주면 3당 지지가 올라 다음 선거에서 이변을 낼 수 있다)
   for (const [key, off] of Object.entries(L.offices)) {
     if (!key.startsWith('g:') || off.appointed) continue;
-    const r = off.region, z0 = zoneProps.find((q) => !q.ext && regionOf(state, q) === r);
+    // 존이 없는 신설 광역시는 소속표에서 그 광역의 첫 읍면동이 든 존으로
+    const r = off.region, ad = admin(), si = ad ? ad.regionOfSub.indexOf(r) : -1;
+    const z0 = zoneProps.find((q) => !q.ext && regionOf(state, q) === r) || (si >= 0 ? zoneProps[subInfo(si)[0]] : null);
     if (!z0) continue;
     const sup = partySupport(z0, L.support?.[r]);
     const ps = ['D', 'P', 'R', 'J'].filter((k) => k !== off.party && !L.proposals.some((p) => p.status === 'open' && p.party === k && p.region === r));
@@ -713,8 +715,8 @@ export function zoneAdminHTML(id) {
   }
   const up = cityUpTargets().find((c) => inMine(c.zones));
   if (up) rows.push(item(`군 → 시 승격: ${esc(up.name)} → ${esc(up.name.replace(/군$/, '시'))}`,
-    `군수 대신 시장을 뽑습니다. 일반구로 나누면 구청장은 시장이 임명하고, 지도에서 구마다 고를 수 있습니다. 인구 ${PROMOTE_MIN_POP / 1e4}만을 넘으면 광역시로 승격할 수 있습니다 · ${formatWon(EVENT_COST.cityUp)}`,
-    `${bunguSelect('bungu-n3', '일반구 없이')} <button class="small primary" data-city-up="${esc(up.key)}">시로 승격</button>`));
+    `군수 대신 시장을 뽑습니다. ${up.pop >= PROMOTE_MIN_POP ? '일반구로 나누면 구청장은 시장이 임명하고, 지도에서 구마다 고를 수 있습니다. ' : ''}인구 ${PROMOTE_MIN_POP / 1e4}만을 넘으면 광역시로 승격할 수 있습니다 · ${formatWon(EVENT_COST.cityUp)}`,
+    `${up.pop >= PROMOTE_MIN_POP ? bunguSelect('bungu-n3', '일반구 없이') : ''} <button class="small primary" data-city-up="${esc(up.key)}">시로 승격</button>`));
   const bu = bunguUnits().find(([u]) => inMine(unitZones(u)));
   // 이미 나눈 구를 다시 여러 구로 (시 안의 구·광역시 자치구·광역시 군을 바꾼 구)
   const bk = bunguUnitOf(id);

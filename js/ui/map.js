@@ -210,11 +210,15 @@ export async function refreshNames(map) {
   setUnits(map);
 }
 
+let unitLinesSig = null;
 function setUnits(map) {
   const fs = renamed([...unitFiles.values()].flat(), 'unit', 'id');
   // 읍면동 경계는 같은 시군구 안의 변만: 시군구 경계와 겹치는 변은 시군구·시도 선이 그린다
   const grp = (f) => (unitGroup ? unitGroup(f.properties.id) : null);
-  map.getSource('units').setData(borderLines(fs, (f) => f.properties.zone, unitGroup ? (f) => grp(f)?.key ?? `u:${f.properties.id}` : null).inner);
+  // 묶음이 그대로면 선을 다시 긋지 않는다: 광역 개편·승격 한 번에 이것만 0.4초, 지도가 다시 타일을 만드는 데 또 그만큼 걸렸다
+  const gk = unitGroup ? (f) => grp(f)?.key ?? `u:${f.properties.id}` : null;
+  const sig = fs.map((f) => `${f.properties.id}:${f.properties.zone}:${gk ? gk(f) : ''}`).join('|');
+  if (sig !== unitLinesSig) { unitLinesSig = sig; map.getSource('units').setData(borderLines(fs, (f) => f.properties.zone, gk).inner); }
   // 이름은 면마다 점 하나에: 면 도형에 바로 글자를 달면 타일마다 하나씩 찍혀 넓은 면은 이름이 여러 번 뜬다.
   // 묶은 면(북측 군의 옛 면)은 가장 넓은 리 자리에 면 이름 하나
   const pt = (name, f) => ({ type: 'Feature', properties: { name }, geometry: { type: 'Point', coordinates: labelPoint(f.geometry) } });

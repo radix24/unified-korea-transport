@@ -19,7 +19,7 @@ import {
 import { select } from './interact.js';
 import { fmtPop, pct, renderAll } from './panels.js';
 import { foreignCountry } from './operators.js';
-import { countyRep, countyZones, holdElection, mayorKey, partyBadge, syncMayors, zoneAdminHTML, zoneGus } from './election.js';
+import { countyRep, countyZones, holdElection, mayorKey, partyBadge, splitGus, syncMayors, zoneAdminHTML, zoneGus } from './election.js';
 import { adjacency, annexTargets, bindAnnexBtns, bunguSelect, bunguUnits, drawBungu, syncGovernors, guNamesOfZone, guNamingDialog, guOfSub, guSubs, makeBungu, payEvent, pruneBungu, setCoreGu, unitZones } from './bungu.js';
 import { localZoneHTML } from './firstyear.js';
 import { REST_REMOVE_COST } from './housing.js';
@@ -307,7 +307,13 @@ export function regionPanel(r) {
   })).sort((x, y) => y.p - x.p);
   // 자치구로 나눈 시군은 그 구들을 하나씩 (광역시에 든 시의 구: 함주구 하나가 아니라 상중구·신덕구)
   const others = units.filter((x) => !body.includes(x)).flatMap((x) => {
-    const rep = x.u.id.startsWith('z:') ? +x.u.id.slice(2) : -1, gs = rep >= 0 && isMetroCity(r) ? zoneGus(rep) : null;
+    const rep = x.u.id.startsWith('z:') ? +x.u.id.slice(2) : -1;
+    // 광역시로 승격한 신설 시의 자치구: 그 시의 구 기록으로 (존 구 표에는 없다)
+    if (rep < 0) {
+      const sg = isMetroCity(r) ? splitGus(x.u.id) : null, gu = L.bungu?.[x.u.id]?.gu || {};
+      return sg ? sg.map((g) => ({ u: x.u, gu: g, rep, p: x.u.subs.filter((i) => gu[subKey(i)] === g).reduce((t, i) => t + (result.subs.pop[i] || 0), 0) })) : [x];
+    }
+    const gs = isMetroCity(r) ? zoneGus(rep) : null;
     return gs ? gs.map((g) => ({ u: x.u, gu: g, rep, p: guSubs(rep, g).reduce((t, i) => t + (result.subs.pop[i] || 0), 0) })) : [x];
   }).sort((x, y) => y.p - x.p);
   // 구 없는 몸통을 자치구로 나누는 단추 (몸통을 누르면 바로 동으로 내려가 존 창에 닿지 않는다)
@@ -347,7 +353,7 @@ export function regionPanel(r) {
       <div class="m">직할시(독립시)를 남측처럼 광역시로 부릅니다. 단체장은 그대로 직함만 바뀌고 선거는 하지 않습니다 · ${formatWon(EVENT_COST.cityUp)}</div>
       <div class="actions"><button class="small primary" data-metro-rename="${esc(r)}">바꾸기</button></div></div>` : ''}
     ${others.length || !body.length ? `<h4>산하 ${isMetroCity(r) ? '군·구' : '시·군'} (인구 순)</h4>
-    <table class="kv">${others.map(({ u, p, gu, rep }) => `<tr><td>${gu ? `<a href="#" data-gu-sel="${rep}" data-gu="${esc(gu)}">${esc(gu)}</a>` : `<a href="#" data-unit-sel="${esc(u.id)}">${esc(u.name)}</a>`}${u.split ? ' <span class="m">신설</span>' : ''}</td><td>${fmtPop(p)}</td></tr>`).join('')}</table>` : ''}
+    <table class="kv">${others.map(({ u, p, gu, rep }) => `<tr><td>${gu && rep >= 0 ? `<a href="#" data-gu-sel="${rep}" data-gu="${esc(gu)}">${esc(gu)}</a>` : `<a href="#" data-unit-sel="${esc(u.id)}">${esc(gu || u.name)}</a>`}${u.split && !u.metro ? ' <span class="m">신설</span>' : ''}</td><td>${fmtPop(p)}</td></tr>`).join('')}</table>` : ''}
     ${body.length ? `<h4>${others.length ? '구로 나누지 않은 읍면동' : '산하 읍면동'} (인구 순)</h4>
     <table class="kv">${emdRows.map((e) => `<tr><td><a href="#" data-emd-sel="${esc(e.k)}">${esc(e.name)}</a></td><td>${fmtPop(e.p)}</td></tr>`).join('')}</table>` : ''}
     ${bu ? `<h4>행정 조정</h4><div class="item"><div class="t">분구: ${esc(r)}</div>
@@ -466,7 +472,8 @@ export function emdPanel(key) {
 export function unitPanel(id) {
   const a = admin(), u = a?.unit(id);
   if (!u) return header('시군');
-  const L = state.local, off = L.offices[unitOfficeKey(id)], p = unitPop(id), c = p.pop / Math.max(p.pop0, 1) - 1;
+  // 광역시로 승격한 신설 시의 단체장은 광역시장 (가운데 구청장이 아니라). 자치구 구청장은 아래 줄에 따로
+  const L = state.local, off = u?.metro ? L.offices[`g:${u.region}`] : L.offices[unitOfficeKey(id)], p = unitPop(id), c = p.pop / Math.max(p.pop0, 1) - 1;
   const emds = [...new Set(u.subs.map((i) => a.emdOf[i]))].map((k) => a.emds.get(k));
   const area = u.subs.reduce((t, i) => t + subArea(i), 0), rep = unitRepZone(id);
   const sup = partySupport(zoneProps[rep], L.support?.[u.region], off?.party);
@@ -476,7 +483,8 @@ export function unitPanel(id) {
       <tr><td>소속</td><td>${esc(u.region)} · ${u.metro ? '광역시' : u.kind === 'gu' ? '자치구' : u.kind === 'gun' ? '군' : '시'} · ${u.year}년 신설 (${esc((u.home || '').split('|')[1] || '')}에서)</td></tr>
       <tr><td>인구</td><td>${result ? `${fmtPop(p.pop)} <span class="${c >= 0 ? 'pos' : 'neg'}">(${c >= 0 ? '+' : ''}${pct(c)})</span>` : '–'}</td></tr>
       <tr><td>면적 · 밀도</td><td>${Math.round(area).toLocaleString()}km² · ${result ? Math.round(p.pop / Math.max(area, 1)).toLocaleString() : '–'}명/km²</td></tr>
-      <tr><td>단체장</td><td>${off ? `${esc(off.title)} ${esc(off.name)} ${partyBadge(off.party)} · 지지율 ${Math.round(off.approval)}%` : '없음 (지방자치 전)'}</td></tr>
+      <tr><td>단체장</td><td>${off ? `${esc(off.title)} ${esc(off.name)} ${off.appointed ? '(관선)' : `${partyBadge(off.party)} · 지지율 ${Math.round(off.approval)}%`}` : hasAutonomy(state, zoneProps[unitRepZone(id)]) ? '없음' : '없음 (지방자치 전)'}</td></tr>
+      ${u?.metro && splitGus(id) ? `<tr><td>자치구청장</td><td>${splitGus(id).map((g, k) => { const o = L.offices[k ? `${unitOfficeKey(id)}#${g}` : unitOfficeKey(id)]; return o ? `${esc(o.title)} ${esc(o.name)} ${partyBadge(o.party)}` : esc(g); }).join('<br>')}</td></tr>` : ''}
       <tr><td>읍면동 ${emds.length}곳</td><td class="m" style="white-space:normal">${emds.map((e) => esc(riToDong(e.subs[0], e.name))).join(' · ')}</td></tr>
     </table>
     <div class="m" style="margin-top:6px">정당 지지율 (이 시군)</div>
@@ -502,7 +510,7 @@ export function splitAdminHTML(id) {
       const names = [...new Set(Object.values(b.gu))].sort((x, y) => x.localeCompare(y, 'ko'));
       rows.push(item(`자치구: ${names.map(esc).join('·')}`, `구마다 구청장을 뽑습니다 · 구 나누기 ${formatWon(EVENT_COST.cityUp)}`,
         `<select id="gu-split-name" class="small">${names.map((g) => `<option>${esc(g)}</option>`).join('')}</select> ${bunguSelect('gu-split-n', null, 2)} <button class="small" data-gu-split="${esc(id)}">구 나누기</button> <button class="small" data-gu-adjust="${esc(id)}">구 이름·경계 고치기</button>`));
-    } else if (new Set(u.subs.map((i) => admin().emdOf[i])).size >= 4) {
+    } else if (unitPop(id).pop >= PROMOTE_MIN_POP && new Set(u.subs.map((i) => admin().emdOf[i])).size >= 4) {   // 일반구는 50만 이상 시에만
       rows.push(item('자치구로 분구', `광역시를 자치구 여럿으로 나눕니다 (구마다 구청장 선거) · ${formatWon(EVENT_COST.cityUp)}`,
         `${bunguSelect('split-bungu-n', '나누지 않음', 2)} <button class="small primary" data-split-bungu>분구</button>`));
     }
@@ -538,7 +546,7 @@ export function splitAdminHTML(id) {
       const names = [...new Set(Object.values(b.gu))].sort((x, y) => x.localeCompare(y, 'ko'));
       rows.push(item(`일반구: ${names.map(esc).join('·')}`, '시장이 구청장을 임명합니다. 구 하나를 다시 여러 구로 나눌 수도 있습니다',
         `<select id="gu-split-name" class="small">${names.map((g) => `<option>${esc(g)}</option>`).join('')}</select> ${bunguSelect('gu-split-n', null, 2)} <button class="small" data-gu-split="${esc(id)}">구 나누기</button> <button class="small" data-gu-adjust="${esc(id)}">구 이름·경계 고치기</button> <button class="small" data-split-unbungu>분구 풀기</button>`));
-    } else if (new Set(u.subs.map((i) => admin().emdOf[i])).size >= 4) {
+    } else if (unitPop(id).pop >= PROMOTE_MIN_POP && new Set(u.subs.map((i) => admin().emdOf[i])).size >= 4) {   // 일반구는 50만 이상 시에만
       rows.push(item('일반구로 분구', `시를 일반구 여럿으로 나눕니다 (구청장은 시장이 임명, 선거 없음) · ${formatWon(EVENT_COST.cityUp)}`,
         `${bunguSelect('split-bungu-n', '나누지 않음', 2)} <button class="small primary" data-split-bungu>분구</button>`));
     }
@@ -610,7 +618,7 @@ export function bindUnitPanel(el) {
     if (!S) return;
     // 존 시군의 승격과 같은 인구 기준 (예전에는 3,777명 군도 시가 됐다)
     const pop = unitPop(id).pop;
-    if (result && pop < CITY_UP_MIN_POP) { alert(`${S.name}: 인구 ${fmtPop(pop)}. 시로 승격하려면 ${fmtPop(CITY_UP_MIN_POP)} 이상이어야 합니다.`); return; }
+    if (result && pop < CITY_UP_MIN_POP) { alert(`${S.name}: 인구 ${fmtPop(pop)}. 시로 승격하려면 ${CITY_UP_MIN_POP / 1e4}만 명 이상이어야 합니다.`); return; }
     if (!confirm(`${S.name}을(를) ${S.name.replace(/군$/, '시')}로 승격할까요? ${formatWon(EVENT_COST.cityUp)}`)) return;
     if (!payEvent(EVENT_COST.cityUp)) return;
     const to = S.name.replace(/군$/, '시');
@@ -625,7 +633,7 @@ export function bindUnitPanel(el) {
     const S = L.splitUnit?.[id], u = admin()?.unit(id);
     if (!S || !u || S.metro) return;
     const pop = unitPop(id).pop, to = metroName(S.name);
-    if (result && pop < PROMOTE_MIN_POP) { alert(`${S.name}: 인구 ${fmtPop(pop)}. 광역시로 승격하려면 ${fmtPop(PROMOTE_MIN_POP)} 이상이어야 합니다.`); return; }
+    if (result && pop < PROMOTE_MIN_POP) { alert(`${S.name}: 인구 ${fmtPop(pop)}. 광역시로 승격하려면 ${PROMOTE_MIN_POP / 1e4}만 명 이상이어야 합니다.`); return; }
     if ([...admin().units.values()].some((x) => x.region === to) || zoneProps.some((z) => !z.ext && regionOf(state, z) === to)) { alert(`이미 ${to}이(가) 있습니다. 이름을 바꾼 뒤 승격하세요.`); return; }
     if (!confirm(`${S.name}을(를) ${to}로 승격할까요? ${u.region}에서 떨어져 나와 광역 단체가 되고, 시장·도지사를 다시 뽑습니다. ${formatWon(EVENT_COST.independence)}`)) return;
     if (!payEvent(EVENT_COST.independence)) return;
