@@ -231,7 +231,7 @@ export function admin() {
   if (adminCache?.sig === sig) return adminCache.a;
   padSubsFC();   // 떼어 낸 남측 법정리 자리 (risplit.js)
   const S = subsFC.features.length;
-  const a = buildAdmin({ extrasOfZone,
+  const a = buildAdmin({ extrasOfZone, isMetro: isMetroCity,
     zoneProps, S, subInfo, subKey, countyRep,
     unitId: (j) => unitId(state, zoneProps[j]), regionOf: (j) => regionOf(state, zoneProps[j]), zoneName: (j) => countyNameOf(j),
     subPop: (i) => (result ? result.subs.pop[i] : 0), subPop0: (i) => subPop0[i] || 0,

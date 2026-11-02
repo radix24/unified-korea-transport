@@ -1,6 +1,6 @@
 {
-"v": "Alpha 0.5.21",
-"h": "7f2ff981ac",
+"v": "Alpha 0.5.22",
+"h": "d08d3c53e2",
 "files": [
 "css/style.css",
 "js/app/budget.js",
@@ -102,9 +102,9 @@
 "hash": {
 "css/style.css": "266b3ccf50",
 "js/app/budget.js": "cac6d3c882",
-"js/app/bungu.js": "52f5262b4c",
+"js/app/bungu.js": "5fd52c6b4a",
 "js/app/compare.js": "5fdd23f7ab",
-"js/app/core.js": "f18d9798b1",
+"js/app/core.js": "d8dd45566d",
 "js/app/draw.js": "0c664887d3",
 "js/app/econ.js": "b16bd16a8a",
 "js/app/election.js": "bf878ef2c1",
@@ -121,7 +121,7 @@
 "js/app/ppp.js": "289ab9bcc5",
 "js/app/preview.js": "ae12b434dc",
 "js/app/recommend.js": "28e5392e08",
-"js/app/region.js": "2bc332d39a",
+"js/app/region.js": "9af4eda602",
 "js/app/reopen.js": "8332be571e",
 "js/app/report.js": "1d749a3d6f",
 "js/app/risplit.js": "f26c95faab",
@@ -137,7 +137,7 @@
 "js/app/zonedev.js": "c37c2fe9d5",
 "js/data/netfix.js": "45d8694d19",
 "js/data/netpack.js": "c93034050a",
-"js/game/admin.js": "36aec4e2a4",
+"js/game/admin.js": "6e7cff7d4f",
 "js/game/airlines.js": "b733a560f9",
 "js/game/appraisal.js": "9d216f4eb3",
 "js/game/branch.js": "0fc024b274",

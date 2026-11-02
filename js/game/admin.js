@@ -29,7 +29,9 @@ export function buildAdmin(d, L) {
   const metroRegs = new Set(Object.values(SP).filter((s) => s.metro && s.region).map((s) => s.region));
   const splitRegion = (id, z, depth = 0) => {
     const s = SP[id];
-    if (s.metro || metroRegs.has(s.region)) return s.region;
+    // 광역시로 옮겨 세운 구(분구한 시의 구 하나를 광역시에 통째로 편입, 광역시 안 신설)는 적어 둔 그 광역시를 따른다
+    // (원래 시의 광역을 따르게 했더니 벽성시 구를 해주광역시에 편입해도 황해남도에 남았다)
+    if (s.metro || metroRegs.has(s.region) || (s.region && live.has(s.region) && d.isMetro?.(s.region))) return s.region;
     if (SP[s.home] && depth < 8) return splitRegion(s.home, z, depth + 1);
     if (repOfUnitId.has(s.home)) return d.regionOf(repOfUnitId.get(s.home));
     return liveOr(s.region, d.regionOf(z));

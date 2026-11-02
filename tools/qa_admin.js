@@ -118,6 +118,21 @@ const gus = [...new Set(Object.values(ukt.state.local.bungu?.[k]?.gu || {}))];
 const rules = RULES();
 M.R.mergeSplitUnit(k); await wait(800);
 return { rules: [...rules, ...RULES()], fail: gu0 ? ['구 없이 승격하지 않음 (시험 조건)'] : gus.length < 2 ? [`몸통이 자치구로 나뉘지 않음 (${gus.join(',')})`] : [], gus };
+// @@ gu_to_metro
+// 분구한 시(벽성시)의 구 하나를 광역시(해주광역시)로 통째로 옮기면: 그 구는 광역시의 자치구, 구 없던 광역시 몸통도 자치구로
+const L = ukt.state.local;
+L.autonomyKP = true;
+if (!L.independent.includes('해주시')) { L.independent.push('해주시'); M.R.adminInvalidate(); M.B.syncGovernors(); M.E.syncMayors(); }
+const metro = M.LC.metroName('해주시');
+const bz = zi('벽성군'), bk = M.LC.unitId(ukt.state, ukt.zoneProps[bz]);
+(L.cityUp ||= []).push(bk); M.R.adminInvalidate();
+if (!M.B.makeBungu(bk, 2, { general: true })) return { fail: ['벽성시 분구 실패'] };
+M.E.syncMayors();
+const gus = [...new Set(Object.values(L.bungu[bk].gu))], g = gus[gus.length - 1];
+M.B.moveGuTo(M.B.guSubs(M.E.countyRep(bz), g), g, metro); await wait(800);
+const key = Object.entries(L.splitUnit || {}).find(([, v]) => v.name === g)?.[0], u = key && ukt.admin().unit(key);
+const hg = [...new Set(Object.values(L.bungu['해주시']?.gu || {}))];
+return { rules: RULES(), fail: [...(u?.region === metro ? [] : [`옮긴 ${g}의 소속이 ${u?.region}`]), ...(hg.length >= 2 ? [] : ['해주광역시 몸통이 자치구로 나뉘지 않음'])] };
 // @@ gimpo_tongjin
 // 김포 → 인천 편입, 김포 땅으로 통진구 신설, 편입 되돌리기 → 통진구도 함께 합쳐져야
 const gz = zi('김포시');
