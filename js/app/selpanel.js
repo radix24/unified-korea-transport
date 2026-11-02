@@ -204,7 +204,7 @@ export function bindLevelLinks(el) {
 }
 
 /** 광역 행정구역 개편 비용·설명 */
-const REORG_COST = { jeonbuk: 'cityUp', gangwonNam: 'cityUp', hamnam: 'annex', rason: 'annex', hamheung: 'annex' };
+const REORG_COST = { jeonbuk: 'cityUp', gangwonNam: 'cityUp', hamnam: 'annex', rason: 'annex', hamheung: 'annex', islands: 'annex' };
 function reorgDesc(k, o, r) {
   const L = state.local;
   if (k === 'gangwon') return [`${L.historic ? '강원남도' : '강원특별자치도'}·강원북도 → ${o.to}`, `남북의 강원을 한 도로 합칩니다. 도지사를 새로 뽑습니다${L.regionReorg?.hamnam ? '' : ' (원산 일대를 함경남도로 돌리려면 아래 환원을 함께 고르세요)'}`];
@@ -227,14 +227,54 @@ function hamheungTargets() {
   return zs.length ? { city, zs } : null;
 }
 
+/**
+ * 인천 섬 생활권 개편: 인천 옹진군 섬을 가까운 생활권으로 (메일 건의).
+ * 백령·대청 → 룡연(용연)군(분단 전 소속), 연평 → 강령군(원래 벽성군이지만 가까운 쪽), 자월·덕적·북도 → 제물포구(배편), 영흥 → 안산시(다리)
+ * @returns {{moves: [소구역, 받을 시군 id, 섬 이름, 받을 곳 이름][]}|null}
+ */
+export const ISLAND_PLAN = [[/^백령/, /^[용룡]연군$/], [/^대청/, /^[용룡]연군$/], [/^연평/, /^강령군$/], [/^자월/, /^제물포구$/], [/^덕적/, /^제물포구$/], [/^북도/, /^제물포구$/], [/^영흥/, /^안산시$/]];
+function islandTargets() {
+  if (state.local.regionReorg?.islands) return null;
+  const a = admin(), oz = zoneProps.findIndex((z) => !z.ext && z.name === '옹진군' && z.province === '인천광역시');
+  if (!a || oz < 0) return null;
+  const home = `z:${countyRep(oz)}`, moves = [];
+  for (const [re, to] of ISLAND_PLAN) {
+    const tz = zoneProps.findIndex((z) => !z.ext && (to.test(z.name) || to.test(z.city || '')));   // 안산시는 구 존이 시에 딸려 있다
+    if (tz < 0) continue;
+    const tu = `z:${countyRep(tz)}`;
+    for (let q = 0; q < zoneProps[oz].subs.length; q++) {
+      const i = zoneProps[oz].sub0 + q;
+      if (a.unitOfSub[i] === home && re.test(subName(i))) moves.push([i, tu, subName(i), unitName(tu)]);
+    }
+  }
+  return moves.length ? { moves, oz } : null;
+}
+
+/** 인천 섬 생활권 개편을 한다 (광역 개편 단추, 첫해 정리의 옹진군 '각 생활권'). 할 것이 없으면 false */
+export function applyIslandPlan(I = islandTargets()) {
+  if (!I) return false;
+  (state.local.regionReorg ||= {}).islands = state.year;
+  // 섬마다 받을 시군으로 (광역이 다르면 광역 경계도 옮긴다: setSubUnit)
+  const from = regionOf(state, zoneProps[I.oz]), tos = new Set();
+  for (const [i, tu] of I.moves) { setSubUnit(i, tu); tos.add(regionOf(state, zoneProps[unitRepZone(tu)])); }
+  state.log.unshift(`${state.year}년 인천 섬 생활권 개편: ${I.moves.map(([, , nm, tn]) => `${nm} → ${tn}`).join(', ')}`);
+  adminInvalidate();
+  pruneBungu(); syncGovernors(); syncMayors();
+  holdElection([...new Set([from, ...tos])], '인천 섬 생활권 개편 선거');
+  if (map) { refreshNames(map); drawAdmin(); drawBungu(); }
+  save(state); renderAll();
+  return true;
+}
+
 /** 광역 행정구역 개편 (REGION_REORG): 이름 변경은 단체장 그대로, 통합·분리는 새로 뽑는다 */
 export function regionReorg(k, from) {
-  const L = state.local, o = REGION_REORG[k], H = k === 'hamheung' ? hamheungTargets() : null;
-  if (k === 'hamheung' ? !H : !o || L.regionReorg?.[k]) return;
-  if (!confirm(`${o?.label || HAMHEUNG_ENCLAVE.label}할까요?`)) return;
+  const L = state.local, o = REGION_REORG[k], H = k === 'hamheung' ? hamheungTargets() : null, I = k === 'islands' ? islandTargets() : null;
+  if (k === 'hamheung' ? !H : k === 'islands' ? !I : !o || L.regionReorg?.[k]) return;
+  if (!confirm(`${o?.label || (I ? '인천 섬 생활권 개편' : HAMHEUNG_ENCLAVE.label)}할까요?`)) return;
   if (!payEvent(EVENT_COST[REORG_COST[k] || 'independence'])) return;
   const had = o ? [...new Set(zoneProps.filter((z) => !z.ext).map((z) => regionOf(state, z)))].filter((r) => o.from.includes(r)) : [];   // 개편 전 이름 (기록용)
   (L.regionReorg ||= {})[k] = state.year;
+  if (I) { applyIslandPlan(I); return; }
   if (H) {
     // 세 군의 읍면을 모두 함흥시로 (월경지 래일로동자구가 본시와 이어진다). 군수 자리는 없어진다
     const to = `z:${countyRep(H.city)}`;
@@ -344,6 +384,8 @@ export function regionPanel(r) {
       const items = Object.entries(REGION_REORG).filter(([k, o]) => !L.regionReorg?.[k] && o.from.includes(r) && (!o.zones || o.split || zs.some((j) => o.zones.includes(zoneProps[j].name) && zoneProps[j].country === 'KP')))
         .map(([k, o]) => [k, o.label, ...reorgDesc(k, o, r)]);
       const H = hamheungTargets();
+      const I = islandTargets();
+      if (I && regionOf(state, zoneProps[I.oz]) === r) items.push(['islands', '인천 섬 생활권 개편', I.moves.map(([, , nm, tn]) => `${nm}→${tn}`).join(' · '), '옹진군 섬을 가까운 생활권 시군으로 옮깁니다 (백령·대청은 분단 전 소속인 룡연군, 연평은 가까운 강령군, 자월·덕적·북도는 배편이 있는 제물포구, 영흥은 다리로 이어진 안산시). 옮긴 섬이 든 광역 단체장을 다시 뽑습니다']);
       if (H && regionOf(state, zoneProps[H.city]) === r) items.push(['hamheung', HAMHEUNG_ENCLAVE.label, `${H.zs.map((j) => zoneProps[j].name).join('·')} → ${unitName(`z:${countyRep(H.city)}`)}`, `함흥시의 월경지 ${HAMHEUNG_ENCLAVE.exclave}와 본시 사이의 군을 함흥시에 편입해 땅을 잇습니다 (군수 자리는 없어지고 그 읍면은 함흥시의 동·리가 됩니다)`]);
       return items.length ? `<h4>광역 행정구역 개편</h4>${items.map(([k, label, what, m]) => `<div class="item"><div class="t">${esc(label)}: ${esc(what)}</div>
       <div class="m">${m} · ${formatWon(EVENT_COST[REORG_COST[k] || 'independence'])} (해마다 할 수 있습니다)</div>

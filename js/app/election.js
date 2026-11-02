@@ -758,11 +758,11 @@ export function zoneAdminHTML(id) {
       `${isCity ? bunguSelect('annex-gu', gen ? '지금 구를 자치구로' : '한 자치구로') : ''} ${toMetro.map((o) => annexBtn(o, isCity ? 'annex-gu' : '')).join('')}`));
   }
   if (toProv.length) rows.push(item(`다른 도로 편입 (지금 ${esc(toProv[0].c.region)})`,
-    `맞닿은 도의 군이 됩니다. 두 광역 단체장을 다시 뽑습니다 · ${formatWon(EVENT_COST.annex)}`,
+    `맞닿은 도의 ${/구$/.test(toProv[0].c.name) ? '시가 됩니다(도 밑에 자치구는 없어 구청장 대신 시장을 뽑습니다)' : /시$/.test(toProv[0].c.name) ? '시가 됩니다' : '군이 됩니다'}. 두 광역 단체장을 다시 뽑습니다 · ${formatWon(EVENT_COST.annex)}`,
     toProv.map((o) => annexBtn(o)).join('')));
   const r = regionOf(state, z), inn = (at || []).find(([g]) => g === r)?.[1] || [];
   if (inn.length) rows.push(`<details class="item"><summary class="t">맞닿은 시군을 ${esc(r)}에 편입 (${inn.length}곳)</summary>
-    <div class="m">${isMetroCity(r) ? '광역시는 맞닿은 시·군·구를 (시는 광역시 밑에 둘 수 없어 구가 되고, 일반구가 있던 시는 그 구들이 각각 자치구가 된다)' : '도는 맞닿은 군을'} 편입합니다 · 한 곳 ${formatWon(EVENT_COST.annex)}</div>
+    <div class="m">${isMetroCity(r) ? '광역시는 맞닿은 시·군·구를 (시는 광역시 밑에 둘 수 없어 구가 되고, 일반구가 있던 시는 그 구들이 각각 자치구가 된다)' : '도는 맞닿은 시·군(광역시의 자치구는 시로)을'} 편입합니다 · 한 곳 ${formatWon(EVENT_COST.annex)}</div>
     ${isMetroCity(r) && inn.some((c) => /시$/.test(c.name)) ? `<div class="m" style="margin-top:4px">시를 편입할 때 ${bunguSelect('annex-gu-in', '한 자치구로')}</div>` : ''}
     <div class="row" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${inn.map((c) => `<button class="small" data-annex="${esc(c.key)}" data-annex-to="${esc(r)}" data-annex-zone="${c.via}"${isMetroCity(r) && /시$/.test(c.name) ? ' data-annex-gu="annex-gu-in"' : ''} title="${esc(c.region)}에서 ${esc(r)}로">${esc(c.name)} <span class="m">${esc(c.region)} ${fmtPop(c.pop)}</span></button>`).join('')}</div></details>`);
   // 편입을 되돌리기: 다른 광역으로 편입한 시군을 원래 광역으로 (예전에는 광역시로 간 시는 ○○구로 보여 도가 다시 받지 못했다)

@@ -1691,12 +1691,20 @@ export class Model {
     const dens = this.pop[i] / this.area[i];
     return Math.log(this.income[i]) + P.migAccessWeight * Math.log(this.access[i] / this.accessRef + 1e-6)
       - P.migDensityElasticity * Math.log(dens + 1) + this.amenity[i] - this.amenExcess[i] * this.catchUp(i)
-      + 0.1 * (this.edu?.[i] || 0);   // 새 대학 가까이로 청년이 조금 모인다
+      + 0.1 * (this.edu?.[i] || 0)   // 새 대학 가까이로 청년이 조금 모인다
+      - this.ruralPenalty(i, dens);
+  }
+
+  /** 이촌향도: 통합이 진행될수록 산간·농촌(밀도 낮은 존)에서 도시로 떠난다. 기준 연도 보정(통합도 0)에는 들지 않는다 */
+  ruralPenalty(i, dens = this.pop[i] / this.area[i]) {
+    const g = this.migIntegration || 0, k = this.isKP[i] ? P.ruralPull.KP : P.ruralPull.KR;
+    return g > 0 ? k * g * Math.max(0, Math.log(P.ruralDensity) - Math.log(dens + 1)) : 0;
   }
 
   /** 존별 인구이동 흐름. 반환: 존별 순유입 */
   migrationFlows(integration, policy) {
     const { Z, ccomp } = this;
+    this.migIntegration = integration;
     const U = new Float64Array(Z);
     let ubar = 0, ptot = 0;
     for (let i = 0; i < Z; i++) {
@@ -1710,6 +1718,8 @@ export class Model {
     const inflow = new Float64Array(Z);
     let kpToKr = 0, krToKp = 0;
     const policyFactor = P.migPolicyKPtoKR[policy] ?? 1;
+    // 이주 정책 (game/migpolicy.js): 남→북 배율, 북측 안 자유 이주면 도 중심도시·평양으로 쏠린다
+    const mx = this.migx, snF = mx?.sn ?? 1, centers = mx?.centers?.length ? new Set(mx.centers) : null, boost = mx?.boost ?? 1;
     const w = new Float64Array(Z);
     for (let i = 0; i < Z; i++) {
       if (this.isExt[i]) continue;
@@ -1720,6 +1730,8 @@ export class Model {
         if (j === i) { w[j] = 0; continue; }
         let x = attract[j] * Math.exp(-ccomp[i * Z + j] / P.migDistanceMin);
         if (this.isKP[i] && !this.isKP[j]) x *= policyFactor;
+        else if (!this.isKP[i] && this.isKP[j]) x *= snF;
+        else if (centers && this.isKP[i] && this.isKP[j] && centers.has(j)) x *= boost;
         w[j] = x; s += x;
       }
       if (s <= 0) continue;
@@ -1809,7 +1821,7 @@ export class Model {
     mig.kpToKr *= scale; mig.krToKp *= scale;
     for (let i = 0; i < Z; i++) {
       if (this.isExt[i]) continue;
-      const g = this.isKP[i] ? P.naturalGrowth.KP : P.naturalGrowth.KR;
+      const g = this.isKP[i] ? (this.pop[i] / this.area[i] < P.ruralDensity ? P.naturalGrowthKPRural : P.naturalGrowth.KP) : P.naturalGrowth.KR;
       this.pop[i] = Math.max(100, this.pop[i] * (1 + g) + mig.net[i]);
     }
     this.lastMigration = { kpToKr: mig.kpToKr, krToKp: mig.krToKp, net: mig.net };
@@ -1820,16 +1832,31 @@ export class Model {
    * 역세권 개발로 들어오는 인구: 같은 쪽(남·북)의 다른 존에서 인구 비례로 옮겨 오고, 존 안에서는 역에 가장 가까운 소구역에 산다
    * @param {{zone:number, lon:number, lat:number, persons:number}[]} list
    */
+  /** 정해진 존들에서 인구 몫(frac)을 떼어 다른 존들(to)에 인구 비례로 옮긴다 (북측 안 자유 이주의 량강·자강 감소) */
+  applyShifts(list) {
+    for (const { from, frac, to } of list) {
+      const dst = (to || []).filter((j) => !this.isExt[j] && !from.includes(j));
+      const W = dst.reduce((t, j) => t + this.pop[j], 0);
+      if (!(W > 0)) continue;
+      let moved = 0;
+      for (const i of from) { if (this.isExt[i]) continue; const m = this.pop[i] * frac; this.pop[i] -= m; moved += m; }
+      for (const j of dst) this.pop[j] += (moved * this.pop[j]) / W;
+    }
+  }
+
   applyDevelopments(list) {
     for (const d of list) {
       const z = d.zone;
       if (!(z >= 0) || this.isExt[z] || !(d.persons > 0)) continue;
+      // 덜어 오는 존: from이 있으면 그 존들(평양 대개발: 평안남도·황해도), 아니면 같은 쪽 다른 존 모두
+      const src = d.from ? new Set(d.from) : null;
+      const isSrc = (i) => i !== z && !this.isExt[i] && this.isKP[i] === this.isKP[z] && (!src || src.has(i));
       let tot = 0;
-      for (let i = 0; i < this.Z; i++) if (i !== z && !this.isExt[i] && this.isKP[i] === this.isKP[z]) tot += this.pop[i];
+      for (let i = 0; i < this.Z; i++) if (isSrc(i)) tot += this.pop[i];
       if (!(tot > 0)) continue;
-      // net: 입주 인구 가운데 전국 인구가 새로 느는 몫 (택지지구). 나머지만 같은 쪽 다른 존에서 인구 비례로 옮겨 온다
+      // net: 입주 인구 가운데 전국 인구가 새로 느는 몫 (택지지구). 나머지만 덜어 오는 존에서 인구 비례로 옮겨 온다
       const moved = d.persons * (1 - Math.max(0, Math.min(1, d.net || 0)));
-      for (let i = 0; i < this.Z; i++) if (i !== z && !this.isExt[i] && this.isKP[i] === this.isKP[z]) this.pop[i] -= (moved * this.pop[i]) / tot;
+      for (let i = 0; i < this.Z; i++) if (isSrc(i)) this.pop[i] -= (moved * this.pop[i]) / tot;
       const s0 = this.zoneSub0[z], n = this.zoneSubN[z];
       let best = s0, bd = Infinity;
       for (let s = s0; s < s0 + n; s++) {

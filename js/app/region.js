@@ -351,8 +351,9 @@ export function subAnnexAll(i, one = false) {
     const r = subRegion(j), u = subUnit(j);
     if (u === ownU) continue;
     if (r !== own && isMetroCity(r)) { metro.add(r); continue; }   // 세종도 받는다
-    if (isMetroCity(r)) continue;
     const nm = unitName(u);
+    // 같은 광역시 안: 이웃 자치구(구역)로 옮긴다 (평양시 역포구 역포동 → 낙랑구). 광역시의 군에는 읍·면만
+    if (isMetroCity(r)) { if (r === own && (/(구|구역)$/.test(nm) || (/군$/.test(nm) && !dong))) si.set(u, nm); continue; }
     // 시·군 모두 받는다. 군에는 읍·면만 둘 수 있어 동은 군으로 들이지 않는다
     if (/시$/.test(nm) || (/군$/.test(nm) && !dong)) si.set(u, nm);
   }
@@ -748,6 +749,9 @@ export function hallList() {
   }
   // 도시 개발 사업으로 지은 정부 청사 (정부부산지방합동청사·평양정부청사)
   for (const g of state.govHalls || []) out.push({ name: g.name, kind: 'gov', lon: g.lon, lat: g.lat });
+  // 제n청사 (도청·광역시청을 누르고 새로 지은 것): 그 광역 단체가 지금도 있을 때만
+  const regs = new Set(out.filter((h) => h.kind === 'do').map((h) => h.region));
+  for (const e of L.hallExtra || []) if (regs.has(e.region)) out.push({ name: e.name, kind: 'do', lon: e.lon, lat: e.lat, region: e.region, extra: true });
   // 옮긴 청사 (청사 이전): 청사 이름으로 찾는다
   const mv = L.hallMove || {};
   for (const h of out) if (mv[h.name]) { h.from = [h.lon, h.lat]; [h.lon, h.lat] = mv[h.name]; }
@@ -775,17 +779,18 @@ export function hallPanel(name) {
       ${p ? `<tr><td>소재지</td><td>${esc(p.region)} ${esc(unitName(p.unit))}${p.gu ? ` ${esc(p.gu)}` : ''} ${esc(subName(p.i))}</td></tr>` : ''}
       ${moved ? `<tr><td>이전</td><td>${moved[2] || ''}${moved[2] ? '년 ' : ''}새 청사로 옮김</td></tr>` : ''}
     </table>
-    <div class="actions"><button class="small primary" data-hall-move="${esc(name)}">청사 이전 · ${formatWon(cost)}</button></div>
-    <p class="hint">누른 뒤 지도에서 새 자리를 고릅니다. ${h.kind === 'do' || h.kind === 'gov' ? '같은 광역 단체' : h.kind === 'gu' ? '같은 구' : '같은 시군'} 안이어야 합니다.</p>`;
+    <div class="actions"><button class="small primary" data-hall-move="${esc(name)}">청사 이전 · ${formatWon(cost)}</button>
+      ${h.kind === 'do' && !h.extra ? `<button class="small" data-hall-new="${esc(name)}" title="본청은 두고 같은 광역 단체 안에 청사를 하나 더 짓습니다 (경기도청 북부청사처럼)">제${(state.local?.hallExtra || []).filter((e) => e.base === name).length + 2}청사 건설 · ${formatWon(cost)}</button>` : ''}</div>
+    <p class="hint">누른 뒤 지도에서 새 자리를 고릅니다. ${h.kind === 'do' || h.kind === 'gov' ? '같은 광역 단체' : h.kind === 'gu' ? '같은 구' : '같은 시군'} 안이어야 합니다.${h.kind === 'do' && !h.extra ? ' 제n청사는 본청과 떨어진 생활권 주민이 도청 일을 가까이서 보게 해 그 시군 행복도가 오릅니다.' : ''}</p>`;
 }
 
-export var hallPick = null;   // {name}
-export function startHallMove(name) {
+export var hallPick = null;   // {name, kind, at, extra: 제n청사 짓기}
+export function startHallMove(name, extra = false) {
   const h = hallByName(name);
   if (!h) return;
-  hallPick = { name, kind: h.kind, at: hallPlace(h.from?.[0] ?? h.lon, h.from?.[1] ?? h.lat) || hallPlace(h.lon, h.lat) };
+  hallPick = { name, kind: h.kind, at: hallPlace(h.from?.[0] ?? h.lon, h.from?.[1] ?? h.lat) || hallPlace(h.lon, h.lat), extra };
   map.getCanvas().style.cursor = 'crosshair';
-  toast(`${name}을 옮길 자리를 지도에서 누르세요 (Esc: 취소).`);
+  toast(extra ? `${name}의 새 청사를 지을 자리를 지도에서 누르세요 (Esc: 취소).` : `${name}을 옮길 자리를 지도에서 누르세요 (Esc: 취소).`);
   const esc_ = (e) => { if (e.key === 'Escape') { hallPick = null; map.getCanvas().style.cursor = ''; document.removeEventListener('keydown', esc_); } };
   document.addEventListener('keydown', esc_);
 }
@@ -801,6 +806,20 @@ export function hallPickClick(ll) {
       : to.unit !== at.unit ? `${unitName(at.unit)} 안이어야 합니다` : null;
   if (why) { toast(`${pk.name}: ${why}.`); return; }
   const cost = HALL_MOVE_COST[pk.kind] ?? 500;
+  if (pk.extra) {
+    // 제n청사: 본청은 그대로 두고 하나 더 (경기도청 북부청사처럼). 그 시군 주민 행복도가 조금 오른다
+    const n = (state.local.hallExtra || []).filter((e) => e.base === pk.name).length + 2;
+    const nm = `${pk.name} 제${n}청사`;
+    if (!confirm(`${nm}을 ${unitName(to.unit)} ${subName(to.i)}에 지을까요? ${formatWon(cost)}`)) return;
+    if (!payEvent(cost)) return;
+    (state.local.hallExtra ||= []).push({ name: nm, base: pk.name, lon: ll.lng, lat: ll.lat, region: to.region, year: state.year });
+    const z = subInfo(to.i)[0];
+    (state.happyBonus ||= {})[z] = (state.happyBonus[z] || 0) + 2;
+    state.log.unshift(`${state.year}년 ${nm} 건설: ${to.region} ${unitName(to.unit)} ${subName(to.i)}`);
+    save(state); drawHalls();
+    select({ type: 'hall', id: nm });
+    return;
+  }
   if (!confirm(`${pk.name}을 ${subName(to.i)}(으)로 옮길까요? ${formatWon(cost)}`)) return;
   if (!payEvent(cost)) return;
   (state.local.hallMove ||= {})[pk.name] = [ll.lng, ll.lat, state.year];

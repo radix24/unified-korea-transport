@@ -1,4 +1,5 @@
 // 시뮬레이션 결과 받기, 해 넘기기, 행복도.
+import { migCtx } from '../game/migpolicy.js';
 import { DIFFICULTY } from '../game/catalog.js';
 import { settleDevels } from '../game/devel.js';
 import { rollEvent } from '../game/events.js';
@@ -78,7 +79,7 @@ export function assignTourism(t) {
 }
 
 export function ctx() {
-  return { integration: state.integration, policy: state.policy, sez: (state.sez || []).filter((z) => z.done).map((z) => z.zone), zdev: zoneDevEffects(),
+  return { integration: state.integration, policy: state.policy, migx: migCtx(state, zoneProps), sez: (state.sez || []).filter((z) => z.done).map((z) => z.zone), zdev: zoneDevEffects(),
     univ: univList().filter((u) => u.built).map((u) => [u.zone, u.seats, u.isNew ? 1 : 0]).concat(univFundSeats()),
     housingSubs: housingSubList().map(toModelSub) };   // 계산 워커의 소구역 번호로 (떼어 낸 남측 법정리, risplit.js)
 }

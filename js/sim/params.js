@@ -147,7 +147,7 @@ export const P = {
   // --- 남북 통합
   borderPenaltyMin: 300,      // 통합도 0일 때 남북 간 추가 일반화비용(분)
   integrationStart: 0.15,
-  integrationPerYear: 0.08,
+  integrationPerYear: 0.025,  // 해마다 오르는 통합도 (예전 0.08: 경의고속철이 개통하기도 전에 71%가 되고 관광지가 해마다 열렸다)
 
   // --- 경제·HDI (UNDP 방식)
   incomeKR: 50000,            // 1인당 GNI (PPP $) 가정값
@@ -155,8 +155,8 @@ export const P = {
   frontierGrowth: 0.015,
   accessIncomeElasticity: 0.25,
   convergenceKR: 0.10,
-  convergenceKPBase: 0.02,
-  convergenceKPIntegrated: 0.04,
+  convergenceKPBase: 0.008,        // 북측 소득 수렴 속도 (예전 0.02 + 0.04×통합도: 경의고속철 개통 전에 소득 격차가 20배에서 10배로 줄었다)
+  convergenceKPIntegrated: 0.016,
   accessDecayMin: 90,
   majorCenterPop: 500000,
   healthDecayMin: 120,
@@ -169,6 +169,9 @@ export const P = {
 
   // --- 인구
   naturalGrowth: { KR: -0.0015, KP: 0.004 },
+  naturalGrowthKPRural: 0.001,   // 북측 산간(밀도 ruralDensity 아래)의 자연 증가: 젊은 층이 빠져나가 낮다 (예전에는 산간 군이 폭증했다)
+  ruralDensity: 150,             // 이 밀도(명/km²) 아래 존은 이촌향도 대상
+  ruralPull: { KP: 0.35, KR: 0.15 },   // 이촌향도: 통합도만큼 산간 존의 효용을 깎는다 (× 통합도 × (log 기준 밀도 − log 밀도))
   baseOutMigration: 0.03,
   maxNetMigration: 0.05,      // 존별 한 해 순이동 상한 (인구 대비)
   migUtilSensitivity: 0.8,

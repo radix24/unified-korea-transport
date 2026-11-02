@@ -130,7 +130,7 @@ export function univYear() {
  * 실제로 있는 곳은 그 약자 (KAIST·GIST·DGIST·UNIST)
  */
 export const KAIST_REAL = { 한국: 'KAIST', 광주: 'GIST', 대구경북: 'DGIST', 울산: 'UNIST' };
-export function kaistAcronym(name) {
+export function kaistAcronym(name, taken = takenAcronyms()) {
   const st = name.replace(/과학기술원.*$/, '').replace(/^제\d+/, '');
   if (KAIST_REAL[st]) return KAIST_REAL[st];
   const INI = ['G', 'K', 'N', 'D', 'T', 'R', 'M', 'B', 'P', 'S', 'S', '', 'J', 'J', 'C', 'K', 'T', 'P', 'H'];
@@ -143,7 +143,17 @@ export function kaistAcronym(name) {
   };
   const chars = [...st];
   const picks = chars.length >= 4 ? [chars[0], chars[2]] : [chars[0]];
-  return `${picks.map(rom).join('')}IST`;
+  // 이미 있는 과기원(남측 KAIST·GIST·DGIST·UNIST, 먼저 세운 과기원)과 영문 약자가 겹치지 않게: 둘째 글자, 셋째 글자, 그래도 겹치면 N(북)·번호
+  const cands = [picks.map(rom).join(''), chars.slice(0, 2).map(rom).join(''), chars.slice(0, 3).map(rom).join(''), `${picks.map(rom).join('')}N`];
+  for (const c of cands) if (c && !taken.has(`${c}IST`)) return `${c}IST`;
+  for (let k = 2; ; k++) if (!taken.has(`${cands[0]}${k}IST`)) return `${cands[0]}${k}IST`;
+}
+
+/** 이미 쓰고 있는 과기원 영문 약자: 실제 과기원과 이름에 (○○IST)를 붙여 세운 과기원 */
+export function takenAcronyms() {
+  const out = new Set(Object.values(KAIST_REAL));
+  for (const u of univList()) for (const m of String(u.name || '').matchAll(/\(([A-Z0-9]+IST)\)/g)) out.add(m[1]);
+  return out;
 }
 
 export function univRankHTML(u) {

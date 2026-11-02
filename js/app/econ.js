@@ -1,4 +1,6 @@
 // 영업계수 패널(노선별 수지·감편·폐선)과 설정·정책·선택 패널.
+import { MIG_POLICY } from '../game/migpolicy.js';
+import { P } from '../sim/params.js';
 import { DIFFICULTY, formatWon } from '../game/catalog.js';
 import { flushSave } from '../game/savestore.js';
 import { SERVICE_KINDS } from '../game/services.js';
@@ -192,10 +194,15 @@ export function renderSettings() {
 
 /** 민원·정책 탭 아래쪽: 이주 정책, 지방자치·행정구역 이벤트, 국가 대형 사업, 옛 이름 되찾기 (정책·이벤트 성격은 이 탭에 모은다) */
 export function policyHTML() {
+  const fx = (o) => `${o.integ ? `통합도 ${o.integ > 0 ? '+' : ''}${(o.integ * 100).toFixed(1)}%p/년` : ''}${o.appr ? ` · 지지율 ${o.appr > 0 ? '+' : ''}${o.appr}` : ''}`;
   return `<h3 style="margin-top:16px">이주 정책</h3>
-    <div class="name-row"><span style="flex:1">북→남 이주</span>
-      <select id="policy">${Object.entries(POLICY_LABEL).map(([k, v]) => `<option value="${k}" ${state.policy === k ? 'selected' : ''}>${v}</option>`).join('')}</select></div>
-    <p class="hint">통일 직후 대규모 남하를 막을지 정합니다. 통제할수록 북측 인구는 유지되지만 지지율과 통합 속도에 영향이 있습니다.</p>
+    ${Object.entries(MIG_POLICY).map(([a, A]) => {
+    const cur = state[A.key] || A.def;
+    return `<div class="name-row"><span style="flex:1">${A.label}</span>
+      <select data-migpol="${a}">${Object.entries(A.opts).map(([k, o]) => `<option value="${k}" ${cur === k ? 'selected' : ''}>${o.label}</option>`).join('')}</select></div>
+    <p class="hint">${esc(A.opts[cur].hint)} (${fx(A.opts[cur])})</p>`;
+  }).join('')}
+    <p class="hint">통합도는 해마다 기본 ${(P.integrationPerYear * 100).toFixed(1)}%p에 정책 몫이 더해지고, 지지율 요인은 현황 탭의 지지율에 '이주 정책'으로 나옵니다.</p>
     <h3 style="margin-top:16px">지방자치·행정구역</h3>
     ${localSettingsHTML()}
     ${historic.length ? `<h3 style="margin-top:16px">옛 이름 되찾기</h3>
@@ -206,7 +213,17 @@ export function policyHTML() {
 export function bindPolicy(el) {
   bindLocalSettings(el);
   bindRestore(el);
-  el.querySelector('#policy').onchange = (e) => { state.policy = e.target.value; state.log.unshift(`${state.year}년 이주 정책: ${POLICY_LABEL[state.policy]}`); save(state); renderStatus(); };
+  el.querySelectorAll('[data-migpol]').forEach((sel) => {
+    sel.onchange = (e) => {
+      const A = MIG_POLICY[e.target.dataset.migpol];
+      state[A.key] = e.target.value;
+      state.log.unshift(`${state.year}년 이주 정책 (${A.label}): ${A.opts[e.target.value].label}`);
+      save(state); renderStatus();
+      // 고른 정책의 설명과 효과를 바로 바꾼다
+      const o = A.opts[e.target.value], hint = sel.closest('.name-row')?.nextElementSibling;
+      if (hint) hint.textContent = `${o.hint} (통합도 ${o.integ > 0 ? '+' : ''}${(o.integ * 100).toFixed(1)}%p/년 · 지지율 ${o.appr > 0 ? '+' : ''}${o.appr})`;
+    };
+  });
 }
 
 /** 운영 탭: 철도 운행 계통, 철도 회사(재원·합병), 노선 영업계수·감편·폐선, 항공 자동 운영 */
@@ -293,7 +310,7 @@ export function renderSelection() {
   else if (selection.type === 'unit') { el.innerHTML = unitPanel(selection.id); bindUnitPanel(el); }
   else if (selection.type === 'airport') el.innerHTML = airportPanel(selection.id);
   else if (selection.type === 'univ') { el.innerHTML = univPanel(selection.id); bindUnivPanel(el); }
-  else if (selection.type === 'hall') { el.innerHTML = hallPanel(selection.id); el.querySelector('[data-hall-move]')?.addEventListener('click', (e) => startHallMove(e.currentTarget.dataset.hallMove)); }
+  else if (selection.type === 'hall') { el.innerHTML = hallPanel(selection.id); el.querySelector('[data-hall-move]')?.addEventListener('click', (e) => startHallMove(e.currentTarget.dataset.hallMove)); el.querySelector('[data-hall-new]')?.addEventListener('click', (e) => startHallMove(e.currentTarget.dataset.hallNew, true)); }
   else if (selection.type === 'multi') el.innerHTML = multiPanel(selection.ids);
   else if (selection.type === 'service') el.innerHTML = servicePanel();
   else if (selection.type === 'straighten') { el.innerHTML = straightenPanel(); bindStraighten(el); return; }

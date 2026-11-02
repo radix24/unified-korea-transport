@@ -4,6 +4,7 @@
 import { regionClass } from '../game/devel.js';
 import { canAfford, startProject } from '../game/state.js';
 import { formatWon } from '../game/catalog.js';
+import { powerPct } from '../game/mega.js';
 import { esc, result, state, zoneProps } from './core.js';
 import { subArea } from './mapdata.js';
 import { toModelSub } from './risplit.js';
@@ -27,7 +28,43 @@ export const SPECIAL_DEV = {
   'pyongyang-mansudae': { label: '평양 만수대 광장 재개발', where: ['평양시', '중구역'], years: 4, cost: 30000, kpCost: 30000, persons: 15000,
     income: 1.05, conv: 1.2, amenity: 0.02, happy: 2, hall: { name: '평양정부청사', lon: 125.7508, lat: 39.0318 },
     desc: '만수대 광장 일대를 정비하고 평양정부청사를 조성합니다. 공무원·업무 인구 약 1만 5천 명이 들어옵니다' },
+  // ---- 북측 대형 도시 개발 (메일 건의: 평양대도시권 개발은 LH 연구를 바탕으로 재구성). zones: 효과·입주를 나누는 존들 [도, 이름, 덮어쓸 값],
+  // after: 먼저 다 지어야 하는 단계, from: 늘어난 인구를 덜어 오는 도 (자료의 도 이름), net: 새로 느는 몫, needHDI: [도, HDI]
+  'py-1': { label: '평양 대개발 1단계 (형제산·보통강·모란봉·평천)', where: ['평양시', '보통강구역'], years: 5, cost: 150000, kpCost: 150000, persons: 400000,
+    zones: [['평양시', '형제산구역'], ['평양시', '보통강구역'], ['평양시', '모란봉구역'], ['평양시', '평천구역']], from: ['평안남도', '황해남도', '황해북도'], net: 0.3,
+    income: 1.02, conv: 1.1, amenity: 0.01, happy: 3, cat: '평양대도시권',
+    desc: '낡은 시가지를 재개발하고 녹지를 개발하는 20년 장기 계획(80만 호)의 1단계. 20만 호 공급, 인구 40만 명 증가 (늘어난 인구의 70%는 평안남도·황해도에서 옮겨 온다)' },
+  'py-2': { label: '평양 대개발 2단계 (서성·화성·룡성·대성·삼석)', where: ['평양시', '서성구역'], years: 5, cost: 150000, kpCost: 150000, persons: 400000, after: 'py-1',
+    zones: [['평양시', '서성구역'], ['평양시', '화성구역'], ['평양시', '룡성구역'], ['평양시', '대성구역'], ['평양시', '삼석구역']], from: ['평안남도', '황해남도', '황해북도'], net: 0.3,
+    income: 1.02, conv: 1.1, amenity: 0.01, happy: 3, cat: '평양대도시권',
+    desc: '평양 대개발 2단계. 20만 호 공급, 인구 40만 명 증가 (1단계를 다 지은 뒤)' },
+  'py-3': { label: '평양 대개발 3단계 (락랑·칠골)', where: ['평양시', '락랑구역'], years: 5, cost: 150000, kpCost: 150000, persons: 400000, after: 'py-2',
+    zones: [['평양시', '락랑구역'], ['평양시', '만경대구역']], from: ['평안남도', '황해남도', '황해북도'], net: 0.3,
+    income: 1.02, conv: 1.1, amenity: 0.01, happy: 3, cat: '평양대도시권',
+    desc: '평양 대개발 3단계 (칠골은 만경대구역). 20만 호 공급, 인구 40만 명 증가 (2단계를 다 지은 뒤)' },
+  'py-4': { label: '평양 대개발 4단계 (력포·사동)', where: ['평양시', '력포구역'], years: 5, cost: 150000, kpCost: 150000, persons: 400000, after: 'py-3',
+    zones: [['평양시', '력포구역'], ['평양시', '사동구역']], from: ['평안남도', '황해남도', '황해북도'], net: 0.3,
+    income: 1.02, conv: 1.1, amenity: 0.01, happy: 3, cat: '평양대도시권',
+    desc: '평양 대개발 4단계. 20만 호 공급, 인구 40만 명 증가 (3단계를 다 지은 뒤)' },
+  'py-industry': { label: '평양 공업지구 이전', where: ['평양시', '평천구역'], years: 5, cost: 80000, kpCost: 80000, persons: 90000, needHDI: ['평양시', 0.9],
+    zones: [['평양시', '만경대구역', { income: 1.08, persons: 6000 }], ['평양시', '보통강구역', { income: 1.08, persons: 6000 }], ['평양시', '평천구역', { income: 1.08, persons: 6000 }],
+      ['평양시', '선교구역', { income: 1.08, persons: 6000 }], ['평양시', '대동강구역', { income: 1.08, persons: 6000 }],
+      ['남포시', '와우도구역', { income: 1.06, persons: 20000 }], ['남포시', '항구구역', { income: 1.06, persons: 20000 }], ['황해북도', '송림시', { income: 1.06, persons: 20000 }]],
+    income: 1.06, conv: 1.2, amenity: 0.01, happy: 2, cat: '평양대도시권',
+    desc: '평양 공업지구(만경대·보통강·평천·선교·대동강구역)의 공장을 송림과 남포 일대로 옮기고 그 자리에 3차 산업을 들입니다. 평양 다섯 구역은 소득이 크게 오르고 인구가 조금 늘며, 남포(와우도·항구구역)와 송림은 인구와 소득이 늡니다' },
+  'hamhung-redev': { label: '함흥 지역 재개발', where: ['함경남도', '함흥시'], years: 5, cost: 80000, kpCost: 80000, persons: 200000, net: 0.5,
+    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '동북권 재개발', desc: '주택 공급과 산업 현대화. 인구 20만 명 증가, HDI·1인당 소득 증가' },
+  'hungnam-redev': { label: '흥남 지역 재개발', where: ['함경남도', '함흥시'], years: 5, cost: 80000, kpCost: 80000, persons: 200000, net: 0.5,
+    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '동북권 재개발', desc: '주택 공급과 산업·항만 현대화 (흥남은 함흥시에 든다). 인구 20만 명 증가, HDI·1인당 소득 증가' },
+  'chongjin-redev': { label: '청진시 재개발', where: ['함경북도', '청진시'], years: 5, cost: 80000, kpCost: 80000, persons: 200000, net: 0.5,
+    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '동북권 재개발', desc: '주택 공급과 산업·항만 현대화. 인구 20만 명 증가, HDI·1인당 소득 증가' },
+  'sinuiju-redev': { label: '신의주 재개발', where: ['평안북도', '신의주시'], years: 5, cost: 80000, kpCost: 80000, persons: 200000, net: 0.5,
+    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '국경도시 재개발', desc: '주택 공급과 산업 현대화. 인구 20만 명 증가, HDI·1인당 소득 증가' },
+  'rason-redev': { label: '나선 재개발', where: ['라선시', '라선시'], years: 5, cost: 80000, kpCost: 80000, persons: 200000, net: 0.5,
+    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '국경도시 재개발', desc: '주택 공급과 산업 현대화. 인구 20만 명 증가, HDI·1인당 소득 증가' },
 };
+/** 존 찾기 (자료의 도·이름) */
+const zoneAt = (prov, name) => zoneProps.findIndex((z) => !z.ext && z.province === prov && z.name === name);
 /** 대형 도시 개발 사업이 벌어지는 존 (자료의 도·이름) */
 export function specialZone(k) {
   const [prov, name] = SPECIAL_DEV[k].where;
@@ -52,8 +89,15 @@ export function zoneDevPlan(kind, zone, subs = null, name = zoneName(zone)) {
   const D = devSpec(kind), t = targetStats(zone, subs);
   if (SPECIAL_DEV[kind]) {
     const prev = (state.zoneDev || []).filter((d) => d.kind === kind);
-    return { kind, key: `${kind}:${zone}`, zone, name: D.label, subs: null, persons: D.persons, cost: t.kp ? D.kpCost : D.cost, revenue: 0, years: D.years,
-      why: prev.some((d) => !d.done) ? '공사 중입니다' : prev.length ? '이미 완공했습니다' : null, dens: t.dens };
+    let why = prev.some((d) => !d.done) ? '공사 중입니다' : prev.length ? '이미 완공했습니다' : null;
+    if (!why && D.after && !(state.zoneDev || []).some((d) => d.kind === D.after && d.done)) why = `${SPECIAL_DEV[D.after].label}을 먼저 다 지어야 합니다`;
+    if (!why && D.needHDI && result) {
+      // 그 도(자료 이름) 존들의 인구 가중 HDI
+      const zs = zoneProps.map((z, i) => i).filter((i) => !zoneProps[i].ext && zoneProps[i].province === D.needHDI[0]);
+      const P = zs.reduce((s0, i) => s0 + result.zones.pop[i], 0), h = P ? zs.reduce((s0, i) => s0 + result.zones.hdi[i] * result.zones.pop[i], 0) / P : 0;
+      if (h < D.needHDI[1]) why = `${D.needHDI[0]} HDI가 ${D.needHDI[1]} 이상이어야 합니다 (지금 ${h.toFixed(3)})`;
+    }
+    return { kind, key: `${kind}:${zone}`, zone, name: D.label, subs: null, persons: D.persons, cost: t.kp ? D.kpCost : D.cost, revenue: 0, years: D.years, why, dens: t.dens };
   }
   const key = `${kind}:${zone}:${name}`;
   const prev = (state.zoneDev || []).filter((d) => d.key === key);
@@ -123,9 +167,15 @@ export function settleZoneDev(done) {
     }
     if (d.done && !d.applied) {
       d.applied = true;
-      const z = zoneProps[d.zone], ss = d.subs || z.subs.map((_, k) => z.sub0 + k);
-      const w = ss.map((i) => Math.max(1, result?.subs.pop[i] || 0)), W = w.reduce((t, v) => t + v, 0);
-      out.push({ zone: d.zone, lon: z.cx, lat: z.cy, persons: d.persons, parts: ss.map((i, k) => ({ sub: toModelSub(i), share: w[k] / W })) });
+      const D = devSpec(d.kind);
+      // 늘어난 인구를 덜어 오는 존 (평양 대개발: 평안남도·황해도), 입주는 사업 존들에 나눠
+      const from = D.from ? zoneProps.map((z, i) => i).filter((i) => !zoneProps[i].ext && D.from.includes(zoneProps[i].province)) : null;
+      const zs = D.zones ? D.zones.map(([p, n, o]) => [zoneAt(p, n), o?.persons ?? D.persons / D.zones.length]).filter(([z]) => z >= 0) : [[d.zone, d.persons]];
+      for (const [zi, persons] of zs) {
+        const z = zoneProps[zi], ss = (!D.zones && d.subs) || z.subs.map((_, k) => z.sub0 + k);
+        const w = ss.map((i) => Math.max(1, result?.subs.pop[i] || 0)), W = w.reduce((t, v) => t + v, 0);
+        out.push({ zone: zi, lon: z.cx, lat: z.cy, persons: Math.round(persons), net: D.net, from, parts: ss.map((i, k) => ({ sub: toModelSub(i), share: w[k] / W })) });
+      }
     }
   }
   return out;
@@ -133,5 +183,28 @@ export function settleZoneDev(done) {
 
 /** 해마다 계산에 넘길 산업·업무단지 효과: [존, 소득 목표 배수, 수렴 배수, 편의 가산] */
 export function zoneDevEffects() {
-  return (state.zoneDev || []).filter((d) => d.done && d.kind !== 'redev').map((d) => [d.zone, devSpec(d.kind).income, devSpec(d.kind).conv, devSpec(d.kind).amenity]);
+  const out = [];
+  for (const d of (state.zoneDev || []).filter((x) => x.done && x.kind !== 'redev')) {
+    const D = devSpec(d.kind);
+    if (D.zones) for (const [p, n, o] of D.zones) { const z = zoneAt(p, n); if (z >= 0) out.push([z, o?.income ?? D.income, o?.conv ?? D.conv, D.amenity]); }
+    else out.push([d.zone, D.income, D.conv, D.amenity]);
+  }
+  return out.concat(powerEffects());
+}
+
+/**
+ * 전력 현대화 (game/mega.js의 power·grid 사업): [존, 소득 목표 배수, 수렴 배수, 편의 가산]
+ * - 발전 현대화율 25%마다 북측 모든 존: 소득 목표 +1%, 수렴 ×1.12
+ * - 송전망: 긴급 복구는 평양·함흥·청진, 간선망은 시(구역) 지역, 배전망은 군 지역 (소득 목표 +3~5%, 수렴 ×1.15~1.3)
+ */
+export function powerEffects() {
+  const M = state.mega || {}, out = [];
+  const step = Math.floor(powerPct(state) / 25);
+  const kp = zoneProps.map((z, i) => [z, i]).filter(([z]) => !z.ext && z.country === 'KP');
+  if (step) for (const [, i] of kp) out.push([i, 1 + 0.01 * step, 1 + 0.12 * step, 0]);
+  const city = (z) => z.province === '평양시' || ['함흥시', '청진시'].includes(z.name) || ['함흥시', '청진시'].includes(z.city);
+  if (M['grid-emergency']) for (const [z, i] of kp) if (city(z)) out.push([i, 1.05, 1.3, 0]);
+  if (M['grid-trunk']) for (const [z, i] of kp) if (/(시|구역)$/.test(z.name)) out.push([i, 1.03, 1.15, 0]);
+  if (M['grid-dist']) for (const [z, i] of kp) if (/군$/.test(z.name)) out.push([i, 1.03, 1.15, 0]);
+  return out;
 }

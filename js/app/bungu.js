@@ -5,13 +5,13 @@ import {
   adminNames, CITY_UP_MIN_POP, dueum, EVENT_COST, governorTitle, hasAutonomy, HISTORIC_CITIES, isMetroCity, metroName, PROMOTE_MIN_POP, promotedName, REGION_RENAMED, regionBase, regionOf,
   unitId,
 } from '../game/local.js';
-import { SPECIAL_DEV, specialZone, zoneDevHTML } from './zonedev.js';
+import { bindZoneDev, SPECIAL_DEV, specialZone, zoneDevHTML, zoneDevPlan } from './zonedev.js';
 import { subOutlineGeoms, subXY } from './risplit.js';
-import { applyMega, kpACCost, kpDCLines, MEGA, megaGeometry, TSR_FREIGHT } from '../game/mega.js';
+import { applyMega, kpACCost, kpDCLines, MEGA, megaGeometry, powerPct, TSR_FREIGHT } from '../game/mega.js';
 import { canAfford, renameKPLines, save, startMega, startUpgrade } from '../game/state.js';
 import { t } from '../i18n.js';
 import { fetchEdges, refreshNames, unitFeaturesIn } from '../ui/map.js';
-import { toast } from '../ui/panel.js';
+import { subFold, toast } from '../ui/panel.js';
 import { base, esc, grid, map, median, result, selection, state, subPop0, subsFC, zoneProps } from './core.js';
 import { officeName, zoneName } from './year.js';
 import { bunguLabels, drawAdmin, nodeNames, paintZones, provincePops, pushExtraLabels, refreshLinks, setBunguLabels, subInfo, subMetric } from './mapdata.js';
@@ -92,8 +92,9 @@ export function annexTargets() {
       const d = byZone.get(j);
       if (!d || d.region === r || L.independent.includes(d.name)) continue;
       // 광역시는 시·군·구를 받는다: 시는 광역시 밑에 둘 수 없어 구로 내려가고(함주시 → 함주구), 일반구가 있던 시는 그 구들이 각각 자치구가 된다.
-      // 도는 군만 (다른 도·광역시의 군)
-      if (metro ? !/[시군구]$/.test(d.name) : !/군$/.test(d.name)) continue;
+      // 도는 시·군을 받고, 광역시의 자치구도 받는다(도 밑에 자치구는 없어 시가 된다: 대구 수성구 → 경상북도 수성시).
+      // 예전에는 도가 군만 받아 자강도 삼지연시를 함경남도로 옮길 수 없었다
+      if (metro ? !/[시군구]$/.test(d.name) : !(/[시군]$/.test(d.name) || (/구$/.test(d.name) && isMetroCity(d.region)))) continue;
       if (!out.has(r)) out.set(r, new Map());
       out.get(r).set(d.key, { ...d, via: i });
     }
@@ -1032,6 +1033,12 @@ export function startGuEdit(id, unit = bunguUnitOf(id)) {
   renderSelection();
 }
 export function endGuEdit() {
+  // 분구 미리보기 창(왼쪽 위)도 닫는다: Esc로 끝내면 창과 구 색칠이 그대로 남았다 (나눈 구는 지금 이름대로 둔다)
+  if (guPreview) {
+    document.querySelector('.gu-float')?.remove();
+    guPreview = null; guPreviewDraw = null;
+    drawBungu();
+  }
   if (!guEdit) return;
   guEdit = null;
   document.querySelector('.st-menu')?.remove();
@@ -1317,25 +1324,37 @@ export function megaHTML() {
   // 교류화 사업비는 남은 직류 구간 연장으로 (착공 전에만 다시 잰다)
   const ac = MEGA.find((m) => m.id === 'kp-ac');
   if (ac && !state.projects.some((x) => x.kind === 'mega' && x.mega === 'kp-ac')) ac.cost = state.mega?.['kp-ac'] ? ac.cost : kpACCost(base, state);
-  return `<h4>국가 대형 사업</h4>
-    <p class="hint">해마다 예산을 들여 짓는 국가 단위 사업입니다. 선형을 지도에서 보고, 다 지었을 때의 효과와 예비타당성 평가를 미리 볼 수 있습니다.</p>
-    <div class="list">${MEGA.map((m) => {
+  // 분야별로 접어 둔다 (처음에는 모두 접힘: 메일 건의)
+  const cats = [...new Set(MEGA.map((m) => m.cat || '기타'))];
+  const megaRow = (m) => {
     const p = state.projects.find((x) => x.kind === 'mega' && x.mega === m.id);
     const status = state.mega?.[m.id] ? `<span class="pos">${state.mega[m.id]}년 완공</span>`
       : p ? `공사 중 · ${p.doneYear}년 완공 예정`
       : `<button class="small primary" data-mega="${m.id}" ${m.ready(state) ? '' : 'disabled'}>착공 ${formatWon(m.cost)} · ${m.years}년</button>
-        <button class="small" data-mega-prev="${m.id}">효과 미리보기</button>${m.ready(state) || !m.need ? '' : ` <span class="m">조건: ${esc(m.need)}</span>`}`;
+        ${m.noMap ? '' : `<button class="small" data-mega-prev="${m.id}">효과 미리보기</button>`}${m.ready(state) || !m.need ? '' : ` <span class="m">조건: ${esc(m.need)}</span>`}`;
     const acInfo = m.id === 'kp-ac' ? (() => { const L = kpDCLines(base, state); return ` 남은 직류 구간 ${L.length}개 노선 ${Math.round(L.reduce((s0, g) => s0 + g.km, 0)).toLocaleString()}km.`; })() : '';
-    return `<div class="item"><div class="t">${esc(m.name)} ${m.id === 'kp-ac' ? '' : `<button class="small" data-mega-show="${m.id}">선형 보기</button>`}</div>
+    return `<div class="item"><div class="t">${esc(m.name)} ${m.id === 'kp-ac' || m.noMap ? '' : `<button class="small" data-mega-show="${m.id}">선형 보기</button>`}</div>
       <div class="m">${esc(m.desc)}${m.id === 'tsr' ? ` 화물 수입 연 ${formatWon(TSR_FREIGHT)}.` : ''}${acInfo}</div><div class="row" style="display:flex;gap:4px;flex-wrap:wrap">${status}</div></div>`;
-  }).join('')}${kpStdAllHTML()}</div>
-    <h4>대형 도시 개발</h4>
-    <p class="hint">정해진 자리의 도시 개발 사업입니다. 착공은 그 시군 창의 '도시 개발'에서 합니다.</p>
-    <div class="list">${Object.entries(SPECIAL_DEV).map(([k, D]) => {
-    const d = (state.zoneDev || []).find((x) => x.kind === k);
-    return `<div class="item"><div class="t">${esc(D.label)}</div><div class="m">${esc(D.desc)} · ${formatWon(D.cost)} · ${D.years}년</div>
-      <div class="row" style="display:flex;gap:4px;flex-wrap:wrap">${d ? (d.done ? '<span class="pos">완공</span>' : `공사 중 · ${d.year + D.years}년 완공 예정`) : ''}<button class="small" data-special-go="${k}">시군 창 열기</button></div></div>`;
-  }).join('')}</div>`;
+  };
+  const pw = powerPct(state);
+  const megaBody = `<p class="hint">해마다 예산을 들여 짓는 국가 단위 사업입니다. 선형을 지도에서 보고, 다 지었을 때의 효과와 예비타당성 평가를 미리 볼 수 있습니다.</p>
+    ${cats.map((c) => subFold(`mega:${c}`, `${esc(c)} <span class="cnt">${MEGA.filter((m) => (m.cat || '기타') === c).length + (c === '북측 철도 현대화' && kpStdAllHTML() ? 1 : 0)}</span>`,
+    `${c === '전력 현대화' ? `<p class="hint">북측 발전 현대화율 <b>${pw}%</b> (25·50·75·100%를 넘을 때마다 통합도 +1%p, 북측 소득 수렴이 빨라집니다)</p>` : ''}
+      <div class="list">${MEGA.filter((m) => (m.cat || '기타') === c).map(megaRow).join('')}${c === '북측 철도 현대화' ? kpStdAllHTML() : ''}</div>`)).join('')}`;
+  // 대형 도시 개발: 분야별로 접고, 그 자리에서 바로 착공한다 (시군 창의 '도시 개발'과 같은 사업)
+  const devCats = [...new Set(Object.values(SPECIAL_DEV).map((D) => D.cat || '남측 도시 개발'))];
+  const devRow = ([k, D]) => {
+    const d = (state.zoneDev || []).find((x) => x.kind === k), zi = specialZone(k), p = zi >= 0 ? zoneDevPlan(k, zi) : null;
+    return `<div class="item"><div class="t">${esc(D.label)}</div><div class="m">${esc(D.desc)} · 인구 +${D.persons.toLocaleString()}명 · ${formatWon(p?.cost ?? D.cost)} · ${D.years}년</div>
+      <div class="row" style="display:flex;gap:4px;flex-wrap:wrap">${d ? (d.done ? '<span class="pos">완공</span>' : `공사 중 · ${d.year + D.years}년 완공 예정`)
+      : p ? `<button class="small primary" data-zdev="${k}" data-zdev-zone="${zi}" data-zdev-name="${esc(D.label)}" ${p.why ? 'disabled' : ''}>착공</button>${p.why ? ` <span class="m">${esc(p.why)}</span>` : ''}` : ''}
+      <button class="small" data-special-go="${k}">시군 창 열기</button></div></div>`;
+  };
+  const devBody = `<p class="hint">정해진 자리의 도시 개발 사업입니다. 여기서 착공하거나 그 시군 창의 '도시 개발'에서 착공합니다.</p>
+    ${devCats.map((c) => subFold(`dev:${c}`, `${esc(c)} <span class="cnt">${Object.values(SPECIAL_DEV).filter((D) => (D.cat || '남측 도시 개발') === c).length}</span>`,
+    `<div class="list">${Object.entries(SPECIAL_DEV).filter(([, D]) => (D.cat || '남측 도시 개발') === c).map(devRow).join('')}</div>`)).join('')}`;
+  return subFold('mega:all', `국가 대형 사업 <span class="cnt">${MEGA.length}</span>`, megaBody)
+    + subFold('dev:all', `대형 도시 개발 <span class="cnt">${Object.keys(SPECIAL_DEV).length}</span>`, devBody);
 }
 
 /** 북측 철도 전체를 남측 규격으로 (노선 창의 '노선 일괄'을 북측 모든 노선에 한꺼번에) */
@@ -1351,6 +1370,7 @@ function kpStdAllHTML() {
 }
 
 export function bindMega(el) {
+  bindZoneDev(el, () => { save(state); renderAll(); });   // 대형 도시 개발을 건설 탭에서 바로 착공
   el.querySelectorAll('[data-mega]').forEach((b) => {
     b.onclick = () => {
       const m = MEGA.find((x) => x.id === b.dataset.mega);
@@ -1470,6 +1490,8 @@ export function bindAnnexBtns(el) {
       if (old?.general) { (L.annexBungu ||= {})[k] = JSON.parse(JSON.stringify(old)); if (nGu > 1) delete L.bungu[k]; else { delete old.general; setCoreGu(k); } adminInvalidate(); }
       if (nGu > 1) makeBungu(k, nGu);
       if (bodyKey) splitMetroBody(bodyKey, to, c.name);
+      // 광역시의 구·군이 도로 나간다: 그 땅에서 세운 신설 구와 나눈 자치구를 정리한다 (도 밑에 자치구는 없다)
+      if (!isMetroCity(to) && isMetroCity(c.region)) { leaveMetro(k, to); adminInvalidate(); }
       drawBungu();
       holdElection([to, c.region], `${to} 시군 편입 선거`);
       syncMayors();   // 편입한 시·군은 구: 시장·군수 → 구청장

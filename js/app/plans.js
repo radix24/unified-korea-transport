@@ -360,7 +360,8 @@ export function plansHTML() {
   const building = new Map(state.projects.filter((p) => p.status === 'building' && p.plan).map((p) => [p.plan, p]));
   const open = plans.filter((p) => !doneIds.has(p.id));
   const groups = [...new Set(open.map((p) => p.group))];
-  return `<h4>계획 사업</h4>
+  // 계획 사업 전체도 처음에는 접어 둔다 (분류 묶음도 모두 접힘이 기본)
+  return subFold('plans:all', `계획 사업 <span class="cnt">${open.length}</span>`, `
     <p class="hint">국가·광역 교통계획(제4·5차 국가철도망 구축계획, 제3차 국가도로망 종합계획 등)에 나온 노선입니다. 계획 이름을 누르면 지도에 그 노선이 점선으로 보이고, 그 선이나 "열기"를 누르면 경유지가 찍힌 채로 그리기가 열립니다. 사업비를 확인한 뒤 착공합니다 (경로는 고칠 수 있습니다).</p>
     ${groups.map((g) => subFold(`plans:${g}`, `${esc(g)} <span class="cnt">${open.filter((p) => p.group === g).length}</span>`, `<div class="list">${open.filter((p) => p.group === g).map((p) => {
       let km = 0;
@@ -368,5 +369,5 @@ export function plansHTML() {
       const spec = NEW_BUILDS[p.type];
       return `<div class="item line"><div class="n" data-plan-show="${p.id}" style="cursor:pointer;${shownPlan === p.id ? 'text-decoration:underline' : ''}" title="지도에 노선 보기"><span class="t-row"><b>${esc(p.phase ? p.name.replace(/ \d단계/, '') : p.name)}</b>${p.phase ? ` <span class="cnt phase-tag">${esc(p.phase)}</span>` : ''}</span>${p.after && !started.has(p.after) ? ' <span class="m">1단계를 먼저 지으면 같은 노선으로 이어집니다</span>' : ''}${p.note ? ` <span class="m">${esc(p.note)}</span>` : ''}<span class="m" title="${esc(p.source || '')}">${spec.label.replace(/ 신설.*$/, '')} · 약 ${Math.round(km * 1.1)}km · ${formatWon(km * 1.1 * spec.perKm)}${p.source ? ` · 출처: ${esc(p.source.split(' · 현황')[0].split(/[,(]/)[0].trim())}` : ''}</span></div>
         <button class="small" data-plan="${p.id}" ${started.has(p.id) ? 'disabled' : ''}>${building.has(p.id) ? `공사 중 (${building.get(p.id).doneYear}년)` : started.has(p.id) ? '착공함' : '열기'}</button></div>`;
-    }).join('')}</div>`)).join('')}`;
+    }).join('')}</div>`)).join('')}`);
 }

@@ -1,5 +1,7 @@
 // 통일 첫해 행정구역 정리 (게임 시작 창).
-import { ADMIN_DEFAULT, ADMIN_OPTIONS, adminNames, governorTitle, HISTORIC_COUNTIES, initLocal, normalizeUnitKeys, regionOf } from '../game/local.js';
+import { admin as admin_ } from './region.js';
+import { applyIslandPlan } from './selpanel.js';
+import { ADMIN_DEFAULT, ADMIN_OPTIONS, ADMIN_SCENARIOS, adminNames, governorTitle, HISTORIC_COUNTIES, initLocal, normalizeUnitKeys, regionOf } from '../game/local.js';
 import { pShare } from '../game/sentiment.js';
 import { save, START_YEAR } from '../game/state.js';
 import { t } from '../i18n.js';
@@ -30,10 +32,12 @@ export function needsAdminSetup() {
 /** 행정구역 정리 창. first: 게임을 막 시작한 때 (닫으면 사용법 안내로 이어진다) */
 export function adminSetup(first) {
   const L = initLocal(state);
-  const cur = { ...ADMIN_DEFAULT, ...(L.admin || {}), _historic: L.historic ? 'historic' : 'keep', _goal: state.goal || 'none' };
+  // 시나리오 (메일 건의): 예전 판은 지금 상태에서 짐작한다 (도 복원 + 평양 독립이면 절충안)
+  const scen0 = L.admin?._scenario || (L.historic ? (L.independent?.includes('평양시') ? 'mid' : 'restore') : 'keep');
+  const cur = { ...ADMIN_DEFAULT, ...(L.admin || {}), _historic: L.historic ? 'historic' : 'keep', _goal: state.goal || 'none', _scenario: scen0 };
   const pick = (keys) => ADMIN_OPTIONS.filter((o) => keys.includes(o.key));
   openAdminSetup({
-    esc, current: cur, defaults: { ...ADMIN_DEFAULT, _historic: 'keep', _goal: 'none' },
+    esc, current: cur, defaults: { ...ADMIN_DEFAULT, _historic: 'keep', _goal: 'none', _scenario: 'keep' },
     title: t(`${START_YEAR}년, 통일 첫해 행정구역 정리`, `${START_YEAR}: administrative boundaries after reunification`),
     intro: t('남과 북의 행정구역을 어떻게 맞출지 지금 정합니다. 비용은 들지 않고, 정한 뒤에도 '
       + `${START_YEAR}년 안에는 민원·정책 탭에서 다시 고칠 수 있습니다. 다음 해로 넘기면 그대로 굳습니다. 소속 광역 단체가 바뀐 곳은 단체장을 새로 뽑습니다.`,
@@ -42,16 +46,36 @@ export function adminSetup(first) {
     groups: [
       { title: t('이번 판의 목표', 'Goal for this game'), hint: t(`통일 10년째(${START_YEAR + 10}년) 결산에서 달성했는지 봅니다. 현황 탭에서 진행 상황을 볼 수 있습니다.`, `Checked in the ${START_YEAR + 10} summary, ten years after reunification. Track progress in the Overview tab.`),
         options: [{ key: '_goal', label: t('목표', 'Goal'), choices: Object.entries(GOALS).map(([k, g]) => [k, g.label]) }] },
-      { title: t('남북 정리', 'North–South'), options: pick(['kaesong', 'propaganda', 'workers', 'ongjin', 'goseong', 'dueum', 'guyeok', 'univ']) },
-      { title: t('북측 도 체계', 'Northern provinces'), options: [HISTORIC_PROV, ...pick(['jagang'])] },
+      // 시나리오를 고르면 북측 도 체계·개성·자강도·원산 일대·평양이 정해진다 (예전의 '북측 도 체계'·'개성 지역' 칸을 대신한다)
+      { title: t('행정구역 시나리오', 'Scenario'), hint: Object.values(ADMIN_SCENARIOS).map((x) => `<b>${esc(x.label)}</b>: ${esc(x.desc)}`).join('<br>'),
+        options: [{ key: '_scenario', label: t('시나리오', 'Scenario'), choices: Object.entries(ADMIN_SCENARIOS).map(([k, x]) => [k, x.label]) }] },
+      { title: t('지명 및 선전용 단어 변경', 'Place names'), options: pick(['propaganda', 'workers', 'dueum', 'univ', 'guyeok']) },
       { title: t('분단 전 군 되살리기', 'Restore pre-division counties'), hint: t('분단으로 갈라지거나 없어진 군입니다. 되살리면 그 군에 속했던 읍면이 옛 군 이름으로 한 도에 묶입니다.', 'Counties split or abolished by the division. Restoring one regroups its old townships under the old name in one province.'),
-        options: ADMIN_OPTIONS.filter((o) => HIST_KEYS.has(o.key)) },
+        options: [...pick(['ongjin', 'goseong']), ...ADMIN_OPTIONS.filter((o) => HIST_KEYS.has(o.key))] },
     ],
     onApply: (c) => {
-      const { _historic: hist, _goal: goal, ...admin } = c;
+      const { _historic: hist0, _goal: goal, _scenario: scen, ...admin } = c;
+      // 시나리오 → 세부 설정: 존치안은 지금대로, 환원안·절충안은 이북5도 (자강·량강 합침, 개성은 경기도, 원산 일대 함경남도, 장단·연천은 경기도로)
+      const restore = scen === 'restore' || scen === 'mid';
+      const hist = restore ? 'historic' : 'keep';
+      admin._scenario = scen;
+      admin.kaesong = restore ? 'gyeonggi' : 'keep';
+      admin.jagang = restore ? 'merge' : 'keep';
+      admin.histPN = scen === 'restore' ? 'pyeongnam' : 'keep';
+      if (restore && admin.jangdan === 'keep') admin.jangdan = 'south';
+      if (restore && admin.yeoncheon === 'keep') admin.yeoncheon = 'restore';
+      L.regionReorg ||= {};
+      if (restore) L.regionReorg.hamnam ??= START_YEAR; else if (L.regionReorg.hamnam === START_YEAR) delete L.regionReorg.hamnam;
+      const pyIn = L.independent.includes('평양시');
+      if (scen === 'mid' && !pyIn) L.independent.push('평양시');
+      if (scen !== 'mid' && pyIn && L.pyMetroByScenario) L.independent = L.independent.filter((x) => x !== '평양시');
+      L.pyMetroByScenario = scen === 'mid';
+      // 인천 섬을 각 생활권으로: 읍면동 경계를 받은 뒤 옮긴다 (selpanel.js applyIslandPlan)
+      if (admin.ongjin === 'life') L.islandsPending = true;
       state.goal = goal;
       const was = cur;
       const changed = ADMIN_OPTIONS.filter((o) => admin[o.key] !== was[o.key]);
+      if (scen !== was._scenario) changed.unshift({ choices: [[scen, ADMIN_SCENARIOS[scen].label]], key: '_scenario' });
       const histChanged = (hist === 'historic') !== !!L.historic;
       const lines = changed.map((o) => o.choices.find((x) => x[0] === admin[o.key])[1]);
       if (histChanged) lines.push(hist === 'historic' ? '북측 도를 1945년 이전으로' : '북측 도를 지금대로');
@@ -70,6 +94,8 @@ export function adminSetup(first) {
         refreshPoints();   // 북측 역 이름도 정리를 따른다 (김책역 → 성진역)
         if (namer && !draft) resetNamer();
       }
+      // 인천 섬을 각 생활권으로 (읍면동 경계를 받았으면 바로, 아니면 받은 뒤 main.js가)
+      if (L.islandsPending && admin_()) { delete L.islandsPending; applyIslandPlan(); }
       L.adminDecided = true;
       save(state); renderAll();
       if (first && guideShouldAutoShow()) setTimeout(showGuide, 300);

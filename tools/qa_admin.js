@@ -71,6 +71,7 @@ window.closeDlg = async () => { for (let q = 0; q < 3; q++) { const d = document
 window.offs = (pred) => Object.entries(ukt.state.local.offices).filter(([k, v]) => pred(k, v)).map(([k, v]) => `${k}=${v.title} ${v.name}`);
 window.zoneOffs = (n) => { const r = M.E.countyRep(zi(n)); return offs((k) => k === `m:${r}` || k.startsWith(`m:${r}#`)); };
 window.subNames = (n) => { const z = ukt.zoneProps[zi(n)]; return z.subs.map((_, k) => M.R.subName(z.sub0 + k)); };
+for (let k = 0; k < 120 && !ukt.admin(); k++) await wait(1000);   // 읍면동 경계(소속표)가 실릴 때까지
 M.B.adjacency(); for (let k = 0; k < 40 && !M.B.annexTargets(); k++) await wait(500);
 return { ok: 1, rules: RULES().slice(0, 30), off: offSum() };
 

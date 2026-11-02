@@ -7,6 +7,7 @@ import { serviceLinks } from './services.js';
 import { initRail, operatorOf, OPERATORS, OP_FACTORS, MERGE_MIN_INTEGRATION, EQUITY_STEP } from './operators.js';
 import { MEGA, applyMega, TSR_FREIGHT, kpACYear } from './mega.js';
 import { dueum } from './local.js';
+import { migApproval, migIntegration } from './migpolicy.js';
 import { saveAuto, loadAuto, clearAuto } from './savestore.js';
 
 export const START_YEAR = 2026;
@@ -800,7 +801,9 @@ const rgbDist = (a, b) => { const x = hexRgb(a), y = hexRgb(b); return Math.hypo
  * 새 노선이면 둘레 40km 안 도시철도 노선 색과 겹치지 않는(비슷하지도 않은) 색을 무작위로 고른다. 색이 이미 있는 노선은 건드리지 않는다
  */
 export function metroColour(base, state, name, points) {
-  const all = base.links.concat(state.newLinks);
+  // 이름·색은 바꿔 쓴 값(overrides)까지 본다: 평양 천리마선·혁신선은 '평양 도시철도 1·2호선'으로 바꿔 불러, 기본 자료 이름으로만 찾으면
+  // 연장 구간이 같은 노선을 못 찾고 새 색을 받았다
+  const all = base.links.map((l, i) => (state.overrides?.[i] ? { ...l, ...state.overrides[i] } : l)).concat(state.newLinks);
   if (name) {
     const same = all.find((l) => l.mode === 2 && l.name === name && l.colour && !l.replaced);
     if (same) return same.colour;
@@ -819,8 +822,11 @@ export function metroColour(base, state, name, points) {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-/** 예전 저장: 색 없이 지은 새 도시철도 노선에 색을 준다 (노선마다 한 색) */
+/** 예전 저장: 색 없이 지은 새 도시철도 노선에 색을 준다 (노선마다 한 색). 기존 노선의 연장인데 다른 색을 받은 구간은 그 노선 색으로 */
 export function colourNewMetro(base, state) {
+  const baseCol = new Map();
+  base.links.forEach((l, i) => { const e = state.overrides?.[i] ? { ...l, ...state.overrides[i] } : l; if (e.mode === 2 && e.colour && e.name && !baseCol.has(e.name)) baseCol.set(e.name, e.colour); });
+  for (const l of state.newLinks) if (l.mode === 2 && !l.replaced && baseCol.has(l.name) && l.colour !== baseCol.get(l.name)) l.colour = baseCol.get(l.name);
   const byName = new Map();
   for (const l of state.newLinks) if (l.mode === 2 && !l.colour && !l.replaced) { if (!byName.has(l.name)) byName.set(l.name, []); byName.get(l.name).push(l); }
   for (const [name, ls] of byName) {
@@ -1181,7 +1187,9 @@ export function advanceBudgetYear(base, state) {
     const r = Math.min(state.debt, Math.round(state.budget * (state.repayShare ?? 0.2)));
     state.debt -= r; state.budget -= r;
   }
-  state.integration = Math.min(1, state.integration + P.integrationPerYear);
+  // 이주 정책도 통합 속도를 바꾼다 (game/migpolicy.js)
+  state.integration = Math.min(1, Math.max(0, state.integration + P.integrationPerYear + migIntegration(state)));
+  if (state.policyNN === 'free') state.nnFreeYears = (state.nnFreeYears || 0) + 1;
   for (const k of Object.keys(state.happyBonus || {})) {
     state.happyBonus[k] *= 0.9;
     if (Math.abs(state.happyBonus[k]) < 0.2) delete state.happyBonus[k];   // 감점(음수)도 서서히 줄어 없어진다
@@ -1352,6 +1360,8 @@ export function updateApproval(state, requests, summary, prevSummary, congestedK
   if (closedRecent) why.push([`최근 2년 폐선 ${closedRecent}개 노선`, -Math.min(8, closedRecent * CLOSE_APPROVAL)]);
   if (state.debt > 0) why.push(['부채', -(state.debt / d.borrowLimit) * 8]);
   if (prevSummary) why.push(['남북 HDI 개선', Math.max(-5, Math.min(8, (summary.KP.hdi - prevSummary.KP.hdi) * 300 + (summary.KR.hdi - prevSummary.KR.hdi) * 300))]);
+  const mp = migApproval(state);
+  if (mp) why.push(['이주 정책', mp]);
   // 그 밖의 요인 (읍면동 체감 교통 개선 등, main이 넘긴다)
   for (const e of extra) if (e && Math.abs(e[1]) >= 0.05) why.push(e);
   const target = why.reduce((s0, [, v]) => s0 + v, 0);

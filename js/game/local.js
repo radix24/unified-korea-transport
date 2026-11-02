@@ -29,6 +29,18 @@ const HISTORIC = {
   함경남도: '함경남도', 량강도: '함경남도', 함경북도: '함경북도', 라선시: '함경북도',
   강원도: '강원북도', 개성시: '경기도',
 };
+/** 이북5도 환원 때 도를 따로 정하는 존 (자료의 도|이름). pn: 환원안(histPN 'pyeongnam')에서만 */
+const HISTORIC_ZONE = {
+  '자강도|랑림군': { to: '함경남도' },
+  '량강도|대홍단군': { to: '함경북도' }, '량강도|백암군': { to: '함경북도' },
+  '황해북도|중화군': { to: '평안남도', pn: true }, '황해북도|상원군': { to: '평안남도', pn: true }, '황해북도|승호군': { to: '평안남도', pn: true },
+};
+/** 첫해 행정구역 시나리오 (메일 건의): 고르면 세부 설정이 정해진다 (onApply가 L.historic·admin·regionReorg·independent에 옮긴다) */
+export const ADMIN_SCENARIOS = {
+  keep: { label: '존치안 (북한 행정구역 존중)', desc: '평양시·개성시·나선시·남포시가 독립시로 남고, 자강도·량강도·황해북도·황해남도와 강원도(원산 일대)를 그대로 둡니다' },
+  restore: { label: '환원안 (이북5도 위원회 실무 복귀)', desc: '지방자치법 제5조에 따라 이북5도로 되돌립니다. 원산 일대·랑림군·량강도(백암·대홍단군 빼고)는 함경남도, 자강도는 평안북도, 백암·대홍단군은 함경북도, 개성·개풍·장단·연천 일부는 경기도, 중화·상원·승호군은 평안남도' },
+  mid: { label: '절충안 (이북5도 + 평양광역시)', desc: '이북5도로 되돌리되 가장 큰 평양은 지금 평양시 영역 그대로 광역시로 승격합니다 (나머지는 환원안과 같다)' },
+};
 /** 복원 뒤 남측 강원은 강원남도로 부른다 */
 const HISTORIC_KR = { 강원특별자치도: '강원남도', 강원도: '강원남도' };
 
@@ -87,8 +99,10 @@ export function countyDisplayName(state, z) {
   if (!z.city && /시$/.test(pn) && L.independent?.includes(pn) && z.province !== pn) return L.bungu?.[pn] ? '중구' : metroName(pn);
   // 광역시 아래에 시는 없다: 광역시에 든 시(편입한 시, 승격한 뒤 편입한 군)는 구로 (벽성시 → 벽성구)
   if (!z.city && z.name !== z.province && /시$/.test(own) && isMetroCity(regionOf(state, z))) return own.replace(/시$/, '구');
-  // 광역시 산하 군을 구로 바꾼 곳 (기장군 → 기장구)
-  if (L.gunToGu?.includes(unitId(state, z)) && /군$/.test(own)) return own.replace(/군$/, '구');
+  // 광역시 산하 군을 구로 바꾼 곳 (기장군 → 기장구). 그 구가 도로 나가면 다시 군
+  if (L.gunToGu?.includes(unitId(state, z)) && /군$/.test(own) && isMetroCity(regionOf(state, z))) return own.replace(/군$/, '구');
+  // 광역시의 자치구가 도로 나갔으면 시로 (도 밑에 자치구는 없다: 대구 수성구 → 경상북도 수성시)
+  if (!z.city && /구$/.test(own) && L.annex?.[unitId(state, z)] && !isMetroCity(regionOf(state, z))) return own.replace(/구$/, '시');
   // 북측 직할시의 시 본체(개성시 안의 개성시: 개풍·장풍·판문과 나란한 시내)는 중구로. 예전에는 광역단체장과 같은 '개성시장'이 겹치고,
   // 개성광역시로 바꾸면 '광역시와 같은 이름의 시'라 기초단체장이 없어져 시내에 지방자치가 없었다. 시 전체가 한 시군인 라선은 그대로
   // (광역시 몸통: 화면에서는 광역 바로 밑이 동)
@@ -104,7 +118,8 @@ export const ADMIN_OPTIONS = [
   { key: 'kaesong', label: '개성 지역 (개성시·개풍·판문·장풍)', choices: [['keep', '개성특급시로 둔다'], ['gyeonggi', '경기도에 편입']] },
   { key: 'propaganda', label: '선전용 지명 (김정숙군·김책시 등)', choices: [['keep', '그대로 둔다'], ['restore', '옛 이름으로 되돌린다']] },
   { key: 'workers', label: '노동자구', choices: [['keep', '그대로 둔다'], ['abolish', '폐지 (리로 바꾼다)']] },
-  { key: 'ongjin', label: '옹진군 (인천·황해남도)', choices: [['separate', '남북 따로 둔다'], ['hwanghae', '하나로 합쳐 황해(남)도에'], ['incheon', '하나로 합쳐 인천광역시에']] },
+  { key: 'ongjin', label: '옹진군 (인천·황해남도)', choices: [['separate', '남북 따로 둔다'], ['hwanghae', '하나로 합쳐 황해(남)도에'], ['incheon', '하나로 합쳐 인천광역시에'], ['life', '인천 섬을 각 생활권으로 (백령·대청 → 룡연군, 연평 → 강령군, 자월·덕적·북도 → 제물포구, 영흥 → 안산시)']] },
+  { key: 'histPN', label: '중화·상원·승호군 (이북5도 환원 때)', choices: [['keep', '황해도에 둔다'], ['pyeongnam', '평안남도로']] },
   { key: 'goseong', label: '고성군 (강원 남·북)', choices: [['separate', '남북 따로 둔다'], ['ganseong', '남측 고성군을 간성군으로'], ['south', '하나로 합쳐 남측 강원에'], ['north', '하나로 합쳐 북측 강원에']] },
   { key: 'jagang', label: '자강도·량강도 (1945년 이전 도 복원 때)', choices: [['merge', '평안북도·함경남도로 합친다'], ['keep', '도로 남겨 둔다']] },
   { key: 'dueum', label: '북측 지명 두음법칙', choices: [['keep', '북측 표기 그대로 (량강도·룡천)'], ['apply', '남측 표기로 (양강도·용천)']] },
@@ -280,6 +295,11 @@ export function regionOf(state, z) {
   let r = prov;
   if (L.historic && !(A.jagang === 'keep' && side === 'KP' && ['자강도', '량강도', '양강도'].includes(prov))) {
     r = (side === 'KP' ? HISTORIC[prov] : HISTORIC_KR[prov]) || prov;
+    // 이북5도 환원의 세부 (메일 건의 환원안·절충안): 랑림군은 함경남도, 대홍단·백암군은 함경북도, 환원안이면 중화·상원·승호군은 평안남도
+    if (side === 'KP' && !annexed && A.jagang !== 'keep') {
+      const zr = HISTORIC_ZONE[`${z.province}|${z.name}`];
+      if (zr && (!zr.pn || A.histPN === 'pyeongnam')) r = zr.to;
+    }
   }
   // 통일 뒤 남북에 강원이 둘이므로 북측 강원도는 늘 강원북도 (남측은 강원특별자치도, 도 복원 뒤에는 강원남도)
   if (side === 'KP' && r === '강원도') r = '강원북도';
