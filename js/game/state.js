@@ -1,7 +1,7 @@
 // 게임 상태: 예산, 공사 중 사업, 혼잡 민원, 이름, 저장/불러오기.
 import { DIFFICULTY, UPGRADES, NEW_BUILDS, KP_COST_FACTOR, AIRPORT, upgradeCost, upgradeAttrs, resolve, formatWon } from './catalog.js';
 import { P } from '../sim/params.js';
-import { routeKey } from '../sim/model.js';
+import { kmBetween, routeKey } from '../sim/model.js';
 import { smoothSegments, polylineKm, minRadiusKm, curveSpeed } from './curve.js';
 import { serviceLinks } from './services.js';
 import { initRail, operatorOf, OPERATORS, OP_FACTORS, MERGE_MIN_INTEGRATION, EQUITY_STEP } from './operators.js';
@@ -897,9 +897,21 @@ export function startNewBuild(base, state, plan) {
     });
   }
   total += plan.extraCost || 0;   // 중간 IC·역·휴게소 설치비
+  // 광역교통개선대책 분담금: 택지지구 10km 안에 역·경유점이 있는 철도·도시철도 사업이면 사업비의 절반까지 그 지구 분담금으로 낸다
+  const levyUse = [];
+  if (spec.mode >= 1 && !plan.ppp) {
+    let room = Math.round(total * 0.5);
+    for (const h of state.housing || []) {
+      if (!(h.levyLeft > 0) || room <= 0) continue;
+      if (!plan.points.some((pt) => kmBetween(pt.lon, pt.lat, h.lon, h.lat) <= 10)) continue;
+      const use = Math.min(h.levyLeft, room);
+      levyUse.push([h, use]); room -= use;
+    }
+  }
+  const levyPaid = levyUse.reduce((t, [, u]) => t + u, 0);
   const fund = plan.ppp ? 'ppp' : fundFor(state, links);
   if (plan.ppp) for (const l of links) l.toll = plan.ppp.toll || 0;
-  if (!canAfford(state, total * (plan.ppp ? plan.ppp.subsidy : 1), spec.years, plan.ppp ? 'gov' : fund)) {
+  if (!canAfford(state, (total - levyPaid) * (plan.ppp ? plan.ppp.subsidy : 1), spec.years, plan.ppp ? 'gov' : fund)) {
     state.newNodes.length -= stops.filter((i) => plan.points[i].node == null).length;
     return { ok: false, reason: fund === 'gov' ? '예산과 차입 한도가 부족합니다.' : '운영사 잔액이 부족합니다.' };
   }
@@ -920,12 +932,15 @@ export function startNewBuild(base, state, plan) {
   const e0 = endName(0), e1 = endName(nodeIds.length - 1);
   const span = `${e0 && e1 ? `${e0}–${e1} ` : ''}(${kmTotal.toFixed(0)}km)`;
   const label = plan.title ? `${plan.title} ${span}` : plan.extendOf ? `${plan.extendOf} 연장 ${span}` : `${plan.lineName ? `${plan.lineName} · ` : ''}${spec.label} ${span}`;
+  // 분담금 몫은 이미 낸 돈이라 사업비에서 뺀다 (지구에 남은 분담금을 줄인다)
+  for (const [h, u] of levyUse) h.levyLeft -= u;
+  if (levyPaid) state.log.unshift(`${state.year}년 광역교통개선대책 분담금 ${formatWon(levyPaid)} 투입: ${levyUse.map(([h, u]) => `${h.name} ${formatWon(u)}`).join(', ')} → ${label}`);
   startProject(state, {
-    id: crypto.randomUUID(), kind: 'new', type: plan.type, links: links.map((l) => l.id), extension: !!plan.extendOf,
+    id: crypto.randomUUID(), kind: 'new', type: plan.type, links: links.map((l) => l.id), extension: !!plan.extendOf, levyPaid: levyPaid || undefined,
     stations: spec.mode >= 1 ? nodeIds.filter((n, i) => n != null && plan.names[i]?.kind === 'station') : [],
-    cost: total, years: spec.years, label, fund, plan: plan.plan, govShare: plan.ppp ? plan.ppp.subsidy : undefined, named,
+    cost: total - levyPaid, years: spec.years, label, fund, plan: plan.plan, govShare: plan.ppp ? plan.ppp.subsidy : undefined, named,
   });
-  return { ok: true };
+  return { ok: true, levyPaid };
 }
 
 // ------------------------------------------------------------ 공항

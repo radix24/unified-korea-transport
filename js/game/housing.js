@@ -1,8 +1,8 @@
 // 택지지구 개발: 지도에서 고른 곳(또는 직접 그린 경계)에 주택 단지를 조성한다.
 // 지은 세대만큼 인구가 순증한다 (미분양 없음, 다른 시군에서 빼 오지 않는다). 다 지으면 3년에 걸쳐 입주하고,
 // 분양 수익은 입지(철도역·고속도로 IC까지 거리, 둘레 수요)가 좋을수록 크다.
-// 큰 지구(2만 세대 이상)는 광역교통개선대책 분담금을 내고, 그 돈으로 지구 둘레 간선도로·고속도로 IC까지 연결도로를 함께 놓는다.
-// 단지 안에는 신도시처럼 간선도로망(십자 축)을 깔아 실제 도로망에 잇는다. 금액 단위 억원.
+// 큰 지구(2만 세대 이상)는 광역교통개선대책 분담금을 내고, 그 돈은 지구 둘레(levyKm) 철도·도시철도 사업비에 들어간다 (state.js transitLevy).
+// 단지 도로는 따로 깔지 않는다 (읍면동 접속으로 둘레 도로망에 닿는다). 금액 단위 억원.
 import { startProject, canAfford } from './state.js';
 import { regionClass } from './devel.js';
 
@@ -21,6 +21,8 @@ export const HOUSING = {
   margin: 0.2,                                                    // 분양가 가운데 시행자(공공)에게 남는 몫
   levy: { capital: 0.15, metro: 0.1, other: 0.07, kp: 0.04 },     // 광역교통개선대책 분담금 (세대당 억원)
   levyMin: 20000,            // 이 세대 수 이상이면 광역교통개선대책을 세운다
+  levyKm: 10,                // 분담금을 쓰는 철도·도시철도 사업: 역·경유점이 지구에서 이만큼 안에 있는 것
+  levyShare: 0.5,            // 분담금이 덮는 사업비 몫 (나머지는 정부)
   moveIn: [0.4, 0.35, 0.25], // 다 지은 뒤 해마다 입주하는 몫
   phase2Lag: 3,              // 2단계는 1단계보다 이만큼 늦게 끝난다 (년)
   happy: 1,
@@ -59,7 +61,8 @@ export function startHousing(state, { name, zone, lon, lat, size, ring = null, h
   const ph = split.map((hh, k) => ({ id: k ? crypto.randomUUID() : id, households: hh, done: false }));
   (state.housing ||= []).push({
     id, name, zone, lon, lat, size, ring, households, persons: plan.persons, net: plan.persons, revenue: plan.revenue,
-    score, railKm, levy: plan.levy, ang, phases: ph, moving: [], occupied: 0, done: false, built: false, applied: true,
+    score, railKm, levy: plan.levy, ang, phases: ph, moving: [], occupied: 0, done: false, built: false, applied: true, roadsV: 3,   // roadsV 3: 단지 도로 없음 (app/housing.js convertRadialHousingRoads)
+    levyLeft: plan.levy,   // 아직 철도·도시철도 사업에 쓰지 않은 분담금
   });
   ph.forEach((p, k) => {
     const share = p.households / households;

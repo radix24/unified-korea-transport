@@ -229,14 +229,15 @@ export function nearestKm(binMap, lon, lat, maxKm = 15) {
   }
   return Math.min(best, maxKm);
 }
-/** 입지 점수 0~1과 근거: 철도역(가까울수록, 1km 안 만점·8km 밖 0), 고속도로 IC(2km 안 만점·15km 밖 0), 8km 안 인구(5만 0점·200만 만점) */
+/** 입지 점수 0~1과 근거: 철도역 55%(가까울수록, 1km 안 만점·8km 밖 0), 고속도로 IC 10%(2km 안 만점·15km 밖 0), 8km 안 인구 35%(5만 0점·200만 만점) */
 export function siteScore(lon, lat) {
   const ix = siteIndexes();
   const railKm = nearestKm(ix.rail, lon, lat), icKm = nearestKm(ix.ic, lon, lat);
   const pop = popNear(lon, lat, 8);
   const sr = Math.max(0, Math.min(1, 1 - (railKm - 1) / 7)), sm = Math.max(0, Math.min(1, 1 - (icKm - 2) / 13));
   const sp = Math.max(0, Math.min(1, Math.log10(Math.max(1, pop) / 5e4) / Math.log10(40)));
-  return { score: 0.4 * sr + 0.25 * sm + 0.35 * sp, railKm, icKm, pop };
+  // 철도역이 가장 크게: 도로를 따로 깔지 않으므로 지구의 교통은 철도·도시철도에 기댄다
+  return { score: 0.55 * sr + 0.1 * sm + 0.35 * sp, railKm, icKm, pop };
 }
 
 /** 지금 보이는 곳을 칸으로 나눠 택지지구를 놓을 수 있는 칸을 입지 점수로 칠한다 (누를 때와 같은 판정: housingSiteProblem) */
@@ -793,135 +794,39 @@ export function growHousingSite(lon, lat, { crossWater = false, axis = null, ban
 }
 
 /**
- * 택지지구 도로망: 단지 가운데에서 네 방향으로 4차로 간선도로(십자 축)를 경계까지 깔고
- * (1기 신도시급은 분당·일산처럼 6차로 간선 두 줄씩을 가로세로로 놓은 # 모양 격자: 교차점 넷, 끝 여덟),
- * 경계 끝마다 바깥 4km 안의 가장 가까운 간선도로 노드에 잇는다. 광역교통개선대책이 있으면 연결도로를 4차로로,
- * 고속도로 IC까지 따로 잇는다(12km 안). 연결도로 공사비(억원)와 링크·노드 계획을 돌려준다 (아직 망에 넣지 않는다)
+ * 택지지구 도로망: 단지 도로·연결도로를 따로 깔지 않는다 (지구마다 곧은 도로가 여러 갈래 뻗어 지도가 지저분했다).
+ * 단지는 읍면동 접속으로 둘레 도로망에 이미 닿고, 광역교통개선대책 분담금은 둘레 철도·도시철도 사업에 쓴다 (game/state.js transitLevy).
+ * 예전 판의 함수 이름과 돌려주는 모양은 그대로 둔다 (빈 계획)
  */
-export function housingRoadPlan({ lon, lat, ring, R, name, levy, households = 0 }) {
-  const kx = 111.32 * Math.cos((lat * Math.PI) / 180), ky = 110.57;
+export function housingRoadPlan({ lon, lat }) {
   const seed = Math.abs(Math.round((lon * 1000 + lat * 777) % 90));
-  const ang0 = (seed * Math.PI) / 180;
-  // 경계까지 거리: 그린 경계면 반직선과 다각형의 교점, 아니면 원 반지름의 0.95배
-  // (ox, oy): 반직선 시작점 (단지 가운데에서 동·북쪽 km)
-  const edgeAt = (a, ox = 0, oy = 0) => {
-    const ux = Math.cos(a), uy = Math.sin(a);
-    if (!ring) {
-      const r = R * 0.95, p = ox * ux + oy * uy, t = -p + Math.sqrt(Math.max(0, p * p - ox * ox - oy * oy + r * r));
-      return [lon + (ox + t * ux) / kx, lat + (oy + t * uy) / ky];
-    }
-    let best = null;
-    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const ax = (ring[j][0] - lon) * kx - ox, ay = (ring[j][1] - lat) * ky - oy, bx = (ring[i][0] - lon) * kx - ox, by = (ring[i][1] - lat) * ky - oy;
-      const dx = bx - ax, dy = by - ay, den = ux * dy - uy * dx;
-      if (Math.abs(den) < 1e-9) continue;
-      const t = (ax * dy - ay * dx) / den, s = (ax * uy - ay * ux) / den;
-      if (t > 0 && s >= 0 && s <= 1 && (!best || t < best)) best = t;
-    }
-    const t = (best || R) * 0.95;
-    return [lon + (ox + t * ux) / kx, lat + (oy + t * uy) / ky];
-  };
-  // 바깥 간선도로 노드 (고속도로 본선 노드는 IC로만 드나든다)
-  const roadNodes = new Map();
-  allLinks().forEach((l, i) => {
-    const e = linkAt(base, state, i);
-    if (e.mode !== 0 || e.ext || e.cls === 'motorway' || state.replaced?.[i] || (i >= base.links.length && !l.built)) return;
-    if (!['trunk', 'primary', 'secondary'].includes(e.cls)) return;
-    for (const n of [l.a, l.b]) roadNodes.set(n, nodeCoord(n));
-  });
-  const nearestRoad = (p, dir) => {
-    let best = null, bd = 4;
-    for (const [n, c] of roadNodes) {
-      if (!c) continue;
-      const d = kmBetween(p[0], p[1], c[0], c[1]);
-      if (d >= bd || d < 0.05) continue;
-      const vx = (c[0] - p[0]) * kx, vy = (c[1] - p[1]) * ky, vl = Math.hypot(vx, vy) || 1;
-      if ((vx * Math.cos(dir) + vy * Math.sin(dir)) / vl < 0.2) continue;   // 단지 바깥쪽으로
-      bd = d; best = n;
-    }
-    return best;
-  };
-  const arms = [], links = [], nodes = {};
-  const stemName = name.replace(/지구$/, '');
-  const big = households >= HOUSING.bigTown;
-  const ux = Math.cos(ang0), uy = Math.sin(ang0), vx = -uy, vy = ux;
-  const at = (a, b) => [lon + (a * ux + b * vx) / kx, lat + (a * uy + b * vy) / ky];   // 단지 축 좌표 (km) → 경위도
-  const armDir = [];
-  const end = (a, ox, oy) => { const k = arms.length; arms.push(edgeAt(a, ox, oy)); armDir.push(a); nodes[`E${k}`] = arms[k]; return `E${k}`; };
-  if (big) {
-    // # 모양: 축 방향(u)으로 두 줄, 수직(v)으로 두 줄, 가운데에서 0.42R씩 비켜
-    const d = R * 0.42;
-    const X = (i, j) => { const key = `X${i}${j}`; nodes[key] ||= at(i ? d : -d, j ? d : -d); return key; };
-    const road = (keys, nm) => { for (let k = 0; k + 1 < keys.length; k++) links.push({ from: keys[k], to: keys[k + 1], pts: [nodes[keys[k]], nodes[keys[k + 1]]], attrs: { cls: 'primary', lanes: 6, speed: 60, name: nm } }); };
-    for (const j of [0, 1]) {   // u 방향 대로 (v = ±d)
-      const s = j ? d : -d, ox = s * vx, oy = s * vy;
-      road([end(ang0 + Math.PI, ox, oy), X(0, j), X(1, j), end(ang0, ox, oy)], `${stemName}대로`);
-    }
-    for (const i of [0, 1]) {   // v 방향 로 (u = ±d)
-      const s = i ? d : -d, ox = s * ux, oy = s * uy;
-      road([end(ang0 - Math.PI / 2, ox, oy), X(i, 0), X(i, 1), end(ang0 + Math.PI / 2, ox, oy)], `${stemName}로`);
-    }
-  } else {
-    nodes.C = [lon, lat];
-    for (let k = 0; k < 4; k++) {
-      const e = end(ang0 + (k * Math.PI) / 2, 0, 0);
-      links.push({ from: 'C', to: e, pts: [[lon, lat], nodes[e]], attrs: { cls: 'primary', lanes: 4, speed: 50, name: `${stemName}대로` } });
-    }
-  }
-  let connKm = 0;
-  for (let k = 0; k < arms.length; k++) {
-    const e = arms[k], a = armDir[k];
-    const n = nearestRoad(e, a);
-    if (n != null) {
-      const c = nodeCoord(n);
-      connKm += kmBetween(e[0], e[1], c[0], c[1]);
-      links.push({ from: `E${k}`, to: n, pts: [e, c], attrs: levy ? { cls: 'trunk', lanes: 4, speed: 60, name: `${name} 연결도로` } : { cls: 'secondary', lanes: 2, speed: 50, name: `${name} 연결도로` } });
-    }
-  }
-  // 광역교통개선대책: 가장 가까운 고속도로 IC까지 4차로 연결도로
-  if (levy) {
-    let best = null;
-    for (const [nm, n] of base.junctions) {
-      if (/JCT|분기점|휴게소|졸음쉼터/.test(nm)) continue;
-      const c = nodeCoord(n);
-      if (!c) continue;
-      arms.forEach((e, k) => { const d = kmBetween(e[0], e[1], c[0], c[1]); if (d < 12 && (!best || d < best.d)) best = { d, k, n, nm }; });
-    }
-    if (best && best.d > 0.3) {
-      const e = arms[best.k], c = nodeCoord(best.n);
-      connKm += best.d;
-      links.push({ from: `E${best.k}`, to: best.n, pts: [e, c], attrs: { cls: 'trunk', lanes: 4, speed: 70, name: `${name} IC 연결도로` }, ic: best.nm });
-    }
-  }
-  const perKm = levy ? NEW_BUILDS.trunk.perKm : 100;
-  return { links, nodes, ang: seed, center: [lon, lat], arms, connKm, connCost: Math.round(connKm * 1.1 * perKm * (isKP(lat, lon) ? KP_COST_FACTOR : 1)) };
+  return { links: [], nodes: {}, ang: seed, center: [lon, lat], arms: [], connKm: 0, connCost: 0 };
 }
 
 /**
- * 예전 저장: 한때 1기 신도시급을 가운데에서 여덟 방향으로 뻗는 방사형 간선으로 깔았다 → # 모양 격자로 다시 깐다.
- * 옛 간선·연결도로는 걷어 내고(replaced), 새 도로는 옛 도로가 지어졌으면 지은 채로, 공사 중이면 그 사업에 넣는다. 돈은 들지 않는다
+ * 예전 저장: 택지지구마다 십자 축·# 격자와 끝마다 연결도로(지구 하나에 5~13갈래)를 깔았다 → 걷어 낸다(replaced).
+ * 돈은 돌려주지 않는다 (이미 낸 연결도로비). 직접 그은 도로가 단지 간선에 이어진 곳은 그 간선을 남긴다
  */
 export function convertRadialHousingRoads() {
   let n = 0;
   for (const h of state.housing || []) {
+    if (h.roadsV >= 3) continue;
+    if (h.levyLeft == null) h.levyLeft = h.levy || 0;   // 예전에는 분담금을 연결도로에 썼다: 도로를 걷어 내니 철도에 쓸 몫으로 돌린다
     const pid = h.phases?.[0]?.id ?? h.id;
     const p = state.projects.find((x) => x.id === pid);
-    const old = (p?.links || []).filter((id) => id >= base.links.length && !state.newLinks[id - base.links.length]?.replaced);
     const nl = (id) => state.newLinks[id - base.links.length];
-    const arms = old.filter((id) => /대로$/.test(nl(id)?.name || '') && !/연결도로$/.test(nl(id)?.name || ''));
-    const deg = new Map();
-    for (const id of arms) for (const v of [nl(id).a, nl(id).b]) deg.set(v, (deg.get(v) || 0) + 1);
-    if (Math.max(0, ...deg.values()) < 8) continue;   // 방사형(한 노드에서 여덟 갈래)만
-    const built = old.some((id) => nl(id).built);
-    const rp = housingRoadPlan({ lon: h.lon, lat: h.lat, ring: h.ring, R: housingR(h), name: h.name, levy: (h.levy || 0) > 0, households: Math.max(h.households || 0, HOUSING.bigTown) });
-    for (const id of old) nl(id).replaced = true;
-    const ids = addHousingRoads(rp);
-    if (built) for (const id of ids) nl(id).built = true;
-    p.links = ids;
-    h.ang = rp.ang;
-    n++;
+    const old = (p?.links || []).filter((id) => id >= base.links.length && nl(id) && !nl(id).replaced && /(대로|로|연결도로)$/.test(nl(id).name || ''));
+    h.roadsV = 3;
+    if (!old.length || !p) continue;
+    // 다른 사업 도로가 이 단지 도로 노드에 이어져 있으면(직접 그은 도로가 단지 간선에 붙은 곳) 그 도로는 남긴다
+    const mine = new Set(old), others = state.newLinks.filter((l, k) => !l.replaced && !mine.has(base.links.length + k));
+    const used = new Set(others.flatMap((l) => [l.a, l.b]));
+    const drop = old.filter((id) => !used.has(nl(id).a) && !used.has(nl(id).b) || /연결도로$/.test(nl(id).name || ''));
+    for (const id of drop) nl(id).replaced = true;
+    p.links = p.links.filter((id) => !drop.includes(id));
+    if (drop.length) n++;
   }
-  if (n) state.log.unshift(`${state.year}년 1기 신도시급 택지지구 ${n}곳의 방사형 간선도로를 # 모양 격자로 다시 깔았습니다.`);
+  if (n) state.log.unshift(`${state.year}년 택지지구 ${n}곳의 단지 도로·연결도로를 걷어 냈습니다 (광역교통개선대책 분담금은 둘레 철도·도시철도 사업에 씁니다).`);
   return n;
 }
 
@@ -954,20 +859,20 @@ export function openHousingDialog({ lon, lat, zi0 = -1, ring = null, km2 = null,
     if (o.why) return `<div class="item"><div class="t">${o.label} · ${o.households.toLocaleString()}세대</div><div class="m">이 자리에는 들어가지 않습니다 (${o.why}).</div></div>`;
     const pl = housingPlan({ households: o.households, zone: zp, lat: o.lat ?? lat, lon: o.lon ?? lon, score: sc.score });
     const rp = housingRoadPlan({ lon: o.lon ?? lon, lat: o.lat ?? lat, ring: o.ring ?? ring, R: o.R, name, levy: pl.levy > 0, households: o.households });
-    const roadCost = Math.max(0, rp.connCost - pl.levy);   // 연결도로는 분담금으로 놓고, 모자라면 더 낸다
+    const roadCost = 0;
     const phaseSel = o.households >= HOUSING.levyMin
       ? `<label class="m"><input type="checkbox" data-phase="${o.key}"> 2단계로 나눠 짓기 (절반은 ${HOUSING.phase2Lag}년 늦게 준공)</label>` : '';
     return `<div class="item"><div class="t">${o.label} · ${o.households.toLocaleString()}세대 · 입주 ${fmtPeople(pl.persons)} (모두 순증)</div>
       <div class="m">택지 조성 ${formatWon(pl.cost)}${pl.levy ? ` + 광역교통개선대책 분담금 ${formatWon(pl.levy)}` : ''}${roadCost ? ` + 연결도로 ${formatWon(roadCost)}` : ''} · ${pl.years}년 · 분양 수익 ${formatWon(pl.revenue)}</div>
-      <div class="m">도로망: 단지 안 ${o.households >= HOUSING.bigTown ? '6차로 간선 가로세로 두 줄씩(# 모양)' : '4차로 간선 십자 축'}, 둘레 간선도로 연결 ${rp.links.filter((r) => /연결도로$/.test(r.attrs.name) && !r.ic).length}곳${rp.links.find((r) => r.ic) ? ` · ${esc(rp.links.find((r) => r.ic).ic)}까지 4차로` : ''} (연결도로 ${rp.connKm.toFixed(1)}km)</div>
+      ${pl.levy ? `<div class="m">분담금 ${formatWon(pl.levy)}은 이 지구 ${HOUSING.levyKm}km 안에 놓는 철도·도시철도 사업비에 넣습니다 (사업비의 절반까지)</div>` : ''}
       ${phaseSel}
-      <button class="small" data-housing-preview="${o.key}" title="창을 접고 지도에서 지구 경계와 단지 도로·연결도로를 미리 봅니다">미리보기</button> <button class="small primary" data-housing="${o.key}">착공</button></div>`;
+      <button class="small" data-housing-preview="${o.key}" title="창을 접고 지도에서 지구 경계를 미리 봅니다">미리보기</button> <button class="small primary" data-housing="${o.key}">착공</button></div>`;
   }).join('');
   const wrap = document.createElement('div');
   wrap.className = 'setup-wrap';
   wrap.innerHTML = `<div class="setup" role="dialog" aria-modal="true"><h2>택지지구 개발 · <input type="text" id="h-name" value="${esc(name)}" style="font:inherit;width:10em" title="지구 이름 (고칠 수 있습니다)"></h2>
     <p class="setup-intro hint">${esc(zoneName(zi))} · ${scoreTxt}${grow?.river === 'center' ? '<br>강이 지구 가운데로 흐릅니다 (강물은 넓이에서 뺍니다).' : grow?.river === 'bank' ? '<br>강을 경계로 강을 따라 길게 놓습니다.' : ''}<br>지은 세대만큼 인구가 늘고(다 지은 뒤 3년에 걸쳐 입주), 입지 점수가 높을수록 분양 수익이 큽니다.
-      ${HOUSING.levyMin.toLocaleString()}세대 넘는 지구는 광역교통개선대책 분담금으로 둘레 간선도로·고속도로 IC까지 4차로 연결도로를 함께 놓습니다.
+      단지 도로는 따로 깔지 않습니다. ${HOUSING.levyMin.toLocaleString()}세대 넘는 지구는 광역교통개선대책 분담금을 내고, 그 돈은 지구 ${HOUSING.levyKm}km 안에 놓는 철도·도시철도 사업비에 들어갑니다.
       ${sc.railKm > HOUSING.complaintKm ? `<br><b>철도역이 ${sc.railKm.toFixed(1)}km 떨어져 있어 입주 뒤 교통 대책 민원이 생깁니다</b> (${HOUSING.complaintKm}km 안에 역을 놓으면 풀립니다).` : ''}</p>
     <div class="setup-body"><div class="list">${rows}</div></div>
     <div class="setup-btns">${sc.railKm > 2 ? '<button class="small" data-housing="rail">연결 철도 그리기</button>' : ''}<span style="flex:1"></span><button class="small" data-housing="cancel">닫기</button></div></div>`;
@@ -994,7 +899,7 @@ export function openHousingDialog({ lon, lat, zi0 = -1, ring = null, km2 = null,
       const oRing = o.ring ?? ring, oLon = o.lon ?? lon, oLat = o.lat ?? lat;
       const pl = housingPlan({ households: o.households, zone: zp, lat: oLat, lon: oLon, score: sc.score });
       const rp = housingRoadPlan({ lon: oLon, lat: oLat, ring: oRing, R: o.R, name, levy: pl.levy > 0, households: o.households });
-      const roadCost = Math.max(0, rp.connCost - pl.levy);
+      const roadCost = 0;
       const phases = wrap.querySelector(`[data-phase="${k}"]`)?.checked ? 2 : 1;
       const n0 = state.newNodes.length, l0 = state.newLinks.length;
       const roads = addHousingRoads(rp);

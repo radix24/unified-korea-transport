@@ -4,6 +4,7 @@ import { hasAutonomy, PARTIES, partySupport, regionOf } from '../game/local.js';
 import { MEGA } from '../game/mega.js';
 import { operatorOf } from '../game/operators.js';
 import { canAfford, isKP, linkAt, NEW_BUILDS, save } from '../game/state.js';
+import { kmBetween } from '../sim/model.js';
 import { loadTerrain, terrainReady, terrainRule } from '../game/terrain.js';
 import { LANG, t } from '../i18n.js';
 import { getGuideMode, guideShouldAutoShow, startGuide } from '../ui/guide.js';
@@ -510,6 +511,13 @@ export function renderBuild() {
       ${draft.extendOf || draft.extend === false ? `<div class="name-row"><label><input type="checkbox" id="draft-extend" ${draft.extendOf ? 'checked' : ''}>
         기존 노선의 연장으로 놓기${draft.extendOf ? ` (${esc(draft.extendOf)})` : ''}</label></div>` : ''}
       ${retireChoiceHTML()}
+      ${(() => {
+        // 둘레 택지지구의 광역교통개선대책 분담금: 착공하면 사업비의 절반까지 그 돈으로 낸다 (game/state.js startNewBuild)
+        if (!(NEW_BUILDS[draft.type]?.mode >= 1) || draft.points.length < 2) return '';
+        const hs = (state.housing || []).filter((h) => h.levyLeft > 0 && draft.points.some((pt) => kmBetween(pt.lon, pt.lat, h.lon, h.lat) <= 10));
+        const sum = hs.reduce((t, h) => t + h.levyLeft, 0);
+        return sum ? `<p class="hint">광역교통개선대책 분담금 ${formatWon(sum)} (${hs.map((h) => esc(h.name)).join('·')})을 이 사업비에 넣습니다 (사업비의 절반까지).</p>` : '';
+      })()}
       ${draft.revise ? `<p class="hint"><b>설계 변경</b>: 선을 끌거나 역을 옮겨 선형을 고친 뒤 착공하면 원래 사업과 바뀝니다. 이미 낸 공사비의 80%를 이어 받고, 지지율은 내려가지 않습니다.</p>` : ''}
       ${draft.points.length > 1 ? `<p class="hint">${draft.extendOf ? `기존선 연장: ${esc(draft.extendOf)}의 종점에서 이어 같은 노선 이름을 씁니다.` : '신설 노선: 새 노선 이름을 붙입니다.'}</p>` : ''}
       <p class="hint">기존 ${spec.mode ? '선로' : '도로'} 근처를 누르면 연결됩니다. ${spec.mode ? '각 점은 역이 됩니다.' : '끝점이 기존 도로 0.5km 안이면 그 도로에 이어지고, 더 멀면 막다른 도로로 그 자리에서 끝납니다.'}
