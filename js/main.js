@@ -12,7 +12,7 @@ import { inferNetSize, migrateState, refFromBase, rememberNetwork, sliceRef } fr
 import { initRail } from './game/operators.js';
 import { initPPP } from './game/ppp.js';
 import { clearAuto, getRef, keepBackup, loadAuto } from './game/savestore.js';
-import { planService, refreshExistingServices, seedServices, tripsPerDay } from './game/services.js';
+import { planService, refreshExistingServices, rerouteCommutersOffHsr, seedServices, tripsPerDay } from './game/services.js';
 import { clearSim, loadSim } from './game/simstore.js';
 import { colourNewMetro, dropOrphanNames, effectiveNetwork, initAirRoutes, initOngoing, load, migrateAir, newGame, placeName, save } from './game/state.js';
 import { loadTerrain, terrainAt } from './game/terrain.js';
@@ -178,6 +178,9 @@ async function init() {
   colourNewMetro(base, state);   // 예전 저장의 색 없는 새 도시철도 노선
   const refreshed = refreshExistingServices(state, effectiveNetwork(base, state), base.stations);
   if (refreshed.length) state.log.unshift(`${state.year}년: 기본 운행 계통을 지금 선로에 맞춰 다시 짰습니다 (${refreshed.join(', ')})`);
+  // 예전 저장: 고속선으로 다니던 광역 전철 계통을 일반선으로
+  const offHsr = rerouteCommutersOffHsr(state, effectiveNetwork(base, state), [...base.stations, ...(state.newStations || []).map((n) => ['', n])]);
+  if (offHsr.length) state.log.unshift(`${state.year}년: 고속선으로 다니던 광역 전철 계통을 일반선으로 다시 짰습니다 (${offHsr.join(', ')})`);
   initLocal(state);
   // 예전 저장: 승격한 도시를 '함흥시' 이름 그대로 광역 단체로 썼다 (직함이 '함흥시도지사'로 나왔다) → 함흥광역시로 옮긴다
   for (const c of state.local.independent || []) {

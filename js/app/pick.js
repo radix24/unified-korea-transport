@@ -1,5 +1,5 @@
 // 구간 선택·넓히기, 역을 골라 계통 짜기.
-import { railPath } from '../game/services.js';
+import { railAdjacency, railPath } from '../game/services.js';
 import { effectiveNetwork, linkAt } from '../game/state.js';
 import { base, esc, map, state } from './core.js';
 import { allLinks, nodeCoord, nodeNames } from './mapdata.js';
@@ -162,15 +162,16 @@ export function nearestStation(ll) {
   return best;
 }
 
-/** 고른 역들 사이를 차례로 잇는 철도 경로: 지나는 역 순서(nodes)·노선(lines)·등급(cls). 길이 없으면 null */
-export function routeThrough(picks) {
+/** 고른 역들 사이를 차례로 잇는 철도 경로: 지나는 역 순서(nodes)·노선(lines)·등급(cls). 길이 없으면 null. noHsr: 광역 전철은 고속선을 지나지 않는다 */
+export function routeThrough(picks, noHsr = false) {
   const net = effectiveNetwork(base, state), stSet = railStationSet();
+  const path = (a, b, line) => railPath(net.links, a, b, line, 1, railAdjacency(net.links, line, 1, noHsr));
   const lineKm = new Map(), nodes = [picks[0]], segs = [];
   // 두 역이 함께 지나는 노선(분당선 왕십리–수원 등)이 있으면 그 노선을 따라 간다: 가장 빠른 길은 고속선(수서평택고속선)으로 새기도 한다
   const common = (a, b) => { const la = new Set(linesAt(a).filter((x) => x.named && x.mode === 1).map((x) => x.name)); return linesAt(b).filter((x) => x.named && x.mode === 1 && la.has(x.name)).map((x) => x.name); };
   for (let k = 0; k + 1 < picks.length; k++) {
     const share = common(picks[k], picks[k + 1]);
-    const onLine = share.length ? railPath(net.links, picks[k], picks[k + 1], new Set(share)) : null;
+    const onLine = share.length ? path(picks[k], picks[k + 1], new Set(share)) : null;
     if (onLine) {
       segs.push({ a: picks[k], via: onLine });
       let node = picks[k];
@@ -182,14 +183,14 @@ export function routeThrough(picks) {
       }
       continue;
     }
-    let via = railPath(net.links, picks[k], picks[k + 1], null);
+    let via = path(picks[k], picks[k + 1], null);
     if (!via) return null;
     // 가장 빠른 길이 짧은 연결선을 여럿 거치면 계통이 지저분해진다: 길게 지나는 노선만 골라 그 노선을 따라 다시 찾는다
     const km = new Map();
     for (const i of via) { const l = net.links[i]; km.set(l.name, (km.get(l.name) || 0) + l.len); }
     const legKm = [...km.values()].reduce((a, b) => a + b, 0);
     const main = new Set([...km].filter(([, v]) => v >= Math.min(10, legKm * 0.15)).map(([n]) => n));
-    via = railPath(net.links, picks[k], picks[k + 1], main) || via;
+    via = path(picks[k], picks[k + 1], main) || via;
     segs.push({ a: picks[k], via });
     let node = picks[k];
     for (const i of via) {

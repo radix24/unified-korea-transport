@@ -125,6 +125,11 @@ export function lineStations({ links, nodes }, stationSet, name, mode = 1) {
   return out.filter((v, k) => out.indexOf(v) === k);
 }
 
+/** 광역 전철 계통인지 (광역 등급이거나 광역 통근 전동차): 고속선을 지나지 않는다 */
+export function isCommuter(kind, typeId) {
+  return kind === 'commuter' || typeId === 'commuter';
+}
+
 /** 철도 최단경로 (주행시간 기준) — 정차역 사이 실제 선로 구간. 제 노선(line)을 따라가고, 다른 노선은 끊긴 곳을 이을 때만 쓴다 */
 export function railPath(links, from, to, line, mode = 1, adj = railAdjacency(links, line, mode)) {
   const dist = new Map([[from, 0]]), prevLink = new Map(), prevNode = new Map();
@@ -165,16 +170,19 @@ export function railPath(links, from, to, line, mode = 1, adj = railAdjacency(li
 }
 
 /** railPath의 이웃 목록 (같은 망·노선으로 여러 번 찾을 때 한 번만 만들어 넘긴다) */
-export function railAdjacency(links, line, mode = 1) {
+export function railAdjacency(links, line, mode = 1, noHsr = false, hsrFirst = false) {
   const adj = new Map();
   links.forEach((l, i) => {
     if (l.mode !== mode || !l.active || l.via) return;
+    // 광역 전철(광역 등급·광역 통근 전동차)은 고속선에 들어가지 않는다
+    if (noHsr && l.cls === 'hsr') return;
     // 제 노선(여러 노선을 잇는 계통이면 그 노선들)을 따라가고, 다른 노선은 끊긴 곳을 이을 때만 쓴다
     // 환승 선로(같은 역의 다른 노선 승강장 사이)는 제 노선처럼 친다
     const own = !line || l.name?.endsWith(' 환승') || (line instanceof Set ? line.has(l.name) : Array.isArray(line) ? line.includes(l.name) : l.name === line);
     // 국외 선로(단둥–선양 철도 등)는 계통이 그 노선을 적었을 때만 다닌다 (평양–베이징 직통)
     if (l.ext && !(line && own)) return;
-    const t = (l.len / l.speed) * (own ? 1 : 4);
+    // 고속열차 계통은 고속선이 있으면 고속선으로 다닌다 (일반선은 서울역–광명 같은 진입 구간만)
+    const t = (l.len / l.speed) * (own ? 1 : 4) * (hsrFirst && l.cls !== 'hsr' ? 4 : 1);
     for (const [u, v] of [[l.a, l.b], [l.b, l.a]]) {
       if (!adj.has(u)) adj.set(u, []);
       adj.get(u).push([v, t, i]);
@@ -191,7 +199,7 @@ export function planService(links, stationSet, stops, kind, line, typeId = 'inte
   const cap = TRAIN_TYPES[typeId]?.maxKmh ?? 999;
   const segs = [];
   let km = 0, min = 0;
-  const adj = railAdjacency(links, line);
+  const adj = railAdjacency(links, line, 1, isCommuter(kind, typeId), typeId === 'hsr');
   for (let k = 0; k + 1 < stops.length; k++) {
     const via = railPath(links, stops[k], stops[k + 1], line, 1, adj);
     if (!via) return null;
@@ -336,7 +344,7 @@ function existingService(s, links, stations, stationSet, strict) {
   else {
     // 두 끝 역 사이 경로의 모든 역
     const a = find(s.from), b = find(s.to);
-    const via = a != null && b != null ? railPath(links, a, b, new Set(s.lines)) : null;
+    const via = a != null && b != null ? railPath(links, a, b, new Set(s.lines), 1, railAdjacency(links, new Set(s.lines), 1, isCommuter(s.kind, s.type), s.type === 'hsr')) : null;
     if (!via) return null;
     if (strict && via.some((i) => links[i].name && !s.lines.includes(links[i].name) && !links[i].name.endsWith(' 환승'))) return null;
     stops = [a];
@@ -421,6 +429,19 @@ export function refreshExistingServices(state, net, stations) {
     if (svc) state.services.push({ ...svc, fund: old[0].fund || 'korail' });
   }
   return [...fixed, ...old.map((s) => s.name)];
+}
+
+/** 예전 저장: 고속선으로 다니던 광역 전철 계통(광역 등급·광역 통근 전동차)을 일반선으로 다시 짠다. 다시 짠 계통 이름을 돌려준다 */
+export function rerouteCommutersOffHsr(state, net, stations) {
+  const stationSet = new Set(stations.map((s) => s[1])), fixed = [];
+  for (const s of state.services || []) {
+    if (!isCommuter(s.kind, s.type) || !s.segs?.some((sg) => sg.via.some((i) => net.links[i]?.cls === 'hsr'))) continue;
+    const plan = planService(net.links, stationSet, s.stops, s.kind, new Set(s.lines || [s.line]), s.type);
+    if (!plan) continue;
+    s.segs = plan.segs; s.runMin = plan.runMin; s.km = plan.km; s.trains = tripsPerDay(s.sets, plan.runMin);
+    fixed.push(s.name);
+  }
+  return fixed;
 }
 
 /** 기다리는 계통 가운데 선로가 열린 것을 운행 시작한다. 시작한 계통 이름 목록을 돌려준다 */

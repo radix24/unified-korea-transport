@@ -1569,7 +1569,8 @@ export class Model {
     for (let i = 0; i < this.Z; i++) {
       const rel = this.income[i] > 0 ? this.income[i] / this.frontier : 1;
       const eff = this.isExt[i] ? ((this.pop[i] - this.korean[i]) * P.extMassFactor + this.korean[i] * P.koreanDiasporaFactor) * this.extMassW[i] : this.pop[i];
-      m[i] = eff / 1e4 * rel ** P.propensityIncomeElasticity;
+      // 북측은 소득이 낮아도 통행(출퇴근·장보기·친지 방문)이 크게 줄지 않는다: 소득 탄력성을 따로 낮게 (예전 0.3이면 같은 인구의 남측 대비 약 41%)
+      m[i] = eff / 1e4 * rel ** (this.isKP[i] && !this.isExt[i] ? P.propensityIncomeElasticityKP : P.propensityIncomeElasticity);
     }
     return m;
   }

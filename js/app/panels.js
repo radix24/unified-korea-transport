@@ -19,7 +19,8 @@ import {
   state, zoneProps,
 } from './core.js';
 import { autoYears, avgHappiness, countyKey, nextYear, runYears, updateAutoBtn, zoneName } from './year.js';
-import { allLinks, drawEmdLines, paintZones, setHighlight, showPointOnMap } from './mapdata.js';
+import { allLinks, drawEmdLines, nodeNames, paintZones, setHighlight, showPointOnMap } from './mapdata.js';
+import { flyToNode } from './transfer.js';
 import { adminInvalidate, drawHalls, setShowHalls, showHalls } from './region.js';
 import { drawUnivs, setShowUnivs, showUnivs, startUnivPick } from './univ.js';
 import { select } from './interact.js';
@@ -177,6 +178,18 @@ export function paletteCommands() {
     if (e.mode >= 1 && e.name && !e.ext && !e.name.endsWith(' 환승')) { if (!lines.has(e.name)) lines.set(e.name, []); lines.get(e.name).push(i); }
   });
   for (const [name, ids] of lines) add('노선', name, () => gotoLinks(ids.slice(0, 400)), { keywords: '철도 노선 운행', order: 8 });
+  // 역 찾기: 일반철도·도시철도·새로 지은 역. 지나는 노선 이름을 함께 보여 주어 이름이 같은 역(서울 강동·평양 강동 등)을 가린다
+  const lineAt = new Map();
+  allLinks().forEach((_, i) => {
+    const e = linkAt(base, state, i);
+    if (e.mode < 1 || !e.name || e.ext || e.via || e.name.endsWith(' 환승')) return;
+    for (const n of [e.a, e.b]) { if (!lineAt.has(n)) lineAt.set(n, new Set()); lineAt.get(n).add(e.name); }
+  });
+  for (const [node, v] of nodeNames()) {
+    if (v.kind !== 'station' || !lineAt.has(node)) continue;
+    const ls = [...lineAt.get(node)];
+    add('역', v.name, () => { flyToNode(node); select({ type: 'node', id: node }); }, { hint: ls.slice(0, 3).join('·') + (ls.length > 3 ? ` 외 ${ls.length - 3}` : ''), keywords: `${v.name} 역 정거장 ${ls.join(' ')}`, order: 7 });
+  }
   return cmds;
 }
 

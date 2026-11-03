@@ -2,7 +2,7 @@
 import { formatWon, upgradeCost, UPGRADES } from '../game/catalog.js';
 import { opBadge, operatorOf } from '../game/operators.js';
 import {
-  canRun, defaultTrainType, lineStations, OPERATING, planService, railPath, removeService, SERVICE_KINDS, serviceBuyCost, startService, TRAIN_TYPES, tripsPerDay, updateService,
+  canRun, defaultTrainType, isCommuter, lineStations, OPERATING, planService, railAdjacency, railPath, removeService, SERVICE_KINDS, serviceBuyCost, startService, TRAIN_TYPES, tripsPerDay, updateService,
 } from '../game/services.js';
 import { effectiveNetwork, FREQ_STEPS, linkAt, linkPending, load, OP_FACTORS, save, startUpgrade } from '../game/state.js';
 import { autoBrand } from '../game/trainnames.js';
@@ -25,7 +25,8 @@ import { popWithin } from './gazette.js';
 // ------------------------------------------------------------ 운행 계통 (특급·급행·보통)
 
 // 계획 목록 (plans.js가 넣는다: 서로 가져오면 순환하므로)
-let plansOf = null, planLineOf = null;
+// var(초기값 없음): plans.js가 이 모듈보다 먼저 실행되며 넣어도 지워지지 않게 (let이면 초기화 전 접근 오류)
+var plansOf, planLineOf;   // eslint-disable-line no-var
 export function setPlansOf(f, lineName) { plansOf = f; planLineOf = lineName; }
 /** 계통 계획이 다니는 노선 이름: lines(기존 노선·국외 노선 이름) + lineOf(먼저 지은 계획들의 노선 이름) */
 export function servicePlanLines(plan) {
@@ -129,7 +130,7 @@ export function openServiceEditor(line, cls, id = null) {
   const s = id && state.services.find((x) => x.id === id);
   const lines = s?.lines || [line];
   // 이미 있는 계통은 정차역을 차례로 잇는 경로의 역들로 (여러 노선을 지나는 계통도 순서가 맞게)
-  const nodes = (s && s.stops.length >= 2 && routeThrough(s.stops)?.nodes) || chainStations(net, lines);
+  const nodes = (s && s.stops.length >= 2 && routeThrough(s.stops, isCommuter(s.kind, s.type))?.nodes) || chainStations(net, lines);
   if (nodes.length < 2) { alert('이 노선에는 역이 둘 이상 있어야 운행 계통을 짤 수 있습니다.'); return; }
   const under = net.links.filter((l) => lines.includes(l.name) && l.mode === 1 && !l.via);
   svcEdit = s
@@ -170,7 +171,8 @@ export function openServicePlan(plan) {
   // 그 사이 선로가 지나는 모든 역 (광역 전철은 모든 역에 선다)
   const nodes = [ends[0]];
   for (let k = 0; k + 1 < ends.length; k++) {
-    const via = railPath(net.links, ends[k], ends[k + 1], new Set(plan.lines));
+    // 광역 전철 계획은 고속선을 지나지 않는다
+    const via = railPath(net.links, ends[k], ends[k + 1], new Set(plan.lines), 1, railAdjacency(net.links, new Set(plan.lines), 1, isCommuter(plan.kind || 'commuter', plan.train || 'commuter'), plan.train === 'hsr'));
     if (!via) { alert(`${plan.name}: ${names[k]}–${names[k + 1]} 사이 선로가 이어지지 않습니다.`); return; }
     let node = ends[k];
     for (const i of via) { const l = net.links[i]; node = l.a === node ? l.b : l.a; if (set.has(node) && nodes[nodes.length - 1] !== node) nodes.push(node); }
@@ -345,7 +347,8 @@ export function bindService(el) {
     const pl = !e.id && e.plan && plansOf?.().find((x) => x.id === e.plan);
     for (const [nm, lon, lat] of pl?.newStops || []) {
       const sv = state.services[state.services.length - 1];
-      const ids = [...new Set(sv.segs.flatMap((sg) => sg.via))];
+      // 광역철도 전용역: 고속선이 아닌 일반선 위에만 놓는다
+      const ids = [...new Set(sv.segs.flatMap((sg) => sg.via))].filter((i) => linkAt(base, state, i).cls !== 'hsr');
       let best = null, bd = 1.5;
       for (const i of ids) {
         const g = linkAt(base, state, i).geom || [];

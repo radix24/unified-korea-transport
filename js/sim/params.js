@@ -55,6 +55,7 @@ export const P = {
   gravityPower: 2.0,
   gravityOffsetMin: 30,
   propensityIncomeElasticity: 0.3,
+  propensityIncomeElasticityKP: 0.1,   // 북측 존의 통행 발생 소득 탄력성 (소득 2,500달러면 남측 대비 약 74%. 0.3이면 41%)
   personsPerCar: 1.4,
   freightPCUShare: 0.3,       // 여객 PCU 대비 화물차 PCU
   targetKrMotorwayVC: 0.65,   // 기준 연도 보정 목표: 남측 고속도로 평균 V/C
