@@ -4,7 +4,7 @@ import { opBadge, operatorOf } from '../game/operators.js';
 import {
   canRun, defaultTrainType, isCommuter, lineStations, OPERATING, planService, railAdjacency, railPath, removeService, SERVICE_KINDS, serviceBuyCost, startService, TRAIN_TYPES, tripsPerDay, updateService,
 } from '../game/services.js';
-import { effectiveNetwork, FREQ_STEPS, linkAt, linkPending, load, OP_FACTORS, save, startUpgrade } from '../game/state.js';
+import { effectiveNetwork, FREQ_STEPS, linkAt, linkPending, load, OP_FACTORS, save, startProject, startUpgrade } from '../game/state.js';
 import { autoBrand } from '../game/trainnames.js';
 import { t } from '../i18n.js';
 import { kmBetween } from '../sim/model.js';
@@ -179,8 +179,11 @@ export function openServicePlan(plan) {
   }
   // 광역 전철은 모든 역에 서고, 정차역(stopsAt)이 적힌 계획(고속 직통)은 그 역에만 선다
   const stops = plan.stopsAt ? new Set(nodes.filter((n, k) => k === 0 || k === nodes.length - 1 || plan.stopsAt.includes((nn.get(n)?.name || '').replace(/(역|청년)$/, '')) || plan.stopsAt.includes(nn.get(n)?.name))) : new Set(nodes);
-  svcEdit = { line: plan.lines[0], lines: plan.lines, cls: plan.cls || 'conv', kind: plan.kind || 'commuter', name: plan.service || plan.name, type: plan.train || 'commuter', sets: plan.sets || 6,
-    nodes, stops, id: null, nameEdited: true, color: plan.color || nextSvcColor(), plan: plan.id, upgrade: plan.upgrade !== false };
+  // 단계 확장(extends: 앞 단계 계획): 앞 단계로 연 계통을 늘린다 (같은 계통 이름·색, 편성은 늘린 만큼만 산다)
+  const prev = plan.extends && (state.services || []).find((s) => s.plan === plan.extends || s.planChain?.includes(plan.extends));
+  if (plan.extends && !prev) { alert(`${plan.name}: 먼저 ${requireName(plan.extends)}로 계통을 열어야 합니다.`); return; }
+  svcEdit = { line: plan.lines[0], lines: plan.lines, cls: plan.cls || 'conv', kind: plan.kind || 'commuter', name: prev ? prev.name : plan.service || plan.name, type: plan.train || 'commuter',
+    sets: Math.max(prev?.sets || 0, plan.sets || 6), nodes, stops, id: prev ? prev.id : null, nameEdited: true, color: prev?.color || plan.color || nextSvcColor(), plan: plan.id, upgrade: plan.upgrade !== false };
   select({ type: 'service' });
 }
 
@@ -334,19 +337,28 @@ export function bindService(el) {
     const rec = { name, kind: e.kind, line: e.lines[0], lines: e.lines, cls: e.cls, stops, type: e.type, sets: e.sets, runMin: plan.runMin, km: plan.km, segs: plan.segs, color: e.color,
       underLinks: plan.under, plan: e.plan };
     // 계획 광역 전철: 복선 전철화를 먼저 착공한다 (예산이 모자라면 계통도 열지 않는다)
-    if (!e.id && e.plan && e.upgrade) {
+    if (e.plan && e.upgrade) {
       const upg = serviceUpgrade(plan);
       if (upg.ids.length) {
         const u = startUpgrade(base, state, upg.ids, 'kpstd', { label: `${e.name} 복선 전철화` });
         if (!u.ok) { alert(u.reason); return; }
       }
     }
+    // 단계 확장: 계통이 거쳐 온 계획(planChain)을 적어 두고, 이 계획을 착공한 것으로 남긴다 (차량을 더 사면 그 사업, 아니면 운행 연장 사업)
+    const before = e.id && state.services.find((x) => x.id === e.id);
+    if (before && e.plan && before.plan && before.plan !== e.plan) rec.planChain = [...new Set([...(before.planChain || []), before.plan])];
+    const nProj = state.projects.length;
     const r = e.id ? updateService(state, e.id, rec) : startService(state, rec);
     if (!r.ok) { alert(r.reason); return; }
+    if (e.id && e.plan) {
+      const veh = state.projects.slice(nProj).find((p) => p.kind === 'vehicles');
+      if (veh) veh.plan = e.plan;
+      else startProject(state, { id: crypto.randomUUID(), kind: 'vehicles', service: e.id, plan: e.plan, links: [], cost: 0, years: 1, fund: before?.fund || 'gov', label: `${name} 운행 연장 (${plansOf?.().find((x) => x.id === e.plan)?.name || ''})` });
+    }
     // 계획 광역 전철의 중간 신설역: 계통이 지나는 선로 위 가장 가까운 자리에 역을 놓는다 (완공되면 계통이 선다)
-    const pl = !e.id && e.plan && plansOf?.().find((x) => x.id === e.plan);
+    const pl = e.plan && plansOf?.().find((x) => x.id === e.plan);
     for (const [nm, lon, lat] of pl?.newStops || []) {
-      const sv = state.services[state.services.length - 1];
+      const sv = e.id ? state.services.find((x) => x.id === e.id) : state.services[state.services.length - 1];
       // 광역철도 전용역: 고속선이 아닌 일반선 위에만 놓는다
       const ids = [...new Set(sv.segs.flatMap((sg) => sg.via))].filter((i) => linkAt(base, state, i).cls !== 'hsr');
       let best = null, bd = 1.5;

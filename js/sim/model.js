@@ -196,7 +196,10 @@ export class Model {
         // 정차역 사이: 밑 선로 주행시간에서 통과역 정차 시간을 빼고, 열차 등급만큼 빠르다
         // 열차 종류의 최고 속도가 선로 속도보다 낮으면 그만큼 느리다
         let t = 0;
-        for (const v of l.via) t += this.freeTime[v] * Math.max(1, L[v].speed / (l.speedCap || 999));
+        // 모든 역에 서는 계통(광역·보통)은 그 구간 기본 열차와 같은 열차로 보아 차량 최고 속도로 늦추지 않는다
+        // (복선 전철화로 선로가 120km/h가 되면 광역 통근 전동차(110km/h)가 기본 열차보다 늘 느려 계통 이용객이 0이 되었다)
+        const allStop = l.kind === 'commuter' || l.kind === 'local';
+        for (const v of l.via) t += this.freeTime[v] * (allStop ? 1 : Math.max(1, L[v].speed / (l.speedCap || 999)));
         // 모든 역에 서는 계통(광역 전철 등)은 밑 선로의 기본 열차와 시간이 똑같아 배정이 기본 열차로만 가므로,
         // 시간표가 정해진 계통을 아주 조금 낫게 친다 (계통 이용객이 0으로 잡히지 않게)
         this.freeTime[i] = Math.max(1, t - l.skip * P.railDwellMin) * 0.995;
