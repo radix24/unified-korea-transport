@@ -7,7 +7,7 @@ import { t } from '../i18n.js';
 import { kmBetween } from '../sim/model.js';
 import { subFold, toast } from '../ui/panel.js';
 import { base, draft, esc, map, namer, state } from './core.js';
-import { allLinks, anyStationName, nodeCoord, nodeNames } from './mapdata.js';
+import { allLinks, anyStationName, nodeCoord, nodeNames, stationKey } from './mapdata.js';
 import { nearestNode, startDraft } from './draw.js';
 import { draftLineName, draftPoints, drawDraft, nameDraftPoint, withTangents } from './route.js';
 import { renderBuild, shownPlan, switchTab } from './panels.js';
@@ -46,7 +46,7 @@ export function resolveWaypoint([name, lon, lat], mode, motorwayEnd = false) {
   for (const [list, maxKm] of lists) {
     let best = null, bd = maxKm;
     for (const [nm, node] of list) {
-      if (nm !== name && nm !== `${name}역` && nm.replace(/역$/, '') !== name) continue;
+      if (stationKey(nm) !== stationKey(name)) continue;   // '-역'·'-청년'·두음법칙을 맞춰 견준다
       const c = nodeCoord(node);
       const d = kmBetween(lon, lat, c[0], c[1]);
       if (d < bd) { bd = d; best = node; }

@@ -1,6 +1,6 @@
 // 지도에 그릴 자료: 구간(linksFC)·교통량·역·공항, 행정 경계·이름·존 색칠.
 import { splineLine } from '../game/curve.js';
-import { kpPlaceText, PROPAGANDA_STEMS, regionOf } from '../game/local.js';
+import { dueum, kpPlaceText, PROPAGANDA_STEMS, regionOf } from '../game/local.js';
 import { pShare, subValue } from '../game/sentiment.js';
 import { isKP, linkAt, linkPending } from '../game/state.js';
 import { t } from '../i18n.js';
@@ -305,6 +305,28 @@ export function anyStationName(n) {
   const raw = base.stations.find((s) => s[1] === n)?.[0] || (base.metro_stations || []).find((s) => s[1] === n)?.[0];
   const v = state.names?.[n]?.name || (raw ? shownStation(raw, n) : null);
   return v && (state.names?.[n] ? state.names[n].kind === 'station' : true) ? noYeok(v) : v;
+}
+
+/**
+ * 역 이름을 맞출 때 쓰는 열쇠: '-역'·'-청년' 꼬리를 떼고 두음법칙을 적용한다.
+ * 행정구역 정리로 보이는 이름이 바뀌어도(라산 → 나산, 사리원청년 → 사리원) 계획에 적힌 역 이름과 맞는다
+ */
+export function stationKey(name) {
+  if (!name) return '';
+  let s = name.replace(/역$/, '');
+  if (s.length >= 3) s = s.replace(/청년$/, '');
+  return dueum(s);
+}
+let rawStationNames = null;
+/** 역 노드의 이름 열쇠들: 보이는 이름, 자료의 원래 이름, 게임에서 붙인 이름 */
+export function stationKeysOf(n, shown) {
+  if (!rawStationNames || rawStationNames.base !== base) {
+    rawStationNames = { base, map: new Map() };
+    for (const [nm, node] of [...base.stations, ...(base.metro_stations || [])]) (rawStationNames.map.get(node) || rawStationNames.map.set(node, []).get(node)).push(nm);
+  }
+  const out = new Set();
+  for (const nm of [shown, state.names?.[n]?.name, ...(rawStationNames.map.get(n) || [])]) if (nm) out.add(stationKey(nm));
+  return out;
 }
 
 /** 지도·목록의 역 이름은 '-역'을 떼고 보인다 (서흥역 → 서흥, 서울역 → 서울). 두 글자 이름(구역 등)은 그대로 */

@@ -12,7 +12,7 @@ import { toast } from '../ui/panel.js';
 import { base, esc, namer, result, state } from './core.js';
 import { startStationAdd } from '../game/points.js';
 import { MEGA } from '../game/mega.js';
-import { allLinks, nodeCoord, nodeNames, refreshLinks } from './mapdata.js';
+import { allLinks, nodeCoord, nodeNames, refreshLinks, stationKey, stationKeysOf } from './mapdata.js';
 import { select } from './interact.js';
 import { fmtMin } from './route.js';
 import { renderAll } from './panels.js';
@@ -162,8 +162,21 @@ export function openServicePlan(plan) {
   // 역 찾기: 이름이 같은 역 가운데 계획 노선 위의 역을 먼저 (평양역처럼 다른 노선에만 있으면 그 역)
   const onLine = new Set();
   for (const l of net.links) if (l.mode === 1 && l.active && !l.via && plan.lines.includes(l.name)) { onLine.add(l.a); onLine.add(l.b); }
-  const named = (nm) => [...set].filter((n) => { const s = nn.get(n)?.name || ''; return s === nm || s.replace(/(역|청년)$/, '') === nm; });
-  const find = (nm) => { const c = named(nm); return c.find((n) => onLine.has(n)) ?? c[0]; };
+  // 이름은 보이는 이름·자료의 원래 이름 모두로, '-역'·'-청년'·두음법칙을 맞춰 견준다 (행정구역 정리로 라산이 나산으로 보여도 찾는다)
+  const named = (nm) => { const k = stationKey(nm); return [...set].filter((n) => stationKeysOf(n, nn.get(n)?.name).has(k)); };
+  // 이름으로 못 찾으면(이름을 바꾼 역·게임에서 새로 지은 역) 계획에 적힌 자리에서 3km 안의 노선 위 역으로
+  const near = (nm) => {
+    const pt = (plan.points || []).find((p) => stationKey(p[0]) === stationKey(nm));
+    if (!pt) return null;
+    let best = null, bd = 3;
+    for (const n of set) {
+      if (!onLine.has(n)) continue;
+      const c = nodeCoord(n), d = c ? kmBetween(pt[1], pt[2], c[0], c[1]) : Infinity;
+      if (d < bd) { bd = d; best = n; }
+    }
+    return best;
+  };
+  const find = (nm) => { const c = named(nm); return c.find((n) => onLine.has(n)) ?? c[0] ?? near(nm); };
   // 두 끝과 거쳐 가는 역(via: 직결하는 갈아타는 역, 평양·함흥 등) 사이를 차례로 잇는다
   const names = [plan.from, ...(plan.via || []), plan.to], ends = names.map(find);
   const miss = names.find((n, k) => ends[k] == null);
@@ -178,7 +191,7 @@ export function openServicePlan(plan) {
     for (const i of via) { const l = net.links[i]; node = l.a === node ? l.b : l.a; if (set.has(node) && nodes[nodes.length - 1] !== node) nodes.push(node); }
   }
   // 광역 전철은 모든 역에 서고, 정차역(stopsAt)이 적힌 계획(고속 직통)은 그 역에만 선다
-  const stops = plan.stopsAt ? new Set(nodes.filter((n, k) => k === 0 || k === nodes.length - 1 || plan.stopsAt.includes((nn.get(n)?.name || '').replace(/(역|청년)$/, '')) || plan.stopsAt.includes(nn.get(n)?.name))) : new Set(nodes);
+  const stops = plan.stopsAt ? new Set(nodes.filter((n, k) => k === 0 || k === nodes.length - 1 || plan.stopsAt.some((nm) => stationKeysOf(n, nn.get(n)?.name).has(stationKey(nm))))) : new Set(nodes);
   // 단계 확장(extends: 앞 단계 계획): 앞 단계로 연 계통을 늘린다 (같은 계통 이름·색, 편성은 늘린 만큼만 산다)
   // extends는 계획 id 또는 지금 다니는 계통 이름(대경선 등 기본 계통)
   const prev = plan.extends && (state.services || []).find((s) => s.plan === plan.extends || s.planChain?.includes(plan.extends) || s.name === plan.extends);
