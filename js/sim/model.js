@@ -441,6 +441,13 @@ export class Model {
     return z;
   }
 
+  /** 존 안 통행에서 승용차를 쓸 수 있는 사람의 몫 (0~1): 소득이 carOwnershipIncome에 닿으면 모두 (지역 간 통행의 carlessPenaltyMin과 같은 기준) */
+  carOwnShare(z) {
+    const inc = this.income?.[z];
+    if (!(inc > 0)) return 1;
+    return Math.min(1, Math.max(P.localCarOwnMin, inc / P.carOwnershipIncome));
+  }
+
   /** 도착지 주차 부담 (분): 밀도가 높은 도심일수록 주차장 찾기·걷기와 요금 */
   parkMin(z) {
     if (this.isExt[z]) return 0;
@@ -579,6 +586,8 @@ export class Model {
       const candOf = (a) => { let c = candCache.get(a); if (!c) candCache.set(a, (c = cands(a))); return c; };
       const trips = this.pop[z] * P.localTripRate;
       const parkZ = this.parkMin(z) * P.localParkShare;   // 도심 주차 부담 (구 안 짧은 통행은 주차가 더 쉽다: 일부만)
+      // 승용차를 쓸 수 있는 몫: 소득에 따라 늘어난다 (북측은 처음에 자동차가 드물어 대부분 버스·도시철도 중에서 고른다)
+      const own = this.carOwnShare(z);
       let cost = 0;
       for (let k = 0; k < pairs.length; k += 4) {
         const a = pairs[k], b = pairs[k + 1], dr = pairs[k + 2] * P.localDetour;
@@ -597,9 +606,14 @@ export class Model {
           }
         }
         if (tod && met < Infinity) met = Math.max(1, met - P.housingMetroBonusMin);
-        const eC = Math.exp(-th * (car + parkZ)), eB = Math.exp(-th * bus), eM = met < Infinity ? Math.exp(-th * met) : 0, e = eC + eB + eM;
-        cost += T * (-Math.log(e) / th);
-        if (shares) { shares.car[zi] += (T * eC) / e; shares.bus[zi] += (T * eB) / e; shares.met[zi] += (T * eM) / e; }
+        const eC = Math.exp(-th * (car + parkZ)), eB = Math.exp(-th * bus), eM = met < Infinity ? Math.exp(-th * met) : 0, e = eC + eB + eM, eN = eB + eM;
+        // 자동차가 있는 사람은 셋 중에서, 없는 사람은 버스·도시철도 중에서 고른다
+        cost += T * (own * (-Math.log(e) / th) + (1 - own) * (-Math.log(eN) / th));
+        if (shares) {
+          shares.car[zi] += (T * own * eC) / e;
+          shares.bus[zi] += T * eB * (own / e + (1 - own) / eN);
+          shares.met[zi] += T * eM * (own / e + (1 - own) / eN);
+        }
       }
       out[zi] = cost;
     });
@@ -918,10 +932,16 @@ export class Model {
 
   // ------------------------------------------------------------ 배정
 
-  borderCost(i, j, integration) {
+  /**
+   * 국경·남북 경계를 넘는 추가 일반화비용 (분).
+   * 중국·러시아 육로(철도·도로)는 통합도가 오를수록 북측 국경이 보통 국경처럼 열려 landBorderOpenMin으로 줄어든다.
+   * 항공(air)은 공항 출입국이라 통합도와 상관없이 intlBorderMin 그대로다
+   */
+  borderCost(i, j, integration, air = false) {
     if (this.isExt[i] || this.isExt[j]) {
       if (this.isExt[i] && this.isExt[j]) return Infinity;   // 국외끼리는 다루지 않는다
-      return P.intlBorderMin[this.extCountry[i] || this.extCountry[j]] ?? 150;
+      const c = this.extCountry[i] || this.extCountry[j], base = P.intlBorderMin[c] ?? 150, open = P.landBorderOpenMin[c];
+      return air || open == null ? base : base * (1 - integration) + open * integration;
     }
     return this.isKP[i] !== this.isKP[j] ? P.borderPenaltyMin * (1 - integration) : 0;
   }
@@ -1273,7 +1293,7 @@ export class Model {
     const crail = new Float64Array(Z), airC = new Array(Z), compAcc = new Float64Array(Z), timeAcc = new Float64Array(Z), tAcc = new Float64Array(Z);
     const lam = P.logitLambda;
     const A = this.airports.length;
-    const kmRow = new Float64Array(Z), bcRow = new Float64Array(Z);   // 출발 존마다 한 번 (승용차 출발 묶음마다 다시 재지 않게)
+    const kmRow = new Float64Array(Z), bcRow = new Float64Array(Z), bcAirRow = new Float64Array(Z);   // 출발 존마다 한 번 (승용차 출발 묶음마다 다시 재지 않게)
     let done = 0;
     // 이 반복 동안 링크 비용은 그대로다: 간선 순서로 펴 둔 비용을 쓴다 (최단경로가 링크 번호로 건너뛰며 읽지 않게)
     this.road.fixCosts(this.cost);
@@ -1330,7 +1350,7 @@ export class Model {
       const carPen = P.carlessPenaltyMin * Math.max(0, 1 - this.income[i] / P.carOwnershipIncome);
       // 승용차: 출발 소구역 묶음마다 따로 최단경로 트리를 만든다.
       // 존 전체를 한 트리로 하면 모든 통행이 가장 유리한 접속점 하나로 나가, 같은 시군구 안 다른 읍면동 쪽 도로는 비어 보인다
-      for (let j = 0; j < Z; j++) { kmRow[j] = kmBetween(this.cx[i], this.cy[i], this.cx[j], this.cy[j]) * 1.25; bcRow[j] = this.borderCost(i, j, integration); }
+      for (let j = 0; j < Z; j++) { kmRow[j] = kmBetween(this.cx[i], this.cy[i], this.cx[j], this.cy[j]) * 1.25; bcRow[j] = this.borderCost(i, j, integration); bcAirRow[j] = this.isExt[i] || this.isExt[j] ? this.borderCost(i, j, integration, true) : bcRow[j]; }
       let zw = 0;
       for (let o = o0; o < o0 + on; o++) zw += Math.max(this.subW[o], 0);
       for (let g = this.grpOff[i]; g < this.grpOff[i + 1]; g++) {
@@ -1382,7 +1402,7 @@ export class Model {
           const air = airC[j];
           if (!air) { compAcc[j] += share * gr; continue; }
           const afare = airFare(km) * (air.intl ? P.airIntlFareFactor : 1);
-          const ga = air.cost + afare / P.vot + P.airASC + bc;
+          const ga = air.cost + afare / P.vot + P.airASC + bcAirRow[j];
           const eR = Math.exp(-lam * gr), eT = isFinite(gt) ? Math.exp(-lam * gt) : 0, eU = isFinite(gu) ? Math.exp(-lam * gu) : 0;
           const eA = isFinite(ga) ? Math.exp(-lam * ga) : 0;
           const sum = eR + eT + eU + eA;
@@ -1406,7 +1426,7 @@ export class Model {
           // 운항하지 않는 노선이 열렸다면 생겼을 수요 (자동 취항 판단용)
           if (air.pa >= 0 && air.pot < air.cost - 5) {
             const pfare = airFare(km) * (air.pIntl ? P.airIntlFareFactor : 1);
-            const eP = Math.exp(-lam * (air.pot + pfare / P.vot + P.airASC + bc));
+            const eP = Math.exp(-lam * (air.pot + pfare / P.vot + P.airASC + bcAirRow[j]));
             latentOD[air.pa * A + air.pb] += T * eP / (sum - eA + eP);
           }
           if (it === iters) {

@@ -112,6 +112,7 @@ export const P = {
   targetKrTransitShare: 0.3,  // 기준 연도 보정 목표: 남측 지역 간 통행의 대중교통 분담률 (가정값)
   carlessPenaltyMin: 60,      // 자동차 보유가 적은 지역의 승용차 이용 불편 (소득에 따라 줄어듦)
   carOwnershipIncome: 20000,
+  localCarOwnMin: 0.05,       // 존 안 통행에서 승용차를 쓸 수 있는 사람의 최소 몫 (소득 / carOwnershipIncome, 1에서 그친다)
 
   // --- 항공
   airMinKm: 120,              // 이보다 가까운 공항 사이에는 노선을 두지 않는다
@@ -137,6 +138,7 @@ export const P = {
 
   // --- 국외 연결: 국경·출입국 비용 (분)
   intlBorderMin: { CN: 300, RU: 300, JP: 240, HK: 120, TH: 120, VN: 120, PH: 150, SG: 120, AU: 180, US: 180, CA: 180, DE: 150, FR: 150, GB: 150 },
+  landBorderOpenMin: { CN: 60, RU: 60 },   // 중국·러시아 육로 국경: 통합도 100%면 출입국 심사만 남는다 (통합도만큼 intlBorderMin에서 이 값으로 줄어든다, 항공은 그대로)
   extMassFactor: 0.25,        // 국외 도시의 통행 발생 비중 (언어·비자·생활권 차이로 국내 도시보다 적다)
   koreanDiasporaFactor: 0.8,  // 국외 거점의 한민족(조선족 등) 인구는 국내 인구의 이만큼으로 친다 (친척 방문·일·장사, 국경 수속은 그대로)
 

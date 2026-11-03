@@ -1,6 +1,6 @@
 {
-"v": "Alpha 0.6.6",
-"h": "23284e01ca",
+"v": "Alpha 0.6.7",
+"h": "19f6e81ccf",
 "files": [
 "css/style.css",
 "js/app/budget.js",
@@ -105,7 +105,7 @@
 "js/app/budget.js": "cac6d3c882",
 "js/app/bungu.js": "0ac86c8060",
 "js/app/compare.js": "5fdd23f7ab",
-"js/app/core.js": "528fe06330",
+"js/app/core.js": "6a8749b581",
 "js/app/draw.js": "0c664887d3",
 "js/app/econ.js": "b61444feec",
 "js/app/election.js": "b8910e5d14",
@@ -171,8 +171,8 @@
 "js/main.js": "ac83e2455b",
 "js/sim/graph.js": "2ade26898c",
 "js/sim/helper.js": "7927157a89",
-"js/sim/model.js": "85c557feed",
-"js/sim/params.js": "faa814c6fa",
+"js/sim/model.js": "030fbb3458",
+"js/sim/params.js": "fe62814613",
 "js/sim/pool.js": "0e97922c06",
 "js/sim/worker.js": "ee583004e2",
 "js/ui/borders.js": "d16d94e117",
@@ -196,7 +196,7 @@
 "data/grid.bin": "f71413232c",
 "data/air_sea.json": "95c2211b84",
 "data/admin/sgg.geojson": "092c999886",
-"data/baseline.json": "433d87f0cd",
-"data/baseline.bin": "235ae03cef"
+"data/baseline.json": "825142b3a4",
+"data/baseline.bin": "5978b02cff"
 }
 }
