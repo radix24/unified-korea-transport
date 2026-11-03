@@ -180,7 +180,8 @@ export function openServicePlan(plan) {
   // 광역 전철은 모든 역에 서고, 정차역(stopsAt)이 적힌 계획(고속 직통)은 그 역에만 선다
   const stops = plan.stopsAt ? new Set(nodes.filter((n, k) => k === 0 || k === nodes.length - 1 || plan.stopsAt.includes((nn.get(n)?.name || '').replace(/(역|청년)$/, '')) || plan.stopsAt.includes(nn.get(n)?.name))) : new Set(nodes);
   // 단계 확장(extends: 앞 단계 계획): 앞 단계로 연 계통을 늘린다 (같은 계통 이름·색, 편성은 늘린 만큼만 산다)
-  const prev = plan.extends && (state.services || []).find((s) => s.plan === plan.extends || s.planChain?.includes(plan.extends));
+  // extends는 계획 id 또는 지금 다니는 계통 이름(대경선 등 기본 계통)
+  const prev = plan.extends && (state.services || []).find((s) => s.plan === plan.extends || s.planChain?.includes(plan.extends) || s.name === plan.extends);
   if (plan.extends && !prev) { alert(`${plan.name}: 먼저 ${requireName(plan.extends)}로 계통을 열어야 합니다.`); return; }
   svcEdit = { line: plan.lines[0], lines: plan.lines, cls: plan.cls || 'conv', kind: plan.kind || 'commuter', name: prev ? prev.name : plan.service || plan.name, type: plan.train || 'commuter',
     sets: Math.max(prev?.sets || 0, plan.sets || 6), nodes, stops, id: prev ? prev.id : null, nameEdited: true, color: prev?.color || plan.color || nextSvcColor(), plan: plan.id, upgrade: plan.upgrade !== false };

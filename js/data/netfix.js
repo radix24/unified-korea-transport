@@ -185,6 +185,8 @@ export function fixNetwork(base, nodeFix = {}, roadFix = {}, linkFix = null) {
   // 비전철로 두면 고속열차·KTX 계통을 짤 수 없고 열차가 느려진다
   for (const l of base.links) {
     if (l.mode === 1 && (!l.power || l.power === 'none') && (l.cls === 'hsr' || /^(경부고속선|호남고속선|수서평택고속선|경부선|호남선|전라선)$/.test(l.name || ''))) l.power = 'AC';
+    // 대구선(동대구–영천, 2018 복선 전철)과 진주 동쪽 경전선(삼랑진–마산–진주)도 전철인데 짧은 구간이 빠져 있다 (순천–광주송정은 아직 비전철)
+    if (l.mode === 1 && (!l.power || l.power === 'none') && (l.name === '대구선' || (l.name === '경전선' && l.geom?.[0] > 128.05))) l.power = 'AC';
   }
   // 대심도 광역급행철도(GTX): 지도 자료 선형이 역 어귀에서 기존 노선을 따라 구불거린다(대곡 등). 지하 깊이 거의 곧게 가므로
   // 250m 안의 잔굴곡을 없애고 매끈한 곡선으로 (양 끝 역 자리는 그대로)

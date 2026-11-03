@@ -1,6 +1,6 @@
 {
-"v": "Alpha 0.7.6",
-"h": "5a943893fe",
+"v": "Alpha 0.7.7",
+"h": "81f61ec36f",
 "files": [
 "css/style.css",
 "js/app/budget.js",
@@ -105,7 +105,7 @@
 "js/app/budget.js": "cac6d3c882",
 "js/app/bungu.js": "a572b29378",
 "js/app/compare.js": "5fdd23f7ab",
-"js/app/core.js": "84083f9bd9",
+"js/app/core.js": "70da1ad488",
 "js/app/draw.js": "0c664887d3",
 "js/app/econ.js": "b61444feec",
 "js/app/election.js": "ec004f9348",
@@ -130,13 +130,13 @@
 "js/app/selpanel.js": "be69e130b5",
 "js/app/sez.js": "46756e9461",
 "js/app/straighten.js": "060255c4c3",
-"js/app/svc.js": "f004cf61be",
+"js/app/svc.js": "5164d934de",
 "js/app/svcmap.js": "b9eefc1369",
 "js/app/transfer.js": "8f9103cc4a",
 "js/app/univ.js": "55280ad761",
 "js/app/year.js": "953337f0c4",
 "js/app/zonedev.js": "288d518913",
-"js/data/netfix.js": "95156d9eaf",
+"js/data/netfix.js": "7c55476c12",
 "js/data/netpack.js": "c93034050a",
 "js/game/admin.js": "6e7cff7d4f",
 "js/game/airlines.js": "b733a560f9",
@@ -196,7 +196,7 @@
 "data/grid.bin": "f71413232c",
 "data/air_sea.json": "ed23acc23d",
 "data/admin/sgg.geojson": "092c999886",
-"data/baseline.json": "04bb620b24",
-"data/baseline.bin": "5666baf4cf"
+"data/baseline.json": "a895e10051",
+"data/baseline.bin": "c878a980a8"
 }
 }
