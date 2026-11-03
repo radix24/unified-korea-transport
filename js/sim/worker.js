@@ -211,6 +211,9 @@ async function handle(msg) {
       // 망 전체를 다시 배정해 두 결과를 빼면 배정 잡음이 사업 효과보다 커서, 고정한 상태에서 견준다.
       // years > 0이면 그만큼 읍면동 인구가 접근이 좋은 곳으로 옮겨 간 뒤를 견준다 (양쪽 모두)
       const years = msg.years || 0;
+      // 항공 노선·운항 횟수는 그해 계산 뒤 항공사가 다음 해 것으로 바꿔 둔다: 처리 쪽만 바뀐 항공편을 쓰면
+      // 사업과 상관없는 항공 편익이 붙었다 (2028년 아무것도 짓지 않아도 B/C 93). 처리 쪽도 그해(대조) 항공편으로 견준다
+      if (lastNet) { msg.net.airRoutes = lastNet.airRoutes; msg.net.airBanned = lastNet.airBanned; }
       // 미리보기 뒤에는 저장해 둔 상태로 되돌리는데, 저장할 때 교통량·대기시간·읍면동 비중이 반올림된다.
       // 처음부터 한 번 저장·되돌림을 거쳐, 그해 첫 미리보기와 다음 미리보기가 같은 상태에서 시작하게 한다
       const saved = model.exportBaseline(lastTotals, null);

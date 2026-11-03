@@ -1,6 +1,6 @@
 {
-"v": "Alpha 0.7.7",
-"h": "81f61ec36f",
+"v": "Alpha 0.7.8",
+"h": "f6b400ca0e",
 "files": [
 "css/style.css",
 "js/app/budget.js",
@@ -105,7 +105,7 @@
 "js/app/budget.js": "cac6d3c882",
 "js/app/bungu.js": "a572b29378",
 "js/app/compare.js": "5fdd23f7ab",
-"js/app/core.js": "70da1ad488",
+"js/app/core.js": "35de44bc26",
 "js/app/draw.js": "0c664887d3",
 "js/app/econ.js": "b61444feec",
 "js/app/election.js": "ec004f9348",
@@ -174,7 +174,7 @@
 "js/sim/model.js": "853422a3ac",
 "js/sim/params.js": "08ce1fcc7b",
 "js/sim/pool.js": "0e97922c06",
-"js/sim/worker.js": "11b1e8eb22",
+"js/sim/worker.js": "9ad4272b7a",
 "js/ui/borders.js": "d16d94e117",
 "js/ui/gazette.js": "0153535eaf",
 "js/ui/guide.js": "39dd5deb9e",
