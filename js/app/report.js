@@ -93,7 +93,7 @@ export async function importSave(file) {
 /** 놓은 노선 길이(km)와 완공 사업 수 */
 export function builtSummary() {
   const out = { hsr: 0, rail: 0, metro: 0, road: 0, done: 0, upgrades: 0 };
-  const kind = { hsr: 'hsr', tunnelRail: 'hsr', gtx: 'rail', rail: 'rail', rail1: 'rail', metro: 'metro', motorway: 'road', trunk: 'road', tunnelRoad: 'road' };
+  const kind = { hsr: 'hsr', tunnelRail: 'hsr', gtx: 'rail', rail: 'rail', rail1: 'rail', metro: 'metro', motorway: 'road', trunk: 'road', tunnelRoad: 'road', hsr350: 'hsr', semi250: 'rail', semi200: 'rail', motorwayUg: 'road', trunk2: 'road', lrt: 'metro', lrtug: 'metro' };
   for (const p of state.projects) {
     // 처음부터 이어받은 공사(OSM 공사 중 노선)는 플레이어 사업이 아니므로 세지 않는다
     if (p.status !== 'done' || p.kind === 'osm') continue;

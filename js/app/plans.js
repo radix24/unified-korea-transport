@@ -177,7 +177,8 @@ export function openPlan(id) {
     if (nm && !sameNameNear(nm, wp[1], wp[2], 15)) { if (pt.reserved) namer.release(pt.name, 'station'); pt.name = nm; pt.auto = false; }
   }
   // 옛 노선을 걷어 내는 계획(현대화·고속화)은 새 선형 곁의 옛 역을 새 노선 역으로 넣는다 (완공 뒤에도 그 역의 여객 영업이 이어진다)
-  const oldStops = plan.retireLine && spec.mode === 1 ? addOldLineStops(plan.retireLine) : 0;
+  // keepStops: 계획이 옛 역 가운데 남길 역을 이미 골라 둔 현대화(나머지 옛 역 자리는 경유점)는 옛 역을 더 넣지 않는다
+  const oldStops = plan.retireLine && spec.mode === 1 && !plan.keepStops ? addOldLineStops(plan.retireLine) : 0;
   if (oldStops) draft.recNote = `옛 ${plan.retireLine.join('·')} 역 ${oldStops}곳을 새 노선의 역으로 넣었습니다. 완공 때 옛 선로를 걷어 내도 이 역들의 여객 영업이 이어집니다. 서지 않을 역은 '통과'로 바꾸세요.`;
   // 복원 사업처럼 기존 노선을 잇는 계획은 그 노선 이름을 이어 쓴다 (사업 이름은 계획 이름).
   // 옛 노선을 대신하는 계획도 그 노선 이름을 잇는다 (황해청년선 현대화 → 황해청년선: 계획 이름이 노선 이름이 되어 옛 노선이 사라진 것처럼 보였다)
@@ -262,7 +263,7 @@ export const IC_SPACING = { motorway: 10, trunk: 6 };
 export function fillPlanICs(type, jctOnly = false) {
   const gap = IC_SPACING[type] ?? IC_SPACING.motorway;
   if ((!IC_SPACING[type] && !jctOnly) || !draft || draft.points.length < 2) return 0;
-  const mw = type === 'motorway' || type === 'tunnelRoad';
+  const mw = type === 'motorway' || type === 'motorwayUg' || type === 'tunnelRoad';
   const segs = smoothSegments(draftPoints());
   const samples = [];
   let s = 0;
@@ -322,7 +323,7 @@ export function fillPlanICs(type, jctOnly = false) {
  * 예전에는 계획 노선에만 넣어, 직접 그린 고속도로는 기존 고속도로와 엇갈려도 이어지지 않았다
  */
 export function autoJCTs() {
-  if (!draft || !['motorway', 'tunnelRoad'].includes(draft.type)) return 0;
+  if (!draft || !['motorway', 'motorwayUg', 'tunnelRoad'].includes(draft.type)) return 0;
   const n = fillPlanICs(draft.type, true);
   if (n) { drawDraft(); renderBuild(); toast(`기존 고속도로와 만나는 ${n}곳에 JCT를 넣었습니다.`); }
   return n;
@@ -386,18 +387,30 @@ export function plansHTML() {
   const doneIds = new Set(state.projects.filter((p) => p.status === 'done' && p.plan).map((p) => p.plan));
   const building = new Map(state.projects.filter((p) => p.status === 'building' && p.plan).map((p) => [p.plan, p]));
   const open = plans.filter((p) => !doneIds.has(p.id));
-  const groups = [...new Set(open.map((p) => p.group))];
+  const row = (p) => {
+    let km = 0;
+    for (let i = 1; i < p.points.length; i++) km += kmBetween(p.points[i - 1][1], p.points[i - 1][2], p.points[i][1], p.points[i][2]);
+    const spec = NEW_BUILDS[p.type];
+    if (p.type === 'service') return servicePlanRow(p, started, building);
+    return `<div class="item line"><div class="n" data-plan-show="${p.id}" style="cursor:pointer;${shownPlan === p.id ? 'text-decoration:underline' : ''}" title="지도에 노선 보기"><span class="t-row"><b>${esc(p.phase ? p.name.replace(/ \d단계/, '') : p.name)}</b>${p.phase ? ` <span class="cnt phase-tag">${esc(p.phase)}</span>` : ''}</span>${p.after && !started.has(p.after) ? ' <span class="m">1단계를 먼저 지으면 같은 노선으로 이어집니다</span>' : ''}${p.note ? ` <span class="m">${esc(p.note)}</span>` : ''}<span class="m" title="${esc(p.source || '')}">${spec.label.replace(/ (부설|건설)/, '')} · 약 ${Math.round(km * 1.1)}km · ${formatWon(km * 1.1 * spec.perKm)}</span></div>
+      <button class="small" data-plan="${p.id}" ${started.has(p.id) ? 'disabled' : ''}>${building.has(p.id) ? `공사 중 (${building.get(p.id).doneYear}년)` : started.has(p.id) ? '착공함' : '열기'}</button></div>`;
+  };
+  // 묶음은 '지역/종류/권역' 길(tree)로 겹겹이 접는다 (2026.11 건의: 남한·북한·남북·국제 사업 → 고속철도·일반철도… → 수도권·비수도권…)
+  const pathOf = (p) => (p.tree || p.group || '기타').split('/');
+  const fold = (prefix, list) => {
+    const kids = [...new Set(list.filter((p) => pathOf(p).length > prefix.length).map((p) => pathOf(p)[prefix.length]))];
+    const here = list.filter((p) => pathOf(p).length === prefix.length);
+    return (here.length ? `<div class="list">${here.map(row).join('')}</div>` : '')
+      + kids.map((k) => {
+        const sub = list.filter((p) => pathOf(p)[prefix.length] === k);
+        const path = [...prefix, k];
+        return subFold(`plans:${path.join('/')}`, `${esc(k)} <span class="cnt">${sub.length}</span>`, fold(path, sub));
+      }).join('');
+  };
   // 계획 사업 전체도 처음에는 접어 둔다 (분류 묶음도 모두 접힘이 기본)
   return subFold('plans:all', `계획 사업 <span class="cnt">${open.length}</span>`, `
     <p class="hint">국가·광역 교통계획의 노선입니다. 이름을 누르면 지도에 보이고, "열기"를 누르면 경유지가 찍힌 그리기가 열립니다.</p>
-    ${groups.map((g) => subFold(`plans:${g}`, `${esc(g)} <span class="cnt">${open.filter((p) => p.group === g).length}</span>`, `<div class="list">${open.filter((p) => p.group === g).map((p) => {
-      let km = 0;
-      for (let i = 1; i < p.points.length; i++) km += kmBetween(p.points[i - 1][1], p.points[i - 1][2], p.points[i][1], p.points[i][2]);
-      const spec = NEW_BUILDS[p.type];
-      if (p.type === 'service') return servicePlanRow(p, started, building);
-      return `<div class="item line"><div class="n" data-plan-show="${p.id}" style="cursor:pointer;${shownPlan === p.id ? 'text-decoration:underline' : ''}" title="지도에 노선 보기"><span class="t-row"><b>${esc(p.phase ? p.name.replace(/ \d단계/, '') : p.name)}</b>${p.phase ? ` <span class="cnt phase-tag">${esc(p.phase)}</span>` : ''}</span>${p.after && !started.has(p.after) ? ' <span class="m">1단계를 먼저 지으면 같은 노선으로 이어집니다</span>' : ''}${p.note ? ` <span class="m">${esc(p.note)}</span>` : ''}<span class="m" title="${esc(p.source || '')}">${spec.label.replace(/ 신설.*$/, '')} · 약 ${Math.round(km * 1.1)}km · ${formatWon(km * 1.1 * spec.perKm)}</span></div>
-        <button class="small" data-plan="${p.id}" ${started.has(p.id) ? 'disabled' : ''}>${building.has(p.id) ? `공사 중 (${building.get(p.id).doneYear}년)` : started.has(p.id) ? '착공함' : '열기'}</button></div>`;
-    }).join('')}</div>`)).join('')}`);
+    ${fold([], open)}`);
 }
 
 /** 기존선 광역 전철 계획(type 'service') 한 줄: 쓰는 노선·구간·차량. 열기를 누르면 운행 계통 편집이 열린다 */

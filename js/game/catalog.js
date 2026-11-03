@@ -151,27 +151,34 @@ export const UPGRADES = [
 
 /** 신설 사업 */
 export const NEW_BUILDS = {
-  motorway: { mode: 0, label: '고속도로 신설 (4차로)', perKm: 450, years: 5, attrs: { cls: 'motorway', lanes: 4, speed: 100, paved: 1 } },
-  trunk: { mode: 0, label: '국도 신설 (4차로)', perKm: 180, years: 3, attrs: { cls: 'trunk', lanes: 4, speed: 70, paved: 1 } },
-  hsr: { mode: 1, label: '고속철도 신설 (300km/h)', perKm: 850, years: 6, attrs: { cls: 'hsr', tracks: 2, speed: 300, power: 'AC' } },
+  // 건설 탭 단추 순서: 도로(고속도로·국도) 다음 철도(고속선로·일반선로·광역급행·도시철도)
+  motorway: { mode: 0, label: '고속도로 건설 (4차로)', perKm: 450, years: 5, attrs: { cls: 'motorway', lanes: 4, speed: 100, paved: 1 } },
+  // 지하 고속도로 (서부간선 지하도로·양재–고양 지하고속도로 등): 땅 밑이라 지형을 보지 않고 곧게 가지만 비싸다
+  motorwayUg: { mode: 0, label: '고속도로 건설 (지하)', perKm: 1500, years: 7, attrs: { cls: 'motorway', lanes: 4, speed: 90, paved: 1 } },
+  tunnelRoad: { mode: 0, label: '고속도로 건설 (해저)', perKm: 2500, years: 10, attrs: { cls: 'motorway', lanes: 4, speed: 90, paved: 1 } },
+  trunk: { mode: 0, label: '국도 건설 (4차로)', perKm: 180, years: 3, attrs: { cls: 'trunk', lanes: 4, speed: 70, paved: 1 } },
+  trunk2: { mode: 0, label: '국도 건설 (2차로)', perKm: 90, years: 2, attrs: { cls: 'trunk', lanes: 2, speed: 60, paved: 1 } },
   // 차세대 고속열차(최고 370km/h급)용: 곡선 반경·터널 단면을 키워 더 비싸다
-  hsr350: { mode: 1, label: '고속철도 신설 (350km/h급)', perKm: 1000, years: 6, attrs: { cls: 'hsr', tracks: 2, speed: 350, power: 'AC' } },
-  gtx: { mode: 1, label: '광역급행철도 신설 (대심도)', perKm: 1100, years: 6, attrs: { cls: 'conv', tracks: 2, speed: 120, power: 'AC' } },   // 최고 180km/h, 역마다 서고 가감속하므로 평균(표정) 속도로
-  rail: { mode: 1, label: '일반철도 신설 (복선전철)', perKm: 400, years: 5, attrs: { cls: 'conv', tracks: 2, speed: 150, power: 'AC' } },
+  hsr350: { mode: 1, label: '고속선로 부설 (350km/h)', perKm: 1000, years: 6, attrs: { cls: 'hsr', tracks: 2, speed: 350, power: 'AC' } },
+  hsr: { mode: 1, label: '고속선로 부설 (300km/h)', perKm: 850, years: 6, attrs: { cls: 'hsr', tracks: 2, speed: 300, power: 'AC' } },
+  tunnelRail: { mode: 1, label: '고속선로 부설 (해저)', perKm: 3500, years: 10, attrs: { cls: 'hsr', tracks: 2, speed: 250, power: 'AC' } },
+  // 준고속 일반선로 (중앙선·서해선·동해선 KTX-이음 구간): 일반선이지만 곡선을 펴고 복선 전철로 놓아 250·200km/h로 달린다
+  semi250: { mode: 1, label: '일반선로 부설 (250km/h)', perKm: 600, years: 6, attrs: { cls: 'conv', tracks: 2, speed: 250, power: 'AC' } },
+  semi200: { mode: 1, label: '일반선로 부설 (200km/h)', perKm: 500, years: 5, attrs: { cls: 'conv', tracks: 2, speed: 200, power: 'AC' } },
+  rail: { mode: 1, label: '일반선로 부설 (복선)', perKm: 400, years: 5, attrs: { cls: 'conv', tracks: 2, speed: 150, power: 'AC' } },
   // 단선 비전철: 싸고 빨리 짓지만 열차를 많이 못 다니고 느리다. 나중에 구간을 눌러 복선화·전철화할 수 있다
-  rail1: { mode: 1, label: '일반철도 신설 (단선 비전철)', perKm: 200, years: 4, attrs: { cls: 'conv', tracks: 1, speed: 120, power: 'none' } },
-  metro: { mode: 2, label: '도시철도 신설 (지하)', perKm: 1300, years: 6, attrs: { cls: 'metro', tracks: 2, speed: 35, power: 'AC' } },
+  rail1: { mode: 1, label: '일반선로 부설 (단선)', perKm: 200, years: 4, attrs: { cls: 'conv', tracks: 1, speed: 120, power: 'none' } },
+  gtx: { mode: 1, label: '광역급행철도선로 부설 (대심도)', perKm: 1100, years: 6, attrs: { cls: 'conv', tracks: 2, speed: 120, power: 'AC' } },   // 최고 180km/h, 역마다 서고 가감속하므로 평균(표정) 속도로
+  metro: { mode: 2, label: '도시철도 선로 부설 (지하)', perKm: 1300, years: 6, attrs: { cls: 'metro', tracks: 2, speed: 35, power: 'AC' } },
   // 경전철·트램: 지상·고가라 지하철의 3분의 1 값이지만 느리고(표정 25km/h) 수송력이 작다
-  lrt: { mode: 2, label: '경전철·트램 신설 (지상·고가)', perKm: 450, years: 5, attrs: { cls: 'metro', tracks: 2, speed: 25, power: 'AC' } },
+  lrt: { mode: 2, label: '경전철·트램 선로 부설 (지상)', perKm: 450, years: 5, attrs: { cls: 'metro', tracks: 2, speed: 25, power: 'AC' } },
   // 지하 경전철 (난곡선·서남선·하단녹산선 등): 지하라 비싸지만 중전철보다 정거장·차량이 작다 (실제 사업비 900~1,100억/km)
-  lrtug: { mode: 2, label: '경전철 신설 (지하)', perKm: 900, years: 6, attrs: { cls: 'metro', tracks: 2, speed: 32, power: 'AC' } },
-  tunnelRail: { mode: 1, label: '해저터널 (고속철도)', perKm: 3500, years: 10, attrs: { cls: 'hsr', tracks: 2, speed: 250, power: 'AC' } },
-  tunnelRoad: { mode: 0, label: '해저터널 (고속도로)', perKm: 2500, years: 10, attrs: { cls: 'motorway', lanes: 4, speed: 90, paved: 1 } },
+  lrtug: { mode: 2, label: '경전철 선로 부설 (지하)', perKm: 900, years: 6, attrs: { cls: 'metro', tracks: 2, speed: 32, power: 'AC' } },
 };
 
 /** 공항 사업 (사업비 억원, 용량 연간 백만 명) */
 export const AIRPORT = {
-  build: { label: '공항 신설', cost: 20000, years: 6, cap: 10 },
+  build: { label: '신공항 건설', cost: 20000, years: 6, cap: 10 },
   expand: { label: '공항 확장 (+1천만 명)', cost: 8000, years: 4, cap: 10 },
 };
 

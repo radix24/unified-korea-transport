@@ -57,7 +57,7 @@ export function recommendRoute(text) {
       return n != null ? { node: n, lon: nodeCoord(n)[0], lat: nodeCoord(n)[1], split: null } : { node: null, lon: c[0], lat: c[1], split: null };
     };
     points = [snapTo(a), snapTo(b)];
-    title = `${city.name}–${bCity.name} ${spec.label.replace(/ 신설.*$/, '')}`;
+    title = `${city.name}–${bCity.name} ${spec.label.replace(/ (부설|건설).*$/, '')}`;
     const d = kmBetween(a[0], a[1], b[0], b[1]);
     why = `${title} 추천안: 두 도시 중심(인구 가중)을 잇는 직선 약 ${d.toFixed(0)}km. 경유지를 눌러 더하거나 기존 ${spec.mode ? '역' : 'IC'}에 붙여 고친 뒤 착공하세요.`;
   }

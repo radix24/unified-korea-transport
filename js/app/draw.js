@@ -12,10 +12,19 @@ import { renderAll, renderBuild, renderLegend, switchTab } from './panels.js';
 import { startedNotice } from './plans.js';
 import { effectiveGrid, endHousingPick, endPointAdd, pointAdd } from './housing.js';
 import { warmPreview } from './preview.js';
+import { drawDraft } from './route.js';
 
 // ------------------------------------------------------------ 신설 그리기
 
 export function startDraft(type) {
+  // 그리는 중에 같은 갈래(도로↔도로, 철도↔철도, 도시철도↔도시철도)의 다른 종류를 누르면 찍은 점은 두고 종류만 바꾼다
+  // (예전에는 사업이 취소되어 350km/h를 300km/h로 바꾸려면 처음부터 다시 그려야 했다)
+  if (draft && draft.points.length && type !== 'airport' && draft.type !== 'airport' && type !== draft.type && NEW_BUILDS[type]?.mode === NEW_BUILDS[draft.type]?.mode) {
+    draft.type = type;
+    drawDraft(); renderBuild();
+    toast(`${t(NEW_BUILDS[type].label)}(으)로 바꿨습니다. 찍은 역·경유점은 그대로입니다.`);
+    return;
+  }
   endHousingPick();   // 택지지구 고르기 중이면 끝낸다 (지도 클릭을 가로채지 않도록)
   if (!namer) { alert('지명 데이터를 아직 불러오는 중입니다. 잠시 후 다시 눌러 주세요.'); return; }
   warmPreview();

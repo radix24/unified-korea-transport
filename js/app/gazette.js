@@ -40,7 +40,7 @@ export function linesAt(node) {
 
 // ------------------------------------------------------------ 착공 고시문 (계획안 공문서)
 
-export const GZ_COLOR = { hsr: '#1f5fd1', gtx: '#0c7d8c', rail: '#7b3fa0', rail1: '#7b3fa0', metro: '#1a9a6c', motorway: '#2e7d4f', trunk: '#3f8f5a', tunnelRoad: '#2e7d4f', tunnelRail: '#1f5fd1' };
+export const GZ_COLOR = { hsr: '#1f5fd1', gtx: '#0c7d8c', rail: '#7b3fa0', rail1: '#7b3fa0', metro: '#1a9a6c', motorway: '#2e7d4f', trunk: '#3f8f5a', tunnelRoad: '#2e7d4f', tunnelRail: '#1f5fd1', hsr350: '#1f5fd1', semi250: '#7b3fa0', semi200: '#7b3fa0', motorwayUg: '#2e7d4f', trunk2: '#3f8f5a', lrt: '#1a9a6c', lrtug: '#1a9a6c' };
 export const GZ_AUTO = 'ukt-gazette-auto';
 
 export function gazetteAuto() {

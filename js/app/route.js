@@ -329,7 +329,7 @@ export function nameDraftPoint(pt) {
   } else if (pt.node != null || pt.split != null || pt.inserted) {
     if (existing && existing.kind !== 'station') { pt.name = existing.name; pt.kind = existing.kind; pt.existing = true; return; }
     // 고속도로끼리 만나면 JCT, 고속도로와 일반도로가 만나면 IC
-    const newMw = draft.type === 'motorway' || draft.type === 'tunnelRoad';
+    const newMw = draft.type === 'motorway' || draft.type === 'motorwayUg' || draft.type === 'tunnelRoad';
     const touchesMotorway = pt.split != null ? linkAt(base, state, pt.split).cls === 'motorway'
       : allLinks().some((l, i) => l.mode === 0 && (l.a === pt.node || l.b === pt.node) && linkAt(base, state, i).cls === 'motorway');
     pt.kind = newMw && touchesMotorway ? 'JCT' : newMw || touchesMotorway ? 'IC' : null;
@@ -677,7 +677,7 @@ export function draftCost() {
 
 /** 고속도로 휴게소 자리: 곡선을 따라 약 40km마다 (양 끝 20km 안쪽 제외) */
 export function restPositions(segs) {
-  if (!draft || !['motorway', 'tunnelRoad'].includes(draft.type)) return [];
+  if (!draft || !['motorway', 'motorwayUg', 'tunnelRoad'].includes(draft.type)) return [];
   const line = segs.flatMap((s, i) => (i ? s.slice(1) : s));
   const total = polylineKm(line);
   const out = [];

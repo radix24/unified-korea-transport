@@ -57,8 +57,11 @@ const EXACT = {
   // 건설 탭
   '역 신설 (노선 위 한 점)': 'New station (on a line)', 'IC 신설 (고속도로 위 한 점)': 'New interchange (on a motorway)', '역 골라 특급·급행 짜기': 'Plan express services', '택지지구 개발': 'Housing district',
   '노선 추천': 'Suggest a line', '미리보기': 'Preview', '첫해 (빠름)': 'First year (fast)', '5년 뒤 (읍면동 인구 이동 반영, 느림)': 'After 5 years (with migration, slow)',
-  '고속도로 신설 (4차로)': 'New motorway (4 lanes)', '국도 신설 (4차로)': 'New national road (4 lanes)', '고속철도 신설': 'New high-speed rail', '광역급행철도 신설 (대심도)': 'New GTX express (deep tunnel)',
-  '일반철도 신설 (복선전철)': 'New rail (double-track electric)', '도시철도 신설 (지하)': 'New metro (underground)', '해저터널 (고속철도)': 'Undersea tunnel (HSR)', '해저터널 (고속도로)': 'Undersea tunnel (motorway)', '공항 신설': 'New airport',
+  '고속도로 건설 (4차로)': 'Build motorway (4 lanes)', '고속도로 건설 (지하)': 'Build motorway (underground)', '고속도로 건설 (해저)': 'Build motorway (undersea)', '국도 건설 (4차로)': 'Build national road (4 lanes)', '국도 건설 (2차로)': 'Build national road (2 lanes)',
+  '고속선로 부설 (350km/h)': 'Lay high-speed track (350 km/h)', '고속선로 부설 (300km/h)': 'Lay high-speed track (300 km/h)', '고속선로 부설 (해저)': 'Lay high-speed track (undersea)',
+  '일반선로 부설 (250km/h)': 'Lay rail track (250 km/h)', '일반선로 부설 (200km/h)': 'Lay rail track (200 km/h)', '일반선로 부설 (복선)': 'Lay rail track (double)', '일반선로 부설 (단선)': 'Lay rail track (single)',
+  '광역급행철도선로 부설 (대심도)': 'Lay GTX express track (deep tunnel)', '도시철도 선로 부설 (지하)': 'Lay metro track (underground)', '경전철·트램 선로 부설 (지상)': 'Lay light rail / tram track (surface)', '경전철 선로 부설 (지하)': 'Lay light rail track (underground)', '공항 신설': 'New airport',
+  '철도 운행 계통 신설': 'New rail service', '(도시)철도역 신설': 'New (metro) station', 'IC·JCT 신설': 'New interchange / junction', '고속도로 휴게소 설치': 'New motorway rest area', '대학 건설': 'Build a university', '신공항 건설': 'Build a new airport',
   '효과 미리보기': 'Preview effect', '비교에 담기 (A·B·C안)': 'Add to comparison (A/B/C)', '모두 지우기': 'Clear all', '계획 사업': 'Planned projects',
   // 설정
   '도움말': 'Help', '처음 안내 다시 보기': 'Show the tutorial again', '오류 제보하기': 'Report a bug', '저장 슬롯': 'Save slots', '새 게임': 'New game', '난이도': 'Difficulty', '데이터': 'Data',

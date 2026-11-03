@@ -28,7 +28,7 @@ function corridorOf(a, b) {
 }
 
 const KIND = {
-  hsr: '고속철도', rail: '선', rail1: '선', motorway: '고속도로', trunk: '국도', metro: '도시철도',
+  hsr: '고속철도', hsr350: '고속철도', semi250: '선', semi200: '선', rail: '선', rail1: '선', motorway: '고속도로', motorwayUg: '지하고속도로', trunk: '국도', trunk2: '국도', metro: '도시철도',
   tunnelRail: '해저고속철도', tunnelRoad: '해저고속도로',
 };
 
@@ -57,7 +57,7 @@ export function autoLineName(type, from, to, used) {
     return `${a} 도시철도 ${n}호선`;
   }
   const corridor = a !== b ? corridorOf(a, b) : null;
-  if (type === 'trunk') base = `${a}–${b} 국도`;
+  if (type === 'trunk' || type === 'trunk2') base = `${a}–${b} 국도`;
   else base = `${corridor ?? `${abbr(a)}${abbr(b)}`}${KIND[type] ?? '선'}`;
   if (!used.has(base)) return base;
   for (let n = 2; n < 10; n++) if (!used.has(`제${n}${base}`)) return `제${n}${base}`;

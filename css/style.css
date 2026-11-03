@@ -160,6 +160,8 @@ details.fold-sub .item.line .n .t-row .phase-tag { margin-left: 0; }
 .tools button.on .c { color: var(--accent); }
 /* 카드 높이가 달라도(두 줄 이름) 글자는 위에서부터, 아래 작은 단추들은 두 칸 격자로 */
 .tools button { height: 100%; white-space: normal; }
+.tool-col { display: flex; flex-direction: column; gap: var(--s2); }
+.tool-col button { height: auto; width: 100%; }
 .tool-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); margin-bottom: var(--s3); }
 .tool-row button { width: 100%; white-space: normal; text-align: center; padding: 4px 8px; }
 .tool-row button.wide { grid-column: 1 / -1; }

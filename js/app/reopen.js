@@ -109,7 +109,7 @@ export function closedPanel(id) {
   for (let i = 1; i < sp.length; i++) straightKm += kmBetween(sp[i - 1].lon, sp[i - 1].lat, sp[i].lon, sp[i].lat) * 1.05;
   const opt = (type) => {
     const spec = NEW_BUILDS[type], cost = closedCost(c, type), ok = canAfford(state, cost, spec.years);
-    return `<div class="item opt"><div class="opt-row"><span>${spec.label.replace('신설 ', '')}</span>
+    return `<div class="item opt"><div class="opt-row"><span>${spec.label.replace(/ (부설|건설) /, ' ')}</span>
       <button class="small ${ok ? 'primary' : ''}" data-closed-go="${type}" ${ok && !taken ? '' : 'disabled'}>${formatWon(cost)} · ${spec.years}년</button></div></div>`;
   };
   return `${header(`${c.label} (폐선)`)}
@@ -120,7 +120,7 @@ export function closedPanel(id) {
     ${taken ? '<p class="hint">이미 재개통 사업을 벌였습니다.</p>' : `<h4>옛 선형 그대로</h4><div class="list">${types.map(opt).join('')}</div>
       <h4>직선화해 복원</h4>
       <p class="hint">옛 역(과 양 끝)만 잇고 선형은 새로 곧게 놓습니다. 굽은 옛 노반을 쓰지 않아 할인은 없지만 짧고 빨라집니다. 그리기로 열려 역과 경로를 고친 뒤 착공합니다.</p>
-      <div class="list">${types.map((type) => `<div class="item opt"><div class="opt-row"><span>${NEW_BUILDS[type].label.replace('신설 ', '')}</span>
+      <div class="list">${types.map((type) => `<div class="item opt"><div class="opt-row"><span>${NEW_BUILDS[type].label.replace(/ (부설|건설) /, ' ')}</span>
         <button class="small" data-closed-straight="${type}">그리기로 열기 · 약 ${straightKm.toFixed(0)}km</button></div></div>`).join('')}</div>`}`;
 }
 
