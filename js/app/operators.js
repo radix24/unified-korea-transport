@@ -162,7 +162,7 @@ export function serviceBrand(s) {
   const nn = nodeNames();
   const under = s.segs.flatMap((seg) => seg.via.map((i) => linkAt(base, state, i)));
   const country = s.stops.map(foreignCountry).find(Boolean) || null;
-  return trainBrand({ type: s.type, kind: s.kind, cls: s.cls, km: s.km, stops: s.stops.map((n) => nn.get(n)?.name), conv: under.some((l) => l.cls === 'conv'), op: serviceOperator(s), country }).short;
+  return trainBrand({ type: s.type, kind: s.kind, cls: s.cls, km: s.km, stops: s.stops.map((n) => nn.get(n)?.name), conv: under.some((l) => l.cls === 'conv'), op: serviceOperator(s), country, tunnel: under.some((l) => l.name === '한일해저터널') }).short;
 }
 
 /** 철도 사업 재원 고르기 (정부 예산 / 운영사 자체 재원) */

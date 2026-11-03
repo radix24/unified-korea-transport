@@ -1,15 +1,17 @@
 // 열차 이름 체계: 계통의 열차 종류·등급·운영사·지나는 나라로 실제 열차 이름(브랜드)을 붙인다.
 // 남측(코레일·통합 공사): KTX·KTX-산천·KTX-이음·SRT·ITX-새마을·ITX-마음·새마을호·무궁화호·누리로
-// 북측 KPRail(합병 전): 급행·보통열차 / 일본: 신칸센 노조미·히카리·고다마 / 중국: 复兴号·和谐号 / 러시아: 로시야호·라스토치카
+// 북측 KPRail(합병 전): 급행·보통열차 / 일본: 신칸센 노조미·히카리·고다마 (한일해저터널 직통은 노조미·미즈호) / 중국: 复兴号·和谐号 / 러시아: 로시야호·라스토치카
 // 자동으로 다니는 기본 보통열차는 무궁화호(고속선은 KTX)다.
 
 /**
- * @param {object} s {type, kind, cls, km, stops?: 정차역 이름들, conv?: 일반 선로를 지나는지, op?: 'korail'|'kprail'|'merged', country?: 'JP'|'CN'|'RU'}
+ * @param {object} s {type, kind, cls, km, stops?: 정차역 이름들, conv?: 일반 선로를 지나는지, op?: 'korail'|'kprail'|'merged', country?: 'JP'|'CN'|'RU', tunnel?: 한일해저터널을 지나는지}
  * @returns {{name:string, short:string}}
  */
 export function trainBrand(s) {
   const kind = s.kind || 'local';
   if (s.country === 'JP') {
+    // 한일해저터널로 들어가는 직통 열차는 노조미(나고야·도쿄까지 가는 도카이도 직통)와 미즈호(오사카·산요·규슈 안)만 쓴다
+    if (s.tunnel) { const n = (s.stops || []).some((x) => x === '도쿄' || x === '나고야') ? '노조미' : '미즈호'; return { name: `신칸센 ${n}`, short: n }; }
     const n = kind === 'limited' ? '노조미' : kind === 'express' ? '히카리' : '고다마';
     return { name: `신칸센 ${n}`, short: n };
   }
