@@ -1,6 +1,6 @@
 {
-"v": "Alpha 0.8.0",
-"h": "31e62dc6d2",
+"v": "Alpha 0.8.1",
+"h": "6a5512853a",
 "files": [
 "css/style.css",
 "js/app/budget.js",
@@ -105,7 +105,7 @@
 "js/app/budget.js": "cac6d3c882",
 "js/app/bungu.js": "a572b29378",
 "js/app/compare.js": "5fdd23f7ab",
-"js/app/core.js": "e62f1b6783",
+"js/app/core.js": "af3c6c98fa",
 "js/app/draw.js": "e6fac3684d",
 "js/app/econ.js": "b61444feec",
 "js/app/election.js": "ec004f9348",
