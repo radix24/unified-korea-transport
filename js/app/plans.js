@@ -40,7 +40,9 @@ export function resolveWaypoint([name, lon, lat], mode, motorwayEnd = false) {
   // 이름이 같은 기존 역: 같은 종류 철도는 6km(도시철도는 1.5km) 안, 다른 종류(일반철도↔도시철도)는 1km 안이면 그 역에 바로 붙는다.
   // 다른 종류 역에 붙으면 같은 노드라 저절로 환승역이 된다 (예전에는 그 옆에 같은 이름 역을 하나 더 만들었다: 신분당선 용산 등).
   // 도시철도는 역이 촘촘해 6km 안에 같은 이름의 다른 역이 흔하다 (평양 3호선 광복이 3km 떨어진 1호선 광복역으로 끌려가 선이 꺾였다)
-  const lists = mode === 2 ? [[base.metro_stations || [], 1.5], [base.stations, 1]] : mode === 1 ? [[base.stations, 6], [base.metro_stations || [], 1]] : [];
+  // 게임에서 새로 지은 역(앞 단계 계획이 놓은 만포역 등)도 같은 이름이면 그 역에 붙는다 (예전에는 같은 자리에 역을 하나 더 만들었다)
+  const built = Object.entries(state.names || {}).filter(([, v]) => v.kind === 'station').map(([n, v]) => [v.name, +n]);
+  const lists = mode === 2 ? [[base.metro_stations || [], 1.5], [base.stations, 1], [built, 1.5]] : mode === 1 ? [[base.stations, 6], [built, 6], [base.metro_stations || [], 1]] : [];
   for (const [list, maxKm] of lists) {
     let best = null, bd = maxKm;
     for (const [nm, node] of list) {

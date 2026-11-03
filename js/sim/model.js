@@ -689,6 +689,8 @@ export class Model {
     const roadNodes = new Set(), railNodes = new Set(), hsrNodes = new Set();
     // 승용차·버스는 고속도로 중간으로 바로 들어가지 못한다: 고속도로만 닿는 노드는 접속 노드에서 뺀다 (IC는 다른 도로가 닿아 남는다)
     for (const l of net.links) {
+      // 고속열차 운행 계통(KTX 등)이 서는 역도 고속철도역이다 (서울역·용산처럼 일반선 구간에서 출발하는 고속열차)
+      if (l.via && l.active && l.cls === 'hsr') { hsrNodes.add(l.a); hsrNodes.add(l.b); }
       if (!l.active || l.mode === 2 || l.via) continue;
       if (l.mode === 0 && l.cls === 'motorway') continue;
       const set = l.mode === 0 ? roadNodes : railNodes;
@@ -1586,7 +1588,10 @@ export class Model {
       this.transitASC += P.transitASCStep * Math.log((t.krTransit / t.krTrips) / P.targetKrTransitShare);
       const road = this.meanVC((l) => l.mode === 0 && l.cls === 'motorway');
       // 철도는 일반철도와 고속철도를 따로 맞춘다: 한 상수로 맞추면 포화된 경부고속선에 끌려 일반철도 수요가 너무 낮아진다
-      const conv = this.quantileVC((l) => l.mode === 1 && l.cls === 'conv' && !l.via && !l.ext, P.railCalibQuantile);
+      // 고속열차 계통(KTX)이 함께 달리는 일반선 진입 구간(서울역–금천구청 등)은 일반철도 혼잡 기준에서 뺀다 (그 구간 혼잡에 끌려 철도 상수 전체가 올랐다)
+      const hsrVia = new Set();
+      for (const v of this.virtual) if (this.net.links[v].cls === 'hsr') for (const u of this.net.links[v].via) hsrVia.add(u);
+      const conv = this.quantileVC((l, i) => l.mode === 1 && l.cls === 'conv' && !l.via && !l.ext && !hsrVia.has(i), P.railCalibQuantile);
       const hsr = this.quantileVC((l) => l.mode === 1 && l.cls === 'hsr' && !l.via && !l.ext, P.railCalibQuantile);
       if (!isFinite(road) || !isFinite(conv) || !isFinite(hsr)) break;
       this.K *= P.targetKrMotorwayVC / road;
@@ -1616,7 +1621,7 @@ export class Model {
     let total = 0;
     for (let i = 0; i < L.length; i++) {
       const l = L[i];
-      if (l.kp || !l.active || !pred(l) || !this.capacity[i]) continue;
+      if (l.kp || !l.active || !pred(l, i) || !this.capacity[i]) continue;
       rows.push([this.volume[i] / this.capacity[i], l.len]);
       total += l.len;
     }
@@ -1632,7 +1637,7 @@ export class Model {
     const L = this.net.links;
     for (let i = 0; i < L.length; i++) {
       const l = L[i];
-      if (l.kp || !l.active || !pred(l) || !this.capacity[i]) continue;
+      if (l.kp || !l.active || !pred(l, i) || !this.capacity[i]) continue;
       num += (this.volume[i] / this.capacity[i]) * l.len;
       den += l.len;
     }

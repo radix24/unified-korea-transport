@@ -306,6 +306,19 @@ export const EXISTING_SERVICES = [
   { name: 'GTX-A (수서–동탄)', color: '#9a6292', kind: 'express', type: 'intercity', sets: 6, lines: ['수도권광역급행철도에이선', '수서평택고속선'], stops: ['수서', '성남', '구성', '동탄'] },
   { name: 'GTX-A (운정–서울)', color: '#9a6292', kind: 'express', type: 'intercity', sets: 8, lines: ['수도권광역급행철도에이선'], stops: ['운정', '킨텍스', '대곡', '연신내', '서울'] },
   // 선로가 열리면(원시–서화성 연결, OSM 개통 예정 2030) 그해부터 다니는 계통
+  // 고속열차 (KTX, SR 통합 뒤 수서발도 KTX): 고속선과 서울·용산·수서 쪽 기존선을 직통한다 (호남고속선은 오송에서 경부고속선으로 서울까지)
+  { name: 'KTX 경부선 (서울–부산)', color: '#1b3f8b', kind: 'limited', type: 'hsr', cls: 'hsr', sets: 14, hsr: true, lines: ['경부선', '경부고속선'],
+    stops: ['서울역', '광명', '천안아산', '오송', '대전', '김천구미', '동대구', '경주', '울산', '부산'] },
+  { name: 'KTX 경부선 (수서–부산)', color: '#1b3f8b', kind: 'limited', type: 'hsr', cls: 'hsr', sets: 6, hsr: true, lines: ['수서평택고속선', '경부고속선'],
+    stops: ['수서', '동탄', '평택지제', '천안아산', '오송', '대전', '김천구미', '동대구', '경주', '울산', '부산'] },
+  { name: 'KTX 호남선 (용산–목포)', color: '#1b3f8b', kind: 'limited', type: 'hsr', cls: 'hsr', sets: 6, hsr: true, lines: ['경부선', '경부고속선', '호남고속선', '호남선'],
+    stops: ['용산', '광명', '천안아산', '오송', '공주', '익산', '정읍', '광주송정', '나주', '목포'] },
+  { name: 'KTX 호남선 (수서–목포)', color: '#1b3f8b', kind: 'limited', type: 'hsr', cls: 'hsr', sets: 3, hsr: true, lines: ['수서평택고속선', '경부고속선', '호남고속선', '호남선'],
+    stops: ['수서', '동탄', '평택지제', '천안아산', '오송', '공주', '익산', '정읍', '광주송정', '나주', '목포'] },
+  { name: 'KTX 전라선 (용산–여수엑스포)', color: '#1b3f8b', kind: 'limited', type: 'hsr', cls: 'hsr', sets: 3, hsr: true, lines: ['경부선', '경부고속선', '호남고속선', '전라선'],
+    stops: ['용산', '광명', '천안아산', '오송', '익산', '전주', '남원', '순천', '여수엑스포'] },
+  { name: 'KTX 강릉선 (서울–강릉)', color: '#1b3f8b', kind: 'limited', type: 'hsr', cls: 'hsr', sets: 3, hsr: true, lines: ['경의선', '경원선', '중앙선', '경강선'],
+    stops: ['서울역', '청량리', '상봉', '양평', '서원주', '만종', '횡성', '둔내', '평창', '진부', '강릉'] },
   // 전 구간이 열리면 대곡–홍성 계통 하나만 남긴다 (replaces: 그때 없애는 부분 계통)
   { name: '서해선 (대곡–홍성)', color: '#8fc31f', kind: 'local', type: 'intercity', sets: 22, lines: ['서해선'], from: '대곡', to: '홍성', wait: true,
     replaces: ['서해선 광역 (대곡–원시)', '서해선 일반 (서화성–홍성)'] },
@@ -346,14 +359,28 @@ function existingService(s, links, stations, stationSet, strict) {
 /** 새 게임에 EXISTING_SERVICES를 운행 중으로 넣는다 (차량비 없음, 이름으로 역을 찾고 없는 역은 건너뛴다).
  * wait인 계통은 선로가 아직 없으면 기다리는 목록에 두고, 해마다 openWaitingServices가 확인한다 */
 export function seedServices(state, base, operator = 'korail') {
-  if (state.servicesSeeded) return;
+  if (state.servicesSeeded) return seedHsrServices(state, base, operator);
   state.servicesSeeded = true;
+  state.hsrSeeded = true;
   const links = base.links.map((l) => ({ ...l, active: !l.open }));
   const stationSet = new Set(base.stations.map((s) => s[1]));
   for (const s of EXISTING_SERVICES) {
     const svc = existingService(s, links, base.stations, stationSet, !!s.wait);
     if (svc) (state.services ||= []).push({ ...svc, fund: operator });
     else if (s.wait) (state.waitingServices ||= []).push(s.name);
+  }
+}
+
+/** 0.7.2에 더한 기본 고속열차 계통(KTX)을 예전 저장에 한 번 넣는다 (예전에는 고속선을 기본 열차로만 다녀 호남고속선 열차가 서울까지 이어지지 않았다) */
+function seedHsrServices(state, base, operator) {
+  if (state.hsrSeeded) return;
+  state.hsrSeeded = true;
+  const links = base.links.map((l) => ({ ...l, active: !l.open }));
+  const stationSet = new Set(base.stations.map((s) => s[1]));
+  for (const s of EXISTING_SERVICES.filter((x) => x.hsr)) {
+    if ((state.services || []).some((x) => x.name === s.name)) continue;
+    const svc = existingService(s, links, base.stations, stationSet, false);
+    if (svc) (state.services ||= []).push({ ...svc, fund: operator });
   }
 }
 
