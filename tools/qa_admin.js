@@ -169,6 +169,43 @@ const b = document.querySelector('#selection [data-ev-city]'); if (!b) return { 
 b.click(); await wait(1500); await closeDlg();
 const core = ukt.state.local.offices[`m:${rep}`];
 return { rules: RULES(), fail: core && core.name === mayor && /구청장$/.test(core.title) ? [`시장 ${mayor}이 ${core.title} 자리를 이어받음`] : [], offs: zoneOffs('수원시') };
+// @@ gwangju_halls
+// 전남광주통합특별시청이 지도에 있어야 하고, 전라남도·광주광역시로 나누면 전라남도청·광주광역시청이 모두 있어야
+const H = () => M.R.hallList().filter((h) => h.kind === 'do').map((h) => `${h.name}@${h.region}`);
+const h0 = H();
+const f = h0.includes('전남광주통합특별시청@전남광주통합특별시') ? [] : ['전남광주통합특별시청 없음'];
+M.P.regionReorg('gwangju', '전남광주통합특별시'); await wait(800);
+const h1 = H();
+for (const w of ['전라남도청@전라남도', '광주광역시청@광주광역시']) if (!h1.includes(w)) f.push(`나눈 뒤 ${w.split('@')[0]} 없음`);
+if (h1.some((h) => h.startsWith('전남광주통합특별시청'))) f.push('나눈 뒤에도 통합특별시청이 남음');
+return { rules: RULES(), fail: f };
+// @@ pyongyang_metro
+// 절충안처럼 이북5도로 되돌린 뒤 평양시가 독립한 상태에서 '광역시로 명칭 변경' → 평양광역시 (평양광역시청도)
+const L = ukt.state.local, pz = zi('중구역', 'KP');
+(await import('/js/app/firstyear.js')).adminSetup(false); await wait(300);
+const sc = document.querySelector('.setup-wrap [data-setup="_scenario"]'); if (!sc) return { fail: ['행정구역 정리 창 없음'] };
+sc.value = 'mid'; document.querySelector('.setup-wrap [data-setup-act="ok"]').click();
+for (let k = 0; k < 60; k++) { await wait(1000); if (!ukt.busy && L.historic) break; }
+await closeDlg();
+const rules0 = RULES();
+const r0 = M.LC.regionOf(ukt.state, ukt.zoneProps[pz]);
+if (r0 !== '평양시') return { fail: [`시험 조건: 평양 소속 ${r0}`] };
+const hall0 = M.R.hallList().some((h) => h.name === '평양시청' && h.region === '평양시');
+await panelText({ type: 'region', id: r0 });
+const b = document.querySelector('#selection [data-metro-rename]');
+if (!b) return { fail: ['평양시 명칭 변경 단추 없음'] };
+b.click(); await wait(1500); await closeDlg();
+const r1 = M.LC.regionOf(ukt.state, ukt.zoneProps[pz]);
+const hall1 = M.R.hallList().some((h) => h.name === '평양광역시청' && h.region === '평양광역시');
+const rules1 = RULES();
+// 다음 단계를 위해 존치안으로 되돌린다
+(await import('/js/app/firstyear.js')).adminSetup(false); await wait(300);
+document.querySelector('.setup-wrap [data-setup="_scenario"]').value = 'keep'; document.querySelector('.setup-wrap [data-setup-act="ok"]').click();
+for (let k = 0; k < 60; k++) { await wait(1000); if (!ukt.busy && !L.historic) break; }
+await closeDlg();
+// 절충안 자체의 위반(남포·개성의 구역이 도 안에 남는 것)은 따로 본다: 명칭 변경으로 새로 생긴 위반과 평양 위반만
+return { rules: [...rules1.filter((x) => !rules0.includes(x) || /평양/.test(x)), ...RULES()], fail: [...(hall0 ? [] : ['독립한 평양시의 평양시청 없음']), ...(r1 === '평양광역시' ? [] : [`명칭 변경 뒤 평양 소속 ${r1}`]), ...(hall1 ? [] : ['평양광역시청 없음']),
+  ...(ukt.state.local.offices['g:평양광역시'] ? [] : ['평양광역시장 자리 없음'])] };
 // @@ year
 const y0 = ukt.state.year;
 document.querySelector('#btn-next')?.click();

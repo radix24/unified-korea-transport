@@ -4,7 +4,7 @@
 
 export const MEGA = [
   {
-    id: 'kj-tunnel', cat: '국제 연결', name: '한일해저터널', label: '한일해저터널 (부산–쓰시마–이키–후쿠오카)', cost: 600000, years: 10,
+    id: 'kj-tunnel', cat: '국제 연결', name: '한일해저터널', label: '한일해저터널 (부산–대마도–이키–후쿠오카)', cost: 600000, years: 10,
     desc: '부산에서 쓰시마·이키를 거쳐 후쿠오카까지 약 230km(해저 약 130km)의 고속철도 터널. 총사업비의 절반을 한국이 낸다. 완공되면 부산역에서 후쿠오카까지 고속열차가 다닌다.',
     ready: () => true,
   },
@@ -143,6 +143,7 @@ function addLink(base, state, attrs, coords) {
 }
 
 const JEJU = [126.4936, 33.4996];
+const TSUSHIMA = [129.29, 34.42];   // 대마도 (이즈하라 북쪽, 섬 가운데)
 
 /** 대형 사업의 선형 (지도 미리보기와 완공 때 쓴다). 없으면 null */
 export function megaGeometry(base, id) {
@@ -150,7 +151,7 @@ export function megaGeometry(base, id) {
     const a = railStation(base, '부산', /경부/);
     const b = (base.foreignNodes || []).find((f) => f.name === '후쿠오카')?.node;
     if (a == null || b == null) return null;
-    return { a, b, coords: [base.nodes[a], [129.32, 34.66], [129.68, 33.77], base.nodes[b]], stops: ['부산', '쓰시마', '이키', '후쿠오카'] };
+    return { a, b, coords: [base.nodes[a], TSUSHIMA, [129.68, 33.77], base.nodes[b]], stops: ['부산', '대마도', '이키', '후쿠오카'] };
   }
   if (id === 'jeju-hsr') {
     const a = railStation(base, '목포', /호남/);
@@ -198,7 +199,13 @@ export function applyMega(base, state, id) {
   const geo = megaGeometry(base, id);
   if (!geo) return [];
   if (id === 'kj-tunnel') {
-    return [addLink(base, state, { a: geo.a, b: geo.b, mode: 1, cls: 'hsr', len: 230, speed: 250, name: '한일해저터널', ext: 1 }, geo.coords)];
+    // 대마도까지는 국내 철도(실선), 대마도–이키–후쿠오카는 국제 구간(국외 선로, 점선). 대마도에 역을 둔다
+    const node = base.nodes.length + state.newNodes.length;
+    state.newNodes.push(TSUSHIMA);
+    state.newStations.push(node);
+    state.names[node] = { name: '대마도', kind: 'station', auto: false };
+    return [addLink(base, state, { a: geo.a, b: node, mode: 1, cls: 'hsr', len: 75, speed: 250, name: '한일해저터널' }, [geo.coords[0], TSUSHIMA]),
+      addLink(base, state, { a: node, b: geo.b, mode: 1, cls: 'hsr', len: 155, speed: 250, name: '한일해저터널', ext: 1 }, [TSUSHIMA, geo.coords[2], geo.coords[3]])];
   } else if (id === 'jeju-hsr') {
     const node = base.nodes.length + state.newNodes.length;
     state.newNodes.push(JEJU);

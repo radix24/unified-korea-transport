@@ -10,7 +10,7 @@ import { LANG, t } from '../i18n.js';
 import { getGuideMode, guideShouldAutoShow, startGuide } from '../ui/guide.js';
 import { LAYER_VIEWS, legendHTML, metricLevel, METRICS, setBasemap, setHousing, setHousingVisible, setLayerView, setRegions } from '../ui/map.js';
 import { goSection, initPalette, openPalette } from '../ui/palette.js';
-import { initPanelUI, toast } from '../ui/panel.js';
+import { initPanelUI, subFold, toast } from '../ui/panel.js';
 import { showPlanLine } from '../ui/plansmap.js';
 import { railKindLegend, syncRailKind } from '../ui/railkind.js';
 import { setTrains, trainsLegend } from '../ui/trainsmap.js';
@@ -156,7 +156,7 @@ export function paletteCommands() {
     ['설정', '새 게임·난이도', 'settings', '새 게임', null, '처음부터 다시 난이도'],
   ];
   for (const [g, title, tab, sec, find, kw] of deep) add(g, title, () => goSection(tab, sec, find), { keywords: kw, order: 4 });
-  for (const m of MEGA) add('국가 대형 사업', m.name, () => goSection('requests', '국가 대형 사업', m.name), { keywords: '대형 사업 메가', order: 4 });
+  for (const m of MEGA.filter((x) => !x.retired)) add('국가 대형 사업', m.name, () => goSection('requests', '국가 대형 사업', m.name), { keywords: '대형 사업 메가', order: 4 });
   for (const [k, v] of Object.entries(LAYER_VIEWS)) {
     add('보기', `지도 보기: ${v}`, () => { const sel = $('#layerview'); sel.value = k; sel.dispatchEvent(new Event('change', { bubbles: true })); }, { keywords: '레이어 표시', order: 6 });
   }
@@ -480,14 +480,15 @@ export function renderBuild() {
   const tools = Object.entries(NEW_BUILDS).map(([k, v]) =>
     `<button data-build="${k}" class="${draft?.type === k ? 'on' : ''}">${v.label}<span class="c">${formatWon(v.perKm)}/km · ${v.years}년</span></button>`).join('')
     + `<button data-build="airport" class="${draft?.type === 'airport' ? 'on' : ''}">${AIRPORT.build.label}<span class="c">${formatWon(AIRPORT.build.cost)} · ${AIRPORT.build.years}년</span></button>`;
-  let body = `${compareHTML()}<div class="tool-row"><button class="small" data-padd="station">역 신설 (노선 위 한 점)</button><button class="small" data-padd="ic">IC·JCT 신설 (고속도로 위 한 점)</button><button class="small" data-padd="rest">휴게소 신설</button><button class="small" id="univ-start">대학 설립</button>
+  // 자주 쓰지 않는 건설(역·IC·휴게소·대학·택지·특급)과 노선 추천·미리보기 기간은 '다른 건설·노선 추천' 접힘에 (추천 결과가 있으면 펼친다)
+  let body = `${compareHTML()}${subFold('build:more', '다른 건설 · 노선 추천', `<div class="tool-row"><button class="small" data-padd="station">역 신설 (노선 위 한 점)</button><button class="small" data-padd="ic">IC·JCT 신설 (고속도로 위 한 점)</button><button class="small" data-padd="rest">휴게소 신설</button><button class="small" id="univ-start">대학 설립</button>
     <button class="small svc-pick-b">역 골라 특급·급행 짜기</button><button class="small" id="housing-pick" title="지도에서 고른 곳에 주택 단지를 조성합니다 (인구 순증)">택지지구 개발</button></div>
     <div class="name-row" style="margin-bottom:4px"><input type="text" id="rec-text" placeholder="예: 평양에 도시철도 3호선을 짓고 싶어, 노선을 추천해줘" style="flex:1">
       <button class="small primary" id="rec-go">노선 추천</button></div>
     <p class="hint" id="rec-msg">${esc(recMsg)}</p>
     <div class="name-row"><span class="kind">미리보기</span><select id="prev-years">
-      <option value="0" ${previewYears ? '' : 'selected'}>첫해 (빠름)</option><option value="5" ${previewYears ? 'selected' : ''}>5년 뒤 (읍면동 인구 이동 반영, 느림)</option></select></div>
-    <p class="hint">기존 도로·철도를 개량하려면 지도에서 구간을 누르세요. <b>Shift를 누른 채 끌면</b> 여러 구간을 한꺼번에 골라 개량할 수 있습니다. 새 노선을 놓으려면 아래에서 종류를 고른 뒤 지도를 차례로 누르세요.</p>`;
+      <option value="0" ${previewYears ? '' : 'selected'}>첫해 (빠름)</option><option value="5" ${previewYears ? 'selected' : ''}>5년 뒤 (읍면동 인구 이동 반영, 느림)</option></select></div>`, !!recMsg)}
+    <p class="hint">구간을 누르면 개량, <b>Shift+끌기</b>는 여러 구간. 새 노선은 위에서 종류를 고른 뒤 지도를 차례로 누르세요.</p>`;
   if (draft) {
     if (draft.type === 'airport') {
       el.innerHTML = `<h4>${AIRPORT.build.label}</h4><p class="hint">공항을 놓을 곳을 지도에서 한 번 누르세요. ${formatWon(AIRPORT.build.cost)} · ${AIRPORT.build.years}년 · 연 ${AIRPORT.build.cap}백만 명. Esc: 취소</p>
@@ -519,9 +520,9 @@ export function renderBuild() {
         return sum ? `<p class="hint">광역교통개선대책 분담금 ${formatWon(sum)} (${hs.map((h) => esc(h.name)).join('·')})을 이 사업비에 넣습니다 (사업비의 절반까지).</p>` : '';
       })()}
       ${draft.revise ? `<p class="hint"><b>설계 변경</b>: 선을 끌거나 역을 옮겨 선형을 고친 뒤 착공하면 원래 사업과 바뀝니다. 이미 낸 공사비의 80%를 이어 받고, 지지율은 내려가지 않습니다.</p>` : ''}
-      ${draft.points.length > 1 ? `<p class="hint">${draft.extendOf ? `기존선 연장: ${esc(draft.extendOf)}의 종점에서 이어 같은 노선 이름을 씁니다.` : '신설 노선: 새 노선 이름을 붙입니다.'}</p>` : ''}
-      <p class="hint">기존 ${spec.mode ? '선로' : '도로'} 근처를 누르면 연결됩니다. ${spec.mode ? '각 점은 역이 됩니다.' : '끝점이 기존 도로 0.5km 안이면 그 도로에 이어지고, 더 멀면 막다른 도로로 그 자리에서 끝납니다.'}
-      <b>Shift+누르기</b>: 역 없는 경유점 · <b>점 끌기</b>: 역·경유점 옮기기 · <b>선 끌기</b>: 경유점을 끼워 선형 바꾸기 · Backspace: 마지막 점 지우기 · Ctrl+Z: 되돌리기 · Enter: 착공 · Esc: 취소</p>
+      ${subFold('build:keys', '조작법', `<p class="hint">기존 ${spec.mode ? '선로' : '도로'} 근처를 누르면 연결되고, 중간을 누르면 그 자리에 ${spec.mode === 0 ? 'IC·JCT를' : '역을'} 만들어 잇습니다. ${spec.mode ? '각 점은 역이 됩니다.' : '끝점이 기존 도로 0.5km 밖이면 막다른 도로로 끝납니다.'}
+      <b>Shift+누르기</b>: 역 없는 경유점 · <b>점 끌기</b>: 역·경유점 옮기기 · <b>선 끌기</b>: 경유점을 끼워 선형 바꾸기 · Backspace: 마지막 점 지우기 · Ctrl+Z: 되돌리기 · Enter: 착공 · Esc: 취소<br>
+      노란 점(◆)은 중국·러시아·일본 거점 도시입니다. 끝점을 거점에 붙이면 국제 노선이 됩니다.</p>`)}
       <div>${draft.points.map((p, i) => (p.via ? '' : pointRow(p, i))).join('') || '<p class="hint">시작점을 누르세요.</p>'}</div>
       ${draft.points.some((p) => p.via) ? `<p class="hint">선형을 잡는 경유점 ${draft.points.filter((p) => p.via).length}개 (역·IC 없음)</p>` : ''}
       ${(() => { const pl = draft.plan && plans.find((x) => x.id === draft.plan); return pl?.source ? `<p class="hint"><b>계획 근거</b>: ${esc(pl.source)}${pl.stationSource ? `<br>역: ${esc(pl.stationSource)}` : ''}</p>` : ''; })()}
@@ -543,8 +544,6 @@ export function renderBuild() {
       ${draftOp && (draft.ppp?.type || 'gov') === 'gov' ? fundSelect([draftOp]) : ''}
       <div class="name-row"><label><input type="checkbox" id="snap-node" ${snap.node ? 'checked' : ''}> 노드에 붙이기</label>
         <label><input type="checkbox" id="snap-line" ${snap.line ? 'checked' : ''}> 선 위에 붙이기 (중간 ${spec.mode === 0 ? 'IC' : '역'})</label></div>
-      <p class="hint">노란 점(◆)은 중국·러시아·일본 거점 도시입니다. 끝점을 거점에 붙이면 국제 노선이 됩니다.
-        기존 ${spec.mode ? '선로' : '도로'} 중간을 누르면 그 자리에 ${spec.mode === 0 ? 'IC·JCT를' : '역을'} 만들고 이어집니다.</p>
       ${!affordable && draft.points.length > 1 ? '<p class="hint neg">예산과 차입 한도를 넘습니다.</p>' : ''}
       ${tRule ? `<div class="actions"><button id="draft-terrain" ${draft.points.length < 2 || !terrainReady() ? 'disabled' : ''} title="찍은 역·IC 사이를 경사가 급한 산지와 강·바다를 덜 지나는 선형으로 다시 잡습니다">지형 따라 선형 잡기</button></div>` : ''}
       <div class="actions nowrap">

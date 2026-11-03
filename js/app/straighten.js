@@ -616,3 +616,36 @@ export function afterStraighten(done) {
     if (plan) { s.segs = plan.segs; s.runMin = plan.runMin; s.km = plan.km; s.trains = tripsPerDay(s.sets, plan.runMin); }
   }
 }
+
+/** 선로 개량(복선 전철화·고속화 등)이 끝나면 그 선로를 지나는 운행 계통의 운행 시간·하루 운행 횟수를 다시 잡는다 (예전에는 운행을 시작한 해의 느린 시간에 머물렀다) */
+export function afterUpgrade(done) {
+  const up = new Set(done.filter((p) => p.kind === 'upgrade').flatMap((p) => p.links || []));
+  if (!up.size) return;
+  const links = effectiveNetwork(base, state).links;
+  for (const s of state.services || []) {
+    if (!s.segs?.some((sg) => sg.via.some((i) => up.has(i)))) continue;
+    const plan = planService(links, railStationSet(), s.stops, s.kind, new Set(s.lines || [s.line]), s.type);
+    if (plan) { s.segs = plan.segs; s.runMin = plan.runMin; s.km = plan.km; s.trains = tripsPerDay(s.sets, plan.runMin); }
+  }
+}
+
+/** 새 역이 완공되면 그 역을 지나는 광역·보통 계통(모든 역에 서는 계통)이 그 역에도 선다 */
+export function afterStationAdd(done) {
+  const nodes = new Set(done.filter((p) => p.kind === 'station').flatMap((p) => p.stations || []));
+  if (!nodes.size) return;
+  const links = effectiveNetwork(base, state).links;
+  for (const s of state.services || []) {
+    if (s.kind !== 'commuter' && s.kind !== 'local') continue;
+    const stops = [];
+    let hit = false;
+    for (const sg of s.segs || []) {
+      let at = sg.a;
+      stops.push(sg.a);
+      for (const i of sg.via) { const l = links[i]; if (!l) continue; at = l.a === at ? l.b : l.a; if (nodes.has(at) && at !== sg.b) { stops.push(at); hit = true; } }
+    }
+    if (!hit) continue;
+    stops.push(s.segs[s.segs.length - 1].b);
+    const plan = planService(links, railStationSet(), stops, s.kind, new Set(s.lines || [s.line]), s.type);
+    if (plan) { s.stops = stops; s.segs = plan.segs; s.runMin = plan.runMin; s.km = plan.km; s.trains = tripsPerDay(s.sets, plan.runMin); }
+  }
+}

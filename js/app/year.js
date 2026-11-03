@@ -24,7 +24,7 @@ import {
   setGridSent, setHappiness, setLastDone, setLastIncome, setPrevSummary, setRequests, setResult, state, subsFC, worker, zoneProps,
 } from './core.js';
 import { resetNamer, settleSEZ } from './sez.js';
-import { settleZoneDev, zoneDevEffects } from './zonedev.js';
+import { settleZoneDev, zoneDevEffects, zoneDevTourism } from './zonedev.js';
 import { paintVolumes, paintZones, refreshLinks, refreshPoints, showDensity } from './mapdata.js';
 import { adminInvalidate } from './region.js';
 import { settleUniv, univFundSeats, univList, univYear } from './univ.js';
@@ -34,7 +34,7 @@ import { allTransitShare, renderAll, renderStatus, renderVisible, setBusy } from
 import { operatorEconomics } from './operators.js';
 import { localYear, rng } from './election.js';
 import { guNamesOfZone, isGeneralGu } from './bungu.js';
-import { afterStraighten } from './straighten.js';
+import { afterStationAdd, afterStraighten, afterUpgrade } from './straighten.js';
 import { effectiveGrid, housingComplaints, housingParts, settledDevelopments } from './housing.js';
 import { onPreview } from './preview.js';
 import { bigCities, showEvent } from './compare.js';
@@ -216,6 +216,8 @@ export function nextYear() {
   setLastDone(done);
   adminInvalidate();   // 이름 되찾기·승격이 끝났을 수 있다
   afterStraighten(done);
+  afterUpgrade(done);
+  afterStationAdd(done);
   if (done.some((p) => p.kind === 'rename')) { refreshNames(map); if (namer) resetNamer(); }
   mark('y: budget');
   // 노선 다시 그리기(1~2초)는 완공·개통한 사업이 있는 해에만
@@ -240,6 +242,7 @@ export function nextYear() {
       남측과 국외에서 관광객이 찾아오기 시작하고, 통합도가 오를수록 늘어납니다 (많을 때 연 ${s.visitors}백만 명).<br><span class="m">가는 철도·도로를 놓으면 관광 통행이 더 늘어납니다.</span>`);
   }
   const tourKP = unlockedTourKP(state, tourSites, zoneOfSite, zoneProps.length);
+  zoneDevTourism(zoneProps.length).forEach((v, z) => { tourKP[z] += v; });   // 관광거점도시 개발
   // 입주로 1km 격자가 바뀌었으면 함께 넘긴다 (시뮬레이션 역세권·도심 밀도)
   const g = effectiveGrid(), gridMsg = g !== gridSent ? toModelGrid(g).buffer.slice(0) : null;
   setGridSent(g);

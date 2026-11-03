@@ -1,15 +1,17 @@
 // 운행 계통(특급·급행·보통) 편집.
-import { formatWon } from '../game/catalog.js';
+import { formatWon, upgradeCost, UPGRADES } from '../game/catalog.js';
 import { opBadge, operatorOf } from '../game/operators.js';
 import {
-  canRun, defaultTrainType, lineStations, OPERATING, planService, removeService, SERVICE_KINDS, serviceBuyCost, startService, TRAIN_TYPES, tripsPerDay, updateService,
+  canRun, defaultTrainType, lineStations, OPERATING, planService, railPath, removeService, SERVICE_KINDS, serviceBuyCost, startService, TRAIN_TYPES, tripsPerDay, updateService,
 } from '../game/services.js';
 import { effectiveNetwork, FREQ_STEPS, linkAt, linkPending, load, OP_FACTORS, save, startUpgrade } from '../game/state.js';
 import { autoBrand } from '../game/trainnames.js';
 import { t } from '../i18n.js';
 import { kmBetween } from '../sim/model.js';
 import { toast } from '../ui/panel.js';
-import { base, esc, result, state } from './core.js';
+import { base, esc, namer, result, state } from './core.js';
+import { startStationAdd } from '../game/points.js';
+import { MEGA } from '../game/mega.js';
 import { allLinks, nodeCoord, nodeNames, refreshLinks } from './mapdata.js';
 import { select } from './interact.js';
 import { fmtMin } from './route.js';
@@ -21,6 +23,15 @@ import { drawServiceEdit, header, nextSvcColor, svcColor } from './svcmap.js';
 import { popWithin } from './gazette.js';
 
 // ------------------------------------------------------------ 운행 계통 (특급·급행·보통)
+
+// 계획 목록 (plans.js가 넣는다: 서로 가져오면 순환하므로)
+let plansOf = null, planLineOf = null;
+export function setPlansOf(f, lineName) { plansOf = f; planLineOf = lineName; }
+/** 계통 계획이 다니는 노선 이름: lines(기존 노선·국외 노선 이름) + lineOf(먼저 지은 계획들의 노선 이름) */
+export function servicePlanLines(plan) {
+  const own = (plan.lineOf || []).map((id) => plansOf?.().find((x) => x.id === id)).filter(Boolean).map((p) => planLineOf(p));
+  return [...new Set([...(plan.lines || []), ...own])];
+}
 
 export let svcEdit = null;   // 편집 중인 계통 {line, cls, kind, name, trains, nodes: 노선 위 역 순서, stops: Set, id}
 export function setSvcEdit(v) { return (svcEdit = v); }
@@ -129,6 +140,48 @@ export function openServiceEditor(line, cls, id = null) {
   select({ type: 'service' });
 }
 
+/** 먼저 지어야 하는 사업 이름: 계획 사업 id 또는 'mega:국가 대형 사업 id' */
+export function requireName(id) {
+  if (id.startsWith('mega:')) return MEGA.find((m) => m.id === id.slice(5))?.name || id;
+  return plansOf?.().find((x) => x.id === id)?.name || id;
+}
+
+/**
+ * 계획 사업의 운행 계통(type 'service'): 새 선로 없이 기존선(lines)의 from–to 사이 모든 역에 서는 광역 전철.
+ * 계통 편집을 그 노선·구간·광역 통근 전동차로 채워 연다 (비전철 구간이 있으면 편집 창이 전철화를 권한다)
+ */
+export function openServicePlan(plan) {
+  // 먼저 지어야 하는 선로 계획 (평양–베이징 직통: 경의고속철도 서울–평양·평양–신의주·대륙 직결)
+  // 'mega:○○'는 국가 대형 사업 (한일해저터널·호남고속철 제주 연장)
+  const done = new Set(state.projects.filter((p) => p.status === 'done' && p.plan).map((p) => p.plan));
+  const need = (plan.requires || []).filter((id) => (id.startsWith('mega:') ? !state.mega?.[id.slice(5)] : !done.has(id)));
+  if (need.length) { alert(`${plan.name}: 먼저 ${need.map((id) => requireName(id)).join(', ')}을(를) 완공해야 합니다.`); return; }
+  const net = effectiveNetwork(base, state), nn = nodeNames(), set = railStationSet();
+  plan = { ...plan, lines: servicePlanLines(plan) };
+  // 역 찾기: 이름이 같은 역 가운데 계획 노선 위의 역을 먼저 (평양역처럼 다른 노선에만 있으면 그 역)
+  const onLine = new Set();
+  for (const l of net.links) if (l.mode === 1 && l.active && !l.via && plan.lines.includes(l.name)) { onLine.add(l.a); onLine.add(l.b); }
+  const named = (nm) => [...set].filter((n) => { const s = nn.get(n)?.name || ''; return s === nm || s.replace(/(역|청년)$/, '') === nm; });
+  const find = (nm) => { const c = named(nm); return c.find((n) => onLine.has(n)) ?? c[0]; };
+  // 두 끝과 거쳐 가는 역(via: 직결하는 갈아타는 역, 평양·함흥 등) 사이를 차례로 잇는다
+  const names = [plan.from, ...(plan.via || []), plan.to], ends = names.map(find);
+  const miss = names.find((n, k) => ends[k] == null);
+  if (miss) { alert(`${plan.name}: ${miss}역을 찾지 못했습니다.`); return; }
+  // 그 사이 선로가 지나는 모든 역 (광역 전철은 모든 역에 선다)
+  const nodes = [ends[0]];
+  for (let k = 0; k + 1 < ends.length; k++) {
+    const via = railPath(net.links, ends[k], ends[k + 1], new Set(plan.lines));
+    if (!via) { alert(`${plan.name}: ${names[k]}–${names[k + 1]} 사이 선로가 이어지지 않습니다.`); return; }
+    let node = ends[k];
+    for (const i of via) { const l = net.links[i]; node = l.a === node ? l.b : l.a; if (set.has(node) && nodes[nodes.length - 1] !== node) nodes.push(node); }
+  }
+  // 광역 전철은 모든 역에 서고, 정차역(stopsAt)이 적힌 계획(고속 직통)은 그 역에만 선다
+  const stops = plan.stopsAt ? new Set(nodes.filter((n, k) => k === 0 || k === nodes.length - 1 || plan.stopsAt.includes((nn.get(n)?.name || '').replace(/(역|청년)$/, '')) || plan.stopsAt.includes(nn.get(n)?.name))) : new Set(nodes);
+  svcEdit = { line: plan.lines[0], lines: plan.lines, cls: plan.cls || 'conv', kind: plan.kind || 'commuter', name: plan.service || plan.name, type: plan.train || 'commuter', sets: plan.sets || 6,
+    nodes, stops, id: null, nameEdited: true, color: plan.color || nextSvcColor(), plan: plan.id, upgrade: plan.upgrade !== false };
+  select({ type: 'service' });
+}
+
 /** 계통에 다른 노선을 이어 붙인다 (직통 운전) */
 export function extendServiceLine(name) {
   const e = svcEdit;
@@ -150,13 +203,25 @@ export function servicePlan() {
   return { stops, plan };
 }
 
+/** 계획 광역 전철과 함께 놓는 복선 전철화: 계통 밑 선로 가운데 남측 규격 일괄 개량(복선·교류 25kV·120km/h)이 필요한 구간과 사업비 */
+export function serviceUpgrade(plan) {
+  const u = UPGRADES.find((x) => x.id === 'kpstd');
+  const ids = [...new Set(plan.segs.flatMap((sg) => sg.via))].filter((i) => {
+    const l = linkAt(base, state, i);
+    return l && u.applies(l) && !(i < base.links.length && linkPending(base, state, i)) && !state.projects.some((pj) => pj.status === 'building' && pj.links.includes(i));
+  });
+  return { ids, cost: ids.reduce((t, i) => t + upgradeCost(u, linkAt(base, state, i)), 0), km: ids.reduce((t, i) => t + linkAt(base, state, i).len, 0) };
+}
+
 export function servicePanel() {
   const e = svcEdit, nn = nodeNames(), r = stationRiders();
   const { stops, plan } = servicePlan();
   const cur = e.id ? state.services.find((x) => x.id === e.id) : null;
   const trains = plan ? tripsPerDay(e.sets, plan.runMin) : 0;
   const cost = serviceBuyCost(cur && { ...cur, type: cur.type || e.type }, { type: e.type, sets: e.sets });
-  const runnable = (t) => !plan || canRun(t, plan.under);
+  // 계획 광역 전철: 밑 선로 복선 전철화를 함께 착공하면(기본) 전동차를 고를 수 있다 (전철화가 끝나기 전까지는 지금 선로로 다닌다)
+  const upg = e.plan && plan ? serviceUpgrade(plan) : null;
+  const runnable = (t) => !plan || canRun(t, plan.under) || (!!e.upgrade && !!upg?.ids.length);
   const typeOk = runnable(e.type);
   // 전동차를 막는 비전철 구간 (노선별 km): 바로 전철화를 벌일 수 있게
   const noPower = new Map(), noPowerIds = [];
@@ -164,7 +229,7 @@ export function servicePanel() {
     const links = effectiveNetwork(base, state).links, seen = new Set();
     for (const sg of plan.segs) for (const i of sg.via) {
       const l = links[i];
-      if (seen.has(i) || !l || (l.power && l.power !== 'none')) continue;
+      if (seen.has(i) || !l || (l.power && l.power !== 'none') || l.len < 0.5) continue;
       seen.add(i);
       if (i < base.links.length && linkPending(base, state, i)) continue;
       if (state.projects.some((pj) => pj.status === 'building' && pj.links.includes(i))) continue;
@@ -179,19 +244,19 @@ export function servicePanel() {
   const rows = stops.map((n) => `<span class="svc-stop" style="display:inline-flex;align-items:center;gap:2px;margin:2px 4px 2px 0;padding:1px 6px;border-radius:10px;background:var(--chip, #eef1f5)">
       ${esc(nn.get(n)?.name || `역 ${n}`)} <span class="m">${Math.round(r.get(n) || 0).toLocaleString()}</span><a href="#" data-unstop="${n}" title="정차 빼기" style="text-decoration:none">×</a></span>`).join('');
   return `${header(e.id ? `운행 계통: ${e.name}` : `${e.line} 운행 계통 짜기`)}
-    <div class="name-row"><span class="kind">이름</span><input type="text" id="svc-name" value="${esc(e.name)}"></div>
-    <div class="name-row"><span class="kind">노선 색</span><input type="color" id="svc-color" value="${esc(e.color)}">
-      <span class="m">지도에 이 색으로 그립니다</span></div>
+    <div class="name-row"><span class="kind">이름</span><input type="text" id="svc-name" value="${esc(e.name)}"><input type="color" id="svc-color" value="${esc(e.color)}" title="노선 색 (지도에 이 색으로 그립니다)"></div>
     <p class="hint"><b>지도에서 역을 누르면</b> 정차역을 넣고 뺍니다. 계통 밖의 역을 누르면 그 역까지 경로를 늘려 잇습니다.</p>
     ${e.underLink != null ? '<div class="actions"><button class="small" id="svc-under">이 자리 선로(구간) 보기</button></div>' : ''}
-    <div class="name-row"><span class="kind">등급</span><select id="svc-kind">${Object.entries(SERVICE_KINDS)
+    <div class="name-row"><span class="kind">등급</span><select id="svc-kind" title="특급·급행은 고른 역에만 서서 통과역마다 정차 시간을 줄이고, 정차역의 배차 간격이 짧아집니다. 열차는 같은 선로 용량을 나눠 씁니다">${Object.entries(SERVICE_KINDS)
       .map(([k, v]) => `<option value="${k}" ${k === e.kind ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
       <span class="m">정차 방식·요금</span></div>
     <div class="name-row"><span class="kind">열차</span><select id="svc-type">${Object.entries(TRAIN_TYPES)
       .map(([k, v]) => `<option value="${k}" ${k === e.type ? 'selected' : ''} ${runnable(k) ? '' : 'disabled'}>${v.label}${runnable(k) ? '' : ' (비전철 구간 있음)'}</option>`).join('')}</select></div>
     <div class="name-row"><span class="kind">편성</span><input type="range" id="svc-sets" min="1" max="60" value="${e.sets}" style="flex:1">
       <b>${e.sets}편성</b></div>
-    ${powerHint}
+    ${upg && upg.ids.length ? `<div class="name-row"><label><input type="checkbox" id="svc-upgrade" ${e.upgrade ? 'checked' : ''}> 밑 선로 복선 전철화 함께 착공</label></div>
+    <p class="hint">남측 규격 일괄 개량(복선·교류 25kV·120km/h·표준궤) ${upg.km.toFixed(0)}km · ${formatWon(upg.cost)} · 5년. 공사 동안은 지금 선로(단선·저속)로 다닙니다.</p>` : ''}
+    ${e.upgrade && upg?.ids.length ? '' : powerHint}
     <p class="hint">${TRAIN_TYPES[e.type].label}: 정원 ${TRAIN_TYPES[e.type].cap.toLocaleString()}명, 편성당 ${formatWon(TRAIN_TYPES[e.type].setCost)}. 편성을 늘리면 운행 횟수가 저절로 늘어납니다.</p>
     <table class="kv">
       <tr><td>정차역</td><td>${stops.length} / ${e.nodes.length}개</td></tr>
@@ -207,7 +272,7 @@ export function servicePanel() {
       })()}
       <tr><td>차량 구입비</td><td>${cost ? formatWon(cost) : '없음'}${cur ? ` (보유 ${cur.sets}편성)` : ''}</td></tr>` : '<tr><td colspan="2">정차역을 둘 이상 고르세요.</td></tr>'}
     </table>
-    <p class="hint">특급·급행은 고른 역에만 서서 통과역마다 정차 시간을 줄이고, 정차역의 배차 간격이 짧아집니다. 열차는 같은 선로 용량을 나눠 씁니다. 고친 내용은 다음 해부터 반영됩니다.</p>
+    <p class="hint">고친 내용은 다음 해부터 반영됩니다.</p>
     <div class="actions">
       <button class="small" data-svc-preset="local">모든 역</button><button class="small" data-svc-preset="express">큰 역 절반</button>
       <button class="small" data-svc-preset="limited">주요 역만</button></div>
@@ -248,6 +313,7 @@ export function bindService(el) {
     renderSelection();
   };
   el.querySelector('#svc-type').onchange = (ev) => { e.type = ev.target.value; renderSelection(); };
+  el.querySelector('#svc-upgrade')?.addEventListener('change', (ev) => { e.upgrade = ev.target.checked; if (!e.upgrade && !canRun(e.type, servicePlan().plan?.under || [])) e.type = 'diesel'; renderSelection(); });
   el.querySelector('#svc-ext-ok')?.addEventListener('click', () => extendServiceLine(el.querySelector('#svc-ext').value));
   el.querySelector('#svc-sets').oninput = (ev) => { e.sets = +ev.target.value; ev.target.nextElementSibling.textContent = `${e.sets}편성`; };
   el.querySelector('#svc-sets').onchange = () => renderSelection();
@@ -258,10 +324,41 @@ export function bindService(el) {
   el.querySelector('#svc-ok').onclick = () => {
     const { stops, plan } = servicePlan();
     if (!plan) return;
-    const rec = { name: e.name, kind: e.kind, line: e.lines[0], lines: e.lines, cls: e.cls, stops, type: e.type, sets: e.sets, runMin: plan.runMin, km: plan.km, segs: plan.segs, color: e.color,
-      underLinks: plan.under };
+    // 계통 이름은 겹치지 않게: 같은 이름 계통이 있으면 두 끝 역을 붙인다 (평의선 특급 (평양–신의주))
+    const nn = nodeNames(), endName = (n) => nn.get(n)?.name || '';
+    const taken = (nm) => (state.services || []).some((x) => x.id !== e.id && x.name === nm);
+    const nm0 = e.name, nm1 = `${nm0} (${endName(stops[0])}–${endName(stops[stops.length - 1])})`;
+    const name = !taken(nm0) ? nm0 : !taken(nm1) ? nm1 : `${nm1} ${SERVICE_KINDS[e.kind].label}`;
+    const rec = { name, kind: e.kind, line: e.lines[0], lines: e.lines, cls: e.cls, stops, type: e.type, sets: e.sets, runMin: plan.runMin, km: plan.km, segs: plan.segs, color: e.color,
+      underLinks: plan.under, plan: e.plan };
+    // 계획 광역 전철: 복선 전철화를 먼저 착공한다 (예산이 모자라면 계통도 열지 않는다)
+    if (!e.id && e.plan && e.upgrade) {
+      const upg = serviceUpgrade(plan);
+      if (upg.ids.length) {
+        const u = startUpgrade(base, state, upg.ids, 'kpstd', { label: `${e.name} 복선 전철화` });
+        if (!u.ok) { alert(u.reason); return; }
+      }
+    }
     const r = e.id ? updateService(state, e.id, rec) : startService(state, rec);
     if (!r.ok) { alert(r.reason); return; }
+    // 계획 광역 전철의 중간 신설역: 계통이 지나는 선로 위 가장 가까운 자리에 역을 놓는다 (완공되면 계통이 선다)
+    const pl = !e.id && e.plan && plansOf?.().find((x) => x.id === e.plan);
+    for (const [nm, lon, lat] of pl?.newStops || []) {
+      const sv = state.services[state.services.length - 1];
+      const ids = [...new Set(sv.segs.flatMap((sg) => sg.via))];
+      let best = null, bd = 1.5;
+      for (const i of ids) {
+        const g = linkAt(base, state, i).geom || [];
+        for (let k = 0; k + 3 < g.length; k += 2) {
+          if (Number.isNaN(g[k]) || Number.isNaN(g[k + 2])) continue;
+          const d = Math.min(kmBetween(lon, lat, g[k], g[k + 1]), kmBetween(lon, lat, g[k + 2], g[k + 3]));
+          if (d < bd) { bd = d; best = i; }
+        }
+      }
+      if (best == null) continue;
+      const name = nm || namer.suggest(lon, lat, 'station');
+      startStationAdd(base, state, { link: best, lon, lat, name });
+    }
     svcEdit = null;
     save(state); select(null); renderAll();
   };

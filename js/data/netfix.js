@@ -181,6 +181,11 @@ export function applyLinkFix(base, fix) {
 export function fixNetwork(base, nodeFix = {}, roadFix = {}, linkFix = null) {
   incident = null;
   const lf = applyLinkFix(base, linkFix);
+  // 고속선과 경부·호남·전라선은 모두 전철이다: 지도 자료에 전철화가 빠진 구간(호남고속선 2단계 고막원–임성리, 광주송정·대전·신경주 어귀의 짧은 구간)을
+  // 비전철로 두면 고속열차·KTX 계통을 짤 수 없고 열차가 느려진다
+  for (const l of base.links) {
+    if (l.mode === 1 && (!l.power || l.power === 'none') && (l.cls === 'hsr' || /^(경부고속선|호남고속선|수서평택고속선|경부선|호남선|전라선)$/.test(l.name || ''))) l.power = 'AC';
+  }
   // 대심도 광역급행철도(GTX): 지도 자료 선형이 역 어귀에서 기존 노선을 따라 구불거린다(대곡 등). 지하 깊이 거의 곧게 가므로
   // 250m 안의 잔굴곡을 없애고 매끈한 곡선으로 (양 끝 역 자리는 그대로)
   for (const l of base.links) {

@@ -6,7 +6,7 @@ import {
 } from '../game/local.js';
 import { canAfford, defaultFix, fundFor, KP_LINE_RENAME, LINE_RENAME_COST, linkAt, linksUnderWork, save, startUpgrade, upgradeCost, UPGRADES } from '../game/state.js';
 import { t } from '../i18n.js';
-import { toast } from '../ui/panel.js';
+import { subFold, toast } from '../ui/panel.js';
 import { base, CLASS_LABEL, esc, map, requests, result, setRequests, state, zoneProps } from './core.js';
 import { countyKey, officeName, zoneName } from './year.js';
 import { nodeCoord, paintZones, refreshLinks, subInfo } from './mapdata.js';
@@ -717,7 +717,7 @@ export function zoneAdminHTML(id) {
   const city = justUp ? null : promotableCities().find((c) => [...mine].some((j) => cityZoneMatch(c, zoneProps[j])));
   if (city) {
     const indep = L.historic && HISTORIC_CITIES.includes(city);
-    rows.push(item(`광역시 ${indep ? '독립' : '승격'}: ${esc(city)} → ${esc(metroName(city))}`,
+    rows.push(item(`광역시 ${indep ? '독립' : '승격'}: ${esc(city)} → ${esc(metroName(city, L))}`,
       `${z.country === 'KP' && !L.autonomyKP ? '도에서 떼어 광역시로 만듭니다. 북측 지방자치 전이라 시장·구청장은 임명하고, 지방자치를 시작하면 선거로 뽑습니다' : '도에서 떼어 광역시로 만들고 시장·도지사를 다시 뽑습니다. 분구하면 구마다 구청장을 뽑습니다'} · ${formatWon(EVENT_COST.independence)}`,
       `${bunguSelect('bungu-n', [...mine].some((j) => L.bungu?.[unitId(state, zoneProps[j])]?.general) ? '지금 일반구를 자치구로' : undefined)} <button class="small primary" data-ev-city="${esc(city)}">${indep ? '광역시로 독립' : '광역시로 승격'}</button>`));
   }
@@ -813,5 +813,6 @@ export function zoneAdminHTML(id) {
   }
   if (!rows.length && at == null) return '<h4>행정구역 조정</h4><p class="hint">경계 자료를 읽는 중…</p>';
   if (!rows.length) return '';
-  return `<h4>행정구역 조정</h4>${rows.join('')}`;
+  // 조정 항목이 많아 처음에는 접어 둔다 (펼침 상태는 기억한다)
+  return subFold('zone:admin', `행정구역 조정 <span class="cnt">${rows.length}</span>`, rows.join(''));
 }

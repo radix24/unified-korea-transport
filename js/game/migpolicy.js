@@ -21,7 +21,7 @@ export const MIG_POLICY = {
   nn: {
     label: '북측 안 이주', key: 'policyNN', def: 'permit',
     opts: {
-      free: { label: '자유 이주', integ: -0.003, appr: 2, hint: '도 중심도시(신의주·사리원·해주·원산·함흥·청진)와 평양으로 사람이 몰리고, 량강도(10년에 약 50%)·자강도(약 60%) 인구가 크게 줄어듭니다' },
+      free: { label: '자유 이주', integ: -0.003, appr: 2, hint: '도 중심도시와 평양으로 사람이 몰립니다. 15년에 걸쳐 접근성 0.05 이하 지역은 인구 −80%, 0.15 이하 −50%, 0.25 이하 −25%가 되고 그만큼 접근성 높은 곳(0.5 넘으면 두 배)으로 옮깁니다. 처음 10년은 원산·함흥·청진이 빨리 큽니다' },
       permit: { label: '이주 허가제', integ: 0.002, appr: -1, hint: '지금과 같은 정도의 인구 변화' },
     },
   },
@@ -45,12 +45,12 @@ export function migApproval(state) {
 
 // 북측 안 자유 이주: 몰리는 도 중심도시(자료 이름)와 평양
 const CENTERS = ['신의주시', '사리원시', '해주시', '원산시', '함흥시', '청진시'];
-// 줄어드는 도: 첫해 10%, 그 뒤 해마다 4%·5%씩 10년
-const DECLINE = { 량강도: [0.1, 0.04], 자강도: [0.1, 0.05] };
+// 접근성이 낮아도 자유 이주 처음 10년은 인구가 빨리 느는 동해안 중심도시 (메일 건의)
+const EAST = ['원산시', '함흥시', '청진시'];
 
 /**
  * 계산 워커에 넘길 이주 설정. zoneProps: 존 자료 (도·시 이름은 자료 그대로 본다: 량강도·자강도가 없는 시나리오에서도 그 땅)
- * @returns {{sn:number, centers:number[], boost:number, shift:{from:number[], frac:number, to:number[]}[]}}
+ * @returns {{sn:number, centers:number[], boost:number, shift:{from:number[], frac:number, to:number[]}[], acc?:{years:number, east:number[]}}}
  */
 export function migCtx(state, zoneProps) {
   const out = { sn: migOpt(state, 'sn').mult ?? 1, centers: [], boost: 1, shift: [] };
@@ -60,12 +60,9 @@ export function migCtx(state, zoneProps) {
   out.boost = 3;
   // 자유 이주를 몇 해째 하고 있나: 해 넘기기에서 먼저 하나 세고(state.js) 이 값을 쓰므로 첫해가 0
   const n = Math.max(0, (state.nnFreeYears || 1) - 1);
-  for (const [prov, [first, yearly]] of Object.entries(DECLINE)) {
-    const frac = n === 0 ? first : n <= 10 ? yearly : 0;
-    if (!frac) continue;
-    const from = [];
-    zoneProps.forEach((z, i) => { if (!z.ext && z.country === 'KP' && z.province === prov) from.push(i); });
-    if (from.length) out.shift.push({ from, frac, to: out.centers });
-  }
+  // 산간·오지의 인구 감소는 접근성 기준으로 계산이 맡는다 (model.accessDrift: 예전 량강도·자강도 고정 감소를 대신한다)
+  const east = [];
+  zoneProps.forEach((z, i) => { if (!z.ext && z.country === 'KP' && (EAST.includes(z.name) || EAST.includes(z.city))) east.push(i); });
+  out.acc = { years: n, east };
   return out;
 }

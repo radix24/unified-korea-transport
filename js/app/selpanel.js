@@ -7,7 +7,7 @@ import { AIR, AIRPORT_REMOVE, effectiveNetwork, IC_REMOVE_COST, load, RENAME, sa
 import { t } from '../i18n.js';
 import { routeKey } from '../sim/model.js';
 import { refreshNames } from '../ui/map.js';
-import { toast } from '../ui/panel.js';
+import { subFold, toast } from '../ui/panel.js';
 import { base, busy, esc, happiness, historic, map, median, result, selection, setSelection, state, subPop0, subsFC, zoneProps } from './core.js';
 import { gains, zoneName } from './year.js';
 import { sezHTML } from './sez.js';
@@ -76,10 +76,8 @@ export function zonePanel(id) {
     ${sezHTML(id)}
     ${zoneDevHTML(id)}
     ${targets.map((t) => restoreRow(t)).join('')}
-    <h4>이름 바꾸기</h4>
-    <div class="name-row"><input type="text" id="zone-name" value="${esc(name)}">
-      <button class="small" id="zone-rename">바꾸기</button></div>
-    <p class="hint">직접 바꾸는 이름은 비용이 들지 않지만 주민 행복도에는 영향이 없습니다.</p>`;
+    ${subFold('zone:rename', '이름 바꾸기', `<div class="name-row" title="직접 바꾸는 이름은 비용이 들지 않지만 주민 행복도에는 영향이 없습니다"><input type="text" id="zone-name" value="${esc(name)}">
+      <button class="small" id="zone-rename">바꾸기</button></div>`)}`;
 }
 
 /** Shift로 고른 여러 시군구를 함께: 인구·순이동은 더하고, 나머지는 인구 가중 평균. 시군구마다 한 줄 */

@@ -96,7 +96,7 @@ export function countyDisplayName(state, z) {
   const own = pn !== z.name ? base.replace(/군$/, '시') : base;
   if (!L || z.ext) return own;
   // 광역시로 승격한 시 자리: 분구하지 않았으면 구가 없다 (광역시 그 자체, 기초단체장 없음: 화면에서는 광역 바로 밑이 동). 분구했으면 구 이름이 따로 붙는다
-  if (!z.city && /시$/.test(pn) && L.independent?.includes(pn) && z.province !== pn) return L.bungu?.[pn] ? '중구' : metroName(pn);
+  if (!z.city && /시$/.test(pn) && L.independent?.includes(pn) && z.province !== pn) return L.bungu?.[pn] ? '중구' : metroName(pn, L);
   // 광역시 아래에 시는 없다: 광역시에 든 시(편입한 시, 승격한 뒤 편입한 군)는 구로 (벽성시 → 벽성구)
   if (!z.city && z.name !== z.province && /시$/.test(own) && isMetroCity(regionOf(state, z))) return own.replace(/시$/, '구');
   // 광역시 산하 군을 구로 바꾼 곳 (기장군 → 기장구). 그 구가 도로 나가면 다시 군
@@ -290,7 +290,7 @@ export function regionOf(state, z) {
   const { prov, side, annexed } = regionBase(state, z);
   // 독립(승격)한 도시는 그 자체가 광역 단체 (함흥시 → 함흥광역시). 군에서 승격한 시도 (○○군 → ○○시 → ○○광역시)
   const own = promotedName(state, z);
-  for (const c of L.independent) if (prov === c || (!annexed && (z.city === c || z.name === c || own === c))) return metroName(c);
+  for (const c of L.independent) if (prov === c || (!annexed && (z.city === c || z.name === c || own === c))) return metroName(c, L);
   const A = L.admin || {};
   let r = prov;
   if (L.historic && !(A.jagang === 'keep' && side === 'KP' && ['자강도', '량강도', '양강도'].includes(prov))) {
@@ -348,8 +348,12 @@ export const KP_DIRECT_CITIES = ['평양시', '남포시', '개성시', '라선�
 /** 예전 이름 → 지금 이름 (예전 저장의 단체장 자리를 옮길 때) */
 export const REGION_RENAMED = { 강원도: '강원북도' };
 
-/** 승격한 도시의 광역 단체 이름: 옛 직할시(평양·남포)는 그대로, 나머지 시는 ○○광역시 */
-export function metroName(c) { return isMetroCity(c) ? c : c.replace(/시$/, '광역시'); }
+/**
+ * 승격한 도시의 광역 단체 이름: 옛 직할시(평양·남포)는 그대로, 나머지 시는 ○○광역시.
+ * L(state.local)을 주면 명칭 변경(평양시 → 평양광역시, L.renamedRegions)도 따른다: 절충안·독립으로 광역 단체가 된 평양시는
+ * 독립 목록으로 이름이 정해져 명칭 변경을 눌러도 평양시 그대로였다
+ */
+export function metroName(c, L) { const m = isMetroCity(c) ? c : c.replace(/시$/, '광역시'); return L?.renamedRegions?.[m] || m; }
 
 export function isMetroCity(name) { return /(특별시|광역시|직할시|특별자치시)$/.test(name) || ['평양시', '남포시', '라선시', '나선시', '개성시'].includes(name); }
 

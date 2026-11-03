@@ -196,7 +196,7 @@ async function handle(msg) {
       if (msg.ctx.spread?.length) model.spreadDevelopments(msg.ctx.spread);   // 예전 저장: 한 읍면동에 몰린 택지지구 인구를 지구가 덮는 읍면동으로 (한 번)   // 예전 저장의 입주 인구를 제자리로 (한 번)
       // 열린 북측 관광지만 관광 수요를 끈다 (해금)
       if (msg.ctx.tourKP?.length === model.tourKP.length) model.tourKP.set(msg.ctx.tourKP);
-      // 이주 정책 (game/migpolicy.js): 남→북 배율, 북측 안 자유 이주의 중심도시 쏠림과 량강·자강 인구 감소
+      // 이주 정책 (game/migpolicy.js): 남→북 배율, 북측 안 자유 이주의 중심도시 쏠림과 접근성 기준 인구 변동 (advanceYear의 accessDrift)
       model.migx = msg.ctx.migx || null;
       if (msg.ctx.migx?.shift?.length) model.applyShifts(msg.ctx.migx.shift);
       model.advanceYear(msg.ctx.integration, msg.ctx.policy, msg.ctx.sez || [], msg.ctx.univ || [], msg.ctx.zdev || []);

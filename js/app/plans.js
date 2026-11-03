@@ -1,5 +1,6 @@
 // 계획 사업 (data/plans.json).
 import { formatWon } from '../game/catalog.js';
+import { TRAIN_TYPES } from '../game/services.js';
 import { smoothSegments } from '../game/curve.js';
 import { effectiveNetwork, linkAt, NEW_BUILDS } from '../game/state.js';
 import { t } from '../i18n.js';
@@ -10,7 +11,7 @@ import { allLinks, anyStationName, nodeCoord, nodeNames } from './mapdata.js';
 import { nearestNode, startDraft } from './draw.js';
 import { draftLineName, draftPoints, drawDraft, nameDraftPoint, withTangents } from './route.js';
 import { renderBuild, shownPlan, switchTab } from './panels.js';
-import { railStationSet } from './svc.js';
+import { openServicePlan, railStationSet, requireName, servicePlanLines, setPlansOf } from './svc.js';
 import { plansTakenByClosed } from './reopen.js';
 import { showGazette } from './gazette.js';
 
@@ -18,6 +19,7 @@ import { showGazette } from './gazette.js';
 
 export let plans = [];
 export function setPlans(v) { return (plans = v); }
+setPlansOf(() => plans, planLineName);
 
 /** 경유지 이름과 좌표로 기존 역(또는 도로 노드)을 찾는다: 같은 이름의 역이 6km 안에 있으면 그 역, 아니면 가까운 노드 */
 export function resolveWaypoint([name, lon, lat], mode, motorwayEnd = false) {
@@ -128,10 +130,31 @@ export function planJunction([, lon, lat, line], mode) {
   return best;
 }
 
+/** 계획 자료의 역 이름: 가칭 번호('102정거장'·'D00-5정거장')는 null, 'C03정거장(세종터미널)'은 괄호 안 이름, '-역'은 뗀다 */
+export function planStationName(name) {
+  if (!name) return null;
+  const m = name.match(/정거장\s*\(([^)]+)\)$/);
+  if (m) return m[1].trim();
+  if (/정거장$/.test(name) && /\d/.test(name)) return null;
+  return name.length > 2 ? name.replace(/역$/, '') : name;
+}
+
+/** km 안에 이름이 같은 역(일반철도·도시철도·새 역, '-역' 뗀 이름)이 있나 */
+function sameNameNear(name, lon, lat, km) {
+  for (const [node, v] of nodeNames()) {
+    if (v.kind !== 'station' || v.name !== name) continue;
+    const c = nodeCoord(node);
+    if (c && kmBetween(lon, lat, c[0], c[1]) <= km) return true;
+  }
+  return false;
+}
+
 /** 계획 노선을 그리기로 연다 (경유지가 찍힌 상태). 확인하고 고친 뒤 착공한다 */
 export function openPlan(id) {
   const plan = plans.find((p) => p.id === id);
   if (!plan) return;
+  // 기존선 광역 전철 계획: 새 선로를 그리지 않고 운행 계통 편집을 연다
+  if (plan.type === 'service') { openServicePlan(plan); return; }
   startDraft(plan.type);
   const spec = NEW_BUILDS[plan.type];
   for (const wp of plan.points) {
@@ -146,8 +169,10 @@ export function openPlan(id) {
     const pt = { node, lon: c[0], lat: c[1], split: null };
     draft.points.push(pt);
     nameDraftPoint(pt, draft.points.length - 1);
-    // 새 역이면 계획에 적힌 역 이름을 쓴다. 계획서의 가칭 번호('102정거장')는 놓인 곳 지명으로 짓는다
-    if (spec.mode >= 1 && !pt.existing && wp[0] && !/^\d+정거장$/.test(wp[0])) { if (pt.reserved) namer.release(pt.name, 'station'); pt.name = wp[0]; pt.auto = false; }
+    // 새 역이면 계획에 적힌 역 이름을 쓴다. 계획서의 가칭 번호('102정거장'·'D00-5정거장')는 놓인 곳 지명으로 짓고('C03정거장(세종터미널)'은 괄호 안 이름),
+    // 15km 안에 같은 이름의 역이 이미 있으면 계획 이름을 쓰지 않는다 (같은 이름 역이 둘 생기지 않게: 지명 짓기가 겹치지 않는 이름을 고른다)
+    const nm = spec.mode >= 1 && !pt.existing ? planStationName(wp[0]) : null;
+    if (nm && !sameNameNear(nm, wp[1], wp[2], 15)) { if (pt.reserved) namer.release(pt.name, 'station'); pt.name = nm; pt.auto = false; }
   }
   // 옛 노선을 걷어 내는 계획(현대화·고속화)은 새 선형 곁의 옛 역을 새 노선 역으로 넣는다 (완공 뒤에도 그 역의 여객 영업이 이어진다)
   const oldStops = plan.retireLine && spec.mode === 1 ? addOldLineStops(plan.retireLine) : 0;
@@ -362,12 +387,21 @@ export function plansHTML() {
   const groups = [...new Set(open.map((p) => p.group))];
   // 계획 사업 전체도 처음에는 접어 둔다 (분류 묶음도 모두 접힘이 기본)
   return subFold('plans:all', `계획 사업 <span class="cnt">${open.length}</span>`, `
-    <p class="hint">국가·광역 교통계획(제4·5차 국가철도망 구축계획, 제3차 국가도로망 종합계획 등)에 나온 노선입니다. 계획 이름을 누르면 지도에 그 노선이 점선으로 보이고, 그 선이나 "열기"를 누르면 경유지가 찍힌 채로 그리기가 열립니다. 사업비를 확인한 뒤 착공합니다 (경로는 고칠 수 있습니다).</p>
+    <p class="hint">국가·광역 교통계획의 노선입니다. 이름을 누르면 지도에 보이고, "열기"를 누르면 경유지가 찍힌 그리기가 열립니다.</p>
     ${groups.map((g) => subFold(`plans:${g}`, `${esc(g)} <span class="cnt">${open.filter((p) => p.group === g).length}</span>`, `<div class="list">${open.filter((p) => p.group === g).map((p) => {
       let km = 0;
       for (let i = 1; i < p.points.length; i++) km += kmBetween(p.points[i - 1][1], p.points[i - 1][2], p.points[i][1], p.points[i][2]);
       const spec = NEW_BUILDS[p.type];
-      return `<div class="item line"><div class="n" data-plan-show="${p.id}" style="cursor:pointer;${shownPlan === p.id ? 'text-decoration:underline' : ''}" title="지도에 노선 보기"><span class="t-row"><b>${esc(p.phase ? p.name.replace(/ \d단계/, '') : p.name)}</b>${p.phase ? ` <span class="cnt phase-tag">${esc(p.phase)}</span>` : ''}</span>${p.after && !started.has(p.after) ? ' <span class="m">1단계를 먼저 지으면 같은 노선으로 이어집니다</span>' : ''}${p.note ? ` <span class="m">${esc(p.note)}</span>` : ''}<span class="m" title="${esc(p.source || '')}">${spec.label.replace(/ 신설.*$/, '')} · 약 ${Math.round(km * 1.1)}km · ${formatWon(km * 1.1 * spec.perKm)}${p.source ? ` · 출처: ${esc(p.source.split(' · 현황')[0].split(/[,(]/)[0].trim())}` : ''}</span></div>
+      if (p.type === 'service') return servicePlanRow(p, started, building);
+      return `<div class="item line"><div class="n" data-plan-show="${p.id}" style="cursor:pointer;${shownPlan === p.id ? 'text-decoration:underline' : ''}" title="지도에 노선 보기"><span class="t-row"><b>${esc(p.phase ? p.name.replace(/ \d단계/, '') : p.name)}</b>${p.phase ? ` <span class="cnt phase-tag">${esc(p.phase)}</span>` : ''}</span>${p.after && !started.has(p.after) ? ' <span class="m">1단계를 먼저 지으면 같은 노선으로 이어집니다</span>' : ''}${p.note ? ` <span class="m">${esc(p.note)}</span>` : ''}<span class="m" title="${esc(p.source || '')}">${spec.label.replace(/ 신설.*$/, '')} · 약 ${Math.round(km * 1.1)}km · ${formatWon(km * 1.1 * spec.perKm)}</span></div>
         <button class="small" data-plan="${p.id}" ${started.has(p.id) ? 'disabled' : ''}>${building.has(p.id) ? `공사 중 (${building.get(p.id).doneYear}년)` : started.has(p.id) ? '착공함' : '열기'}</button></div>`;
     }).join('')}</div>`)).join('')}`);
+}
+
+/** 기존선 광역 전철 계획(type 'service') 한 줄: 쓰는 노선·구간·차량. 열기를 누르면 운행 계통 편집이 열린다 */
+function servicePlanRow(p, started, building) {
+  const need = p.after && plans.find((x) => x.id === p.after);
+  const tt = TRAIN_TYPES[p.train || 'commuter'], cost = (p.sets || 6) * tt.setCost;
+  return `<div class="item line"><div class="n" data-plan-show="${p.id}" style="cursor:pointer;${shownPlan === p.id ? 'text-decoration:underline' : ''}" title="지도에 노선 보기"><span class="t-row"><b>${esc(p.name)}</b></span>${need && !started.has(need.id) ? ` <span class="m">${esc(need.name)}를 마치면 더 빨라집니다 (지금 선로로도 다닙니다)</span>` : ''}${p.requires?.length ? ` <span class="m">먼저 완공: ${p.requires.map((id) => esc(requireName(id).replace(/ \(.*\)$/, ''))).join(', ')}</span>` : ''}${p.note ? ` <span class="m">${esc(p.note)}</span>` : ''}<span class="m" title="${esc(p.source || '')}">운행 계통 · ${p.train === 'hsr' ? '' : '기존선 '}${esc(servicePlanLines(p).join('·'))} ${esc(p.from)}–${esc(p.to)} · ${p.train === 'hsr' ? '고속열차' : '광역 전동차'} ${p.sets || 6}편성 ${formatWon(cost)}${p.upgrade === false ? '' : ' + 복선 전철화'}${p.newStops?.length ? ` · 중간 신설역 ${p.newStops.length}곳` : ''}</span></div>
+    <button class="small" data-plan="${p.id}" ${started.has(p.id) ? 'disabled' : ''}>${building.has(p.id) ? `차량 도입 중 (${building.get(p.id).doneYear}년)` : started.has(p.id) ? '운행함' : '열기'}</button></div>`;
 }

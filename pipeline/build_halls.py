@@ -7,7 +7,7 @@
 - 이름은 지금 행정구역 이름을 쓰도록 존 번호와 종류만 적는다 (게임에서 승격·편입·분구하면 이름이 따라 바뀐다).
   도청·광역시청은 그 광역 단체 이름을 따른다.
 
-출력: data/halls.json  [{k: 'si'|'gun'|'gu'|'do', z: 존 번호, x: 경도, y: 위도, src: 'osm'|'guess'}]
+출력: data/halls.json  [{k: 'si'|'gun'|'gu'|'do', z: 존 번호, x: 경도, y: 위도, src: 'osm'|'guess'|'fix'}]
 실행: python pipeline/build_halls.py  (build_admin·build_grid 뒤)
 """
 
@@ -38,6 +38,9 @@ KIND = [  # (이름 끝, 종류)
 ]
 # 이북5도청(서울 구기동의 황해도청·평안남도청 등)은 그 도의 도청이 아니다: 그대로 두면 '서울특별시청'으로 평창동에 다섯 개 찍혔다
 SKIP = re.compile(r"리시청$|별관|제\d청사|분관|^구.+도청$|임시|출장소|의회|^(황해|평안남|평안북|함경남|함경북)도청$")
+# OSM에서 청사 이름으로 잡히지 않는 도청·광역시청 (도, 시군, 경도, 위도, 청사 이름): 전남광주통합특별시는 도청이 하나도 없어
+# 지도에 통합특별시청이 없었고, 나눈 뒤에도 전라남도청이 없었다. 둘 다 있으면 앞의 것(무안 남악)이 통합특별시청
+FIX_DO = [("전남광주통합특별시", "무안군", 126.4629, 34.816, "전라남도청"), ("전남광주통합특별시", "서구", 126.8515, 35.1601, "광주광역시청")]
 
 
 def hall_kind(name: str):
@@ -105,6 +108,11 @@ def main():
         if k == "si" and h["name"].replace("인민위원회", "").replace("청", "") == zones[z]["province"]:
             k = "do"
         halls.append({"k": k, "z": z, "x": h["x"], "y": h["y"], "src": "osm", "osm": h["name"]})
+    for prov, name, x, y, osm in FIX_DO:
+        if not any(h["k"] == "do" and zones[h["z"]]["province"] == prov for h in halls if h["src"] != "fix"):
+            z = next((i for i, q in enumerate(zones) if q["province"] == prov and q["name"] == name and not q.get("ext")), None)
+            if z is not None:
+                halls.append({"k": "do", "z": z, "x": x, "y": y, "src": "fix", "osm": osm})
     # 옛 군 땅 조각처럼 한 시군이 존 여럿이면 한 곳에만 둔다: (도, 이름)으로 본다
     cnty = lambda i: (zones[i]["province"], zones[i]["name"])
     have = {(cnty(h["z"]), h["k"]) for h in halls}

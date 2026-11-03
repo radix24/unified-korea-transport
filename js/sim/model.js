@@ -29,6 +29,8 @@ export class Model {
     this.extMassW = Float64Array.from(zones, (z) => (z.ext ? z.massW ?? 1 : 1));   // 먼 나라 도시: 통행 발생 비중을 더 줄인다
     // 관광 목적지: 하루 방문객(명). 북측 관광지는 통합도만큼 열린다
     this.tour = Float64Array.from(zones, (z) => z.tour || 0);
+    // 관광지 매력 보정 배수 (기준 연도 보정): 멀리 떨어진 관광지(제주)는 중력모형 거리 마찰로 방문객이 자료의 몇 분의 일로 나와 끌어올린다
+    this.tourBoost = new Float64Array(zones.length).fill(1);
     this.tourKP = Float64Array.from(zones, (z) => z.tourKP || 0);
     this.cx = Float64Array.from(zones, (z) => z.cx);
     this.cy = Float64Array.from(zones, (z) => z.cy);
@@ -75,6 +77,7 @@ export class Model {
     this.hsrASC = s.hsrASC ?? P.hsrASC;
     // 열린 북측 관광지 (해마다 바뀐다: 보조 워커도 같은 값을 쓰게 상태에 싣는다)
     if (s.tourKP && s.tourKP.length === this.tourKP.length) this.tourKP.set(s.tourKP);
+    if (s.tourBoost && s.tourBoost.length === this.tourBoost.length) this.tourBoost.set(s.tourBoost);
     this.transitASC = s.transitASC ?? P.transitASC;
     for (const [nd, w] of s.waits || []) {
       const k = this.stationOf?.get(nd);
@@ -163,6 +166,7 @@ export class Model {
     o.subAmenity = Array.from(this.subAmenity, (v) => Math.round(v * 1e4) / 1e4);
     o.waits = Array.from(this.stationNode, (nd, i) => [nd, Math.round(this.stationWait[i] * 10) / 10]);
     o.tourKP = Array.from(this.tourKP);
+    o.tourBoost = Array.from(this.tourBoost, (v) => Math.round(v * 1e4) / 1e4);
     return o;
   }
 
@@ -1204,7 +1208,7 @@ export class Model {
     run.airOD.fill(0);
     run.latentOD.fill(0);
     run.D = D || this.stationMatrix();
-    run.totals = { trips: 0, rail: 0, road: 0, transit: 0, air: 0, intl: 0, vhm: 0, kpkr: 0, krTrips: 0, krTransit: 0 };
+    run.totals = { trips: 0, rail: 0, road: 0, transit: 0, air: 0, intl: 0, vhm: 0, kpkr: 0, krTrips: 0, krTransit: 0, hsr: 0, krHsr: 0 };
     this.buildRailSets();
   }
 
@@ -1215,7 +1219,7 @@ export class Model {
     const Z = this.Z, mass = this.tripMass();
     const destW = this.destW = Float64Array.from(this.subW);
     for (let j = 0; j < Z; j++) {
-      const tm = ((this.tour[j] + this.tourKP[j] * integration) * P.tourismMass) / 1e4;
+      const tm = ((this.tour[j] * this.tourBoost[j] + this.tourKP[j] * integration) * P.tourismMass) / 1e4;
       if (!(tm > 0)) continue;
       const d0 = this.zoneSub0[j], dn = this.zoneSubN[j];
       const siteOf = (d) => this.tourSub[d] + (this.tourKP[j] > 0 ? this.tourSubKP[d] * integration : 0);
@@ -1287,7 +1291,7 @@ export class Model {
     const mass = this.tripMass();
     // 관광 통행: 목적지 쪽 질량에 관광 매력도를 더한다 (방문객 1명 ≈ 인구 tourismMass명)
     const tmass = new Float64Array(Z);
-    for (let j = 0; j < Z; j++) tmass[j] = ((this.tour[j] + this.tourKP[j] * integration) * P.tourismMass) / 1e4;
+    for (let j = 0; j < Z; j++) tmass[j] = ((this.tour[j] * this.tourBoost[j] + this.tourKP[j] * integration) * P.tourismMass) / 1e4;
     const pick = [];
     const pickOff = new Int32Array(Z + 1);
     const crail = new Float64Array(Z), airC = new Array(Z), compAcc = new Float64Array(Z), timeAcc = new Float64Array(Z), tAcc = new Float64Array(Z);
@@ -1438,7 +1442,9 @@ export class Model {
             if (this.isExt[i] || this.isExt[j]) totals.intl += T;
             totals.vhm += tRoad * croad[j];
             if (this.isKP[i] !== this.isKP[j]) totals.kpkr += T;
-            if (!this.isKP[i] && !this.isKP[j]) { totals.krTrips += T; totals.krTransit += tTr; }
+            // 고속철도 통행: 철도 통행 가운데 출발·도착역이 모두 고속철도역인 몫
+            totals.hsr += tRail * hsrShare;
+            if (!this.isKP[i] && !this.isKP[j]) { totals.krTrips += T; totals.krTransit += tTr; totals.krHsr += tRail * hsrShare; }
           }
           const pcu = tRoad / P.personsPerCar * (1 + P.freightPCUShare);
           for (let d = this.zoneSub0[j] * R; d < (this.zoneSub0[j] + this.zoneSubN[j]) * R; d++) {
@@ -1589,6 +1595,15 @@ export class Model {
       this.railASC += dConv;
       // 고속철 상수는 일반철도 상수가 바뀐 만큼을 되돌린 뒤 고속철 혼잡에 맞춘다
       this.hsrASC += -dConv + P.railASCStep * Math.log(hsr * scale / P.targetKrRailVC);
+      // 고속철 상수는 출발·도착역이 모두 고속철도역인 통행(한일 해저터널·제주 해저고속철도처럼 고속철도역끼리만 잇는 노선)에만 붙는다.
+      // 경부고속선 혼잡은 대부분 일반역에서 타고 고속선을 지나는 통행이라 이 상수로는 줄지 않아, 상한이 없으면 100분 넘게 올라 고속철도역끼리의 통행만 눌렀다
+      this.hsrASC = Math.min(this.hsrASC, P.hsrASCMax);
+      // 관광지: 관광 통행(오가는 2회)이 자료의 방문객(하루)×2보다 적으면 매력을 그만큼 키운다 (줄이지는 않는다, tourBoostMax까지)
+      if (t.tourDest) for (let j = 0; j < this.Z; j++) {
+        if (!(this.tour[j] > 0) || this.isKP[j] || this.isExt[j]) continue;
+        const got = (t.tourDest[j] || 0) * scale;
+        this.tourBoost[j] = Math.min(P.tourBoostMax, Math.max(1, this.tourBoost[j] * (2 * this.tour[j]) / Math.max(1, got)));
+      }
       if (progress) progress((it + 1) / P.calibrationRounds);
     }
     P.msaIterations = saved;
@@ -1844,8 +1859,41 @@ export class Model {
       const g = this.isKP[i] ? (this.pop[i] / this.area[i] < P.ruralDensity ? P.naturalGrowthKPRural : P.naturalGrowth.KP) : P.naturalGrowth.KR;
       this.pop[i] = Math.max(100, this.pop[i] * (1 + g) + mig.net[i]);
     }
-    this.lastMigration = { kpToKr: mig.kpToKr, krToKp: mig.krToKp, net: mig.net };
+    const drift = this.migx?.acc ? this.accessDrift(this.migx.acc) : 0;
+    this.lastMigration = { kpToKr: mig.kpToKr, krToKp: mig.krToKp, net: mig.net, accDrift: drift };
     this.relocateWithinZones();
+  }
+
+  /**
+   * 북측 안 자유 이주의 접근성 기준 인구 변동 (메일 건의). 접근성은 화면과 같은 기준(그해 모든 존의 중앙값 = 1)이다.
+   * 0.05 이하는 −80%, 0.15 이하는 −50%, 0.25 이하는 −25%를 accDriftYears년에 걸쳐 덜어 내고(해마다 같은 비율),
+   * 덜어 낸 인구는 접근성 0.25를 넘는 존에 인구 비례로 옮긴다: 0.5를 넘으면 두 배, 자유 이주 처음 10년은 원산·함흥·청진(east) 세 배.
+   * 북측 전체 인구는 그대로다. 옮긴 인구를 돌려준다
+   * @param {{years:number, east:number[]}} acc years: 자유 이주를 몇 해째 하고 있나 (첫해 0)
+   */
+  accessDrift({ years, east }) {
+    if (years >= P.accDriftYears) return 0;
+    const ref = median(Array.from(this.access)) || 1, eastSet = new Set(east || []);
+    const to = [];
+    let moved = 0, w = 0;
+    for (let i = 0; i < this.Z; i++) {
+      if (this.isExt[i] || !this.isKP[i]) continue;
+      const a = this.access[i] / ref;
+      // 원산·함흥·청진은 처음 10년 접근성이 낮아도 줄지 않고 받는 쪽이다 (동해안 중심도시)
+      const boost = eastSet.has(i) && years < 10;
+      const cut = boost ? 0 : a <= 0.05 ? 0.8 : a <= 0.15 ? 0.5 : a <= 0.25 ? 0.25 : 0;
+      if (cut) {
+        const m = this.pop[i] * (1 - (1 - cut) ** (1 / P.accDriftYears));
+        this.pop[i] = Math.max(100, this.pop[i] - m);
+        moved += m;
+      } else {
+        const k = this.pop[i] * (a >= 0.5 ? 2 : 1) * (boost ? 3 : 1);
+        to.push([i, k]);
+        w += k;
+      }
+    }
+    if (w > 0) for (const [i, k] of to) this.pop[i] += (moved * k) / w;
+    return moved;
   }
 
   /**

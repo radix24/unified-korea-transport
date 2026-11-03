@@ -664,7 +664,8 @@ export function hallList() {
     let name, kind = h.k, lon = h.x, lat = h.y;
     if (h.k === 'do') {
       const home = homeRegion(z), now = regionOf(state, z);
-      if (home !== now && !isMetroCity(home)) {
+      // 다시 독립한 옛 직할시(절충안의 평양)의 청사는 그 광역시청 그대로: 예전에는 평안남도청으로 옮겨 가 평양에는 청사가 없었다
+      if (home !== now && !isMetroCity(home) && !(isMetroCity(now) && isMetroCity(z.province))) {
         // 도청 소재지가 광역시로 떨어져 나갔다 (함흥 → 함흥광역시): 그 도에 남은 가장 큰 시로 옮긴다 (경북도청이 대구에서 나간 것처럼)
         const seat = provinceSeat(home);
         if (!seat) continue;
@@ -673,7 +674,7 @@ export function hallList() {
     } else {
       const own = promotedName(state, z);
       const metro = L.independent?.includes(own) && !z.city;
-      if (metro) { name = `${metroName(own)}청`; kind = 'do'; }   // 광역시로 승격한 시의 청사는 광역시청 (도청처럼 늘 보이게)
+      if (metro) { name = `${metroName(own, L)}청`; kind = 'do'; }   // 광역시로 승격한 시의 청사는 광역시청 (도청처럼 늘 보이게)
       else if (h.k === 'si' && z.city) name = `${placeName(state, 'zone', h.z, z.city)}청`;   // 일반구가 있는 시(수원시)의 시청
       // 시에 딸린 일반구 구청 (장안구청): 게임에서는 시 하나라 OSM 이름으로. 시 이름을 붙여 적은 것(화성시동탄구청)은 구청 이름만
       else if (h.k === 'gu' && (z.city || /시$/.test(z.name)) && h.osm) name = h.osm.replace(/^[가-힣]+시\s*(?=[가-힣]+구청$)/, '');
@@ -741,11 +742,15 @@ export function hallList() {
     for (const i of u.subs) { const w = result ? result.subs.pop[i] : 1; if (w > bw) { bw = w; at = subXY(i); } }
     if (at) out.push({ name: nm, kind: u.metro ? 'do' : u.kind === 'gun' ? 'gun' : u.kind === 'gu' ? 'gu' : 'si', lon: at[0], lat: at[1], region: u.region, unit: u.id });
   }
-  // 나누는 개편으로 새로 생긴 도(경기북도)·광역시: 청사 자료에 없으면 그 단체에서 가장 큰 시의 시청 곁에
+  // 나누는 개편으로 새로 생긴 도(경기북도)·광역시와 남는 단체(전라남도): 청사 자료에 없으면 그 단체에서 가장 큰 시의 시청 곁에
+  // (예전에는 떼어 낸 쪽만 보아 전남광주통합특별시를 나누면 광주광역시청만 생기고 전라남도청은 없었다)
   for (const [k, o] of Object.entries(REGION_REORG)) {
-    if (!o.split || !L.regionReorg?.[k] || out.some((h) => h.kind === 'do' && h.region === o.split)) continue;
-    const seat = provinceSeat(o.split);
-    if (seat) out.push({ name: `${o.split}청`, kind: 'do', lon: seat[0], lat: seat[1], region: o.split });
+    if (!o.split || !L.regionReorg?.[k]) continue;
+    for (const r of [o.split, o.to]) {
+      if (out.some((h) => h.kind === 'do' && h.region === r)) continue;
+      const seat = provinceSeat(r);
+      if (seat) out.push({ name: `${r}청`, kind: 'do', lon: seat[0], lat: seat[1], region: r });
+    }
   }
   // 도시 개발 사업으로 지은 정부 청사 (정부부산지방합동청사·평양정부청사)
   for (const g of state.govHalls || []) out.push({ name: g.name, kind: 'gov', lon: g.lon, lat: g.lat });

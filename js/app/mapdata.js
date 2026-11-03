@@ -303,7 +303,13 @@ export function nodeCoord(id) {
 /** 문을 닫은 역이라도 원래 이름 (고시·노선도에 번호 대신 쓴다) */
 export function anyStationName(n) {
   const raw = base.stations.find((s) => s[1] === n)?.[0] || (base.metro_stations || []).find((s) => s[1] === n)?.[0];
-  return state.names?.[n]?.name || (raw ? shownStation(raw, n) : null);
+  const v = state.names?.[n]?.name || (raw ? shownStation(raw, n) : null);
+  return v && (state.names?.[n] ? state.names[n].kind === 'station' : true) ? noYeok(v) : v;
+}
+
+/** 지도·목록의 역 이름은 '-역'을 떼고 보인다 (서흥역 → 서흥, 서울역 → 서울). 두 글자 이름(구역 등)은 그대로 */
+export function noYeok(name) {
+  return name && name.length > 2 ? name.replace(/역$/, '') : name;
 }
 
 /** 지금 북측 지명에 적용할 선전용 지명 짝: 행정구역 정리로 되돌렸으면 모두, 아니면 옛 이름 되찾기를 마친 곳만 */
@@ -359,8 +365,8 @@ export function nodeNames() {
   const out = new Map();
   const closed = new Set(state.closedStations || []);
   for (const n of retiredStationNodes()) closed.add(n);
-  for (const [name, node] of base.stations) if (!out.has(node) && !closed.has(node)) out.set(node, { name: shownStation(name, node), kind: 'station', isNew: 0 });
-  for (const [name, node] of base.metro_stations || []) if (!out.has(node) && !closed.has(node)) out.set(node, { name: shownStation(name, node), kind: 'station', isNew: 0, metro: 1 });
+  for (const [name, node] of base.stations) if (!out.has(node) && !closed.has(node)) out.set(node, { name: noYeok(shownStation(name, node)), kind: 'station', isNew: 0 });
+  for (const [name, node] of base.metro_stations || []) if (!out.has(node) && !closed.has(node)) out.set(node, { name: noYeok(shownStation(name, node)), kind: 'station', isNew: 0, metro: 1 });
   const restGone = new Set(state.restRemoved || []);
   for (const [name, node] of base.junctions) {
     if (out.has(node) || restGone.has(node)) continue;
@@ -370,7 +376,7 @@ export function nodeNames() {
   // 도로 없는 섬의 항구(독도): 어느 축척에서나 보이게 도시처럼 둔다
   for (const [name, node] of base.ports || []) out.set(node, { name, kind: 'city', isNew: 0 });
   // 문을 닫은 역(직선화로 옮기거나 폐역한 옛 역)은 이름을 바꿨어도 지도에 그리지 않는다
-  for (const [k, v] of Object.entries(state.names)) if (!(v.kind === 'station' && closed.has(+k))) out.set(+k, { name: v.name, kind: v.kind, isNew: 1 });
+  for (const [k, v] of Object.entries(state.names)) if (!(v.kind === 'station' && closed.has(+k))) out.set(+k, { name: v.kind === 'station' ? noYeok(v.name) : v.name, kind: v.kind, isNew: 1 });
   (state.restAreas || []).forEach((r, i) => !r.removed && out.set(`rest${i}`, { name: r.name + (r.built ? '' : ' (공사 중)'), kind: 'rest', isNew: 1, coord: [r.lon, r.lat] }));
   return out;
 }

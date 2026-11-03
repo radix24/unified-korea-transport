@@ -76,7 +76,9 @@ export function makeForeignTest(worldFC) {
       polys.push({ rings, bbox: [x0, y0, x1, y1] });
     }
   }
-  return (lon, lat) => polys.some(({ rings, bbox }) => lon >= bbox[0] && lon <= bbox[2] && lat >= bbox[1] && lat <= bbox[3]
+  // 대마도(쓰시마)는 한일 해저터널의 중간 거점이라 국내처럼 친다 (사업비를 상대국과 나누지 않는다)
+  const tsushima = (lon, lat) => lon > 129.1 && lon < 129.55 && lat > 34.05 && lat < 34.75;
+  return (lon, lat) => !tsushima(lon, lat) && polys.some(({ rings, bbox }) => lon >= bbox[0] && lon <= bbox[2] && lat >= bbox[1] && lat <= bbox[3]
     && inRing(rings[0], lon, lat) && !rings.slice(1).some((h) => inRing(h, lon, lat)));
 }
 

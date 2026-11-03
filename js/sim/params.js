@@ -47,6 +47,7 @@ export const P = {
   logitLambda: 0.03,          // 수단선택 민감도 (1/분)
   railASC: 10,                // 철도 고유 불편 (분)
   hsrASC: 0,                  // 고속철도 몫에 더하는 상수 (분, 기준 연도 보정으로 정함)
+  hsrASCMax: 20,              // 고속철도 상수 상한 (분): 일반철도 상수에 이만큼까지만 더 얹는다
   kpRailASCFactor: 0,         // 북측 내부 통행은 철도가 주 수단이라 고유 불편을 두지 않는다 (자동차·시외버스 부족)
   kpWaitMaxMin: 30,           // 북측 역 대기시간 상한 (적어도 하루 몇 회는 다닌다)
   kpGravityImpedance: 0.4,    // 북측 안 통행의 중력모형 마찰: 일반화비용의 이만큼만 친다 (도로 사정 탓에 비용이 과대하게 잡힘)
@@ -61,7 +62,7 @@ export const P = {
   targetKrConvVC: 0.65,       // 기준 연도 보정 목표: 남측 일반철도 V/C 상위 5% 구간 (경부선·경인선 수도권 구간)
   railCalibQuantile: 0.95,
   calibrationRounds: 7,
-  calibVersion: 6,            // 보정 방식이 바뀌면 올린다: 예전 기준 연도(data/baseline.json)는 쓰지 않고 새로 보정한다
+  calibVersion: 8,            // 보정 방식이 바뀌면 올린다: 예전 기준 연도(data/baseline.json)는 쓰지 않고 새로 보정한다
   railASCStep: 25,            // 보정 반복마다 철도 상수 조정 폭(분)
   msaIterations: 5,
   msaIterationsWarm: 1,       // 해마다 지난해 결과에서 이어 배정할 때. 새 배정은 warmMsaOffset만큼 묽게(1/4) 섞어 경로가 튀지 않는다 (2번이면 연도 넘기기가 두 배)
@@ -144,6 +145,7 @@ export const P = {
 
   // --- 관광
   tourismMass: 15,            // 관광지 하루 방문객 1명을 인구 몇 명분의 목적지 매력으로 볼지
+  tourBoostMax: 6,            // 관광지 매력 보정 상한 (기준 연도 보정이 관광 통행을 자료의 방문객에 맞출 때)
   inboundTourism: 4,          // 국외 출발 관광(입국) 배율: 국외 존 통행 발생 축소(0.25)를 관광에서는 되돌린다
 
   // --- 남북 통합
@@ -176,6 +178,7 @@ export const P = {
   ruralPull: { KP: 0.35, KR: 0.15 },   // 이촌향도: 통합도만큼 산간 존의 효용을 깎는다 (× 통합도 × (log 기준 밀도 − log 밀도))
   baseOutMigration: 0.03,
   maxNetMigration: 0.05,      // 존별 한 해 순이동 상한 (인구 대비)
+  accDriftYears: 15,          // 북측 안 자유 이주: 접근성이 낮은 존의 인구 감소(−25~−80%)를 이만큼 해에 걸쳐 나눈다
   migUtilSensitivity: 0.8,
   migDistanceMin: 180,
   migDensityElasticity: 0.15,

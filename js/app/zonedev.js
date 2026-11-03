@@ -26,42 +26,53 @@ export const SPECIAL_DEV = {
     desc: '자성대 부두와 부산역·부산진역 철도 부지를 주거·업무·해양 관광 지구로 (2026년 착공하면 2030년 완공). 상주인구 약 10만 명, 사업 지구 안에 정부부산지방합동청사' },
   // 평양 만수대 광장 일대를 정비하고 통일 정부의 평양정부청사(중앙 부처 분원)를 짓는다
   'pyongyang-mansudae': { label: '평양 만수대 광장 재개발', where: ['평양시', '중구역'], years: 4, cost: 30000, kpCost: 30000, persons: 15000,
-    income: 1.05, conv: 1.2, amenity: 0.02, happy: 2, hall: { name: '평양정부청사', lon: 125.7508, lat: 39.0318 },
+    income: 1.05, conv: 1.2, amenity: 0.02, happy: 2, cat: '평양대도시권', hall: { name: '평양정부청사', lon: 125.7508, lat: 39.0318 },
     desc: '만수대 광장 일대를 정비하고 평양정부청사를 조성합니다. 공무원·업무 인구 약 1만 5천 명이 들어옵니다' },
   // ---- 북측 대형 도시 개발 (메일 건의: 평양대도시권 개발은 LH 연구를 바탕으로 재구성). zones: 효과·입주를 나누는 존들 [도, 이름, 덮어쓸 값],
   // after: 먼저 다 지어야 하는 단계, from: 늘어난 인구를 덜어 오는 도 (자료의 도 이름), net: 새로 느는 몫, needHDI: [도, HDI]
-  'py-1': { label: '평양 대개발 1단계 (형제산·보통강·모란봉·평천)', where: ['평양시', '보통강구역'], years: 5, cost: 150000, kpCost: 150000, persons: 400000,
+  'py-1': { label: '평양 대개발 1단계 (형제산·보통강·모란봉·평천)', where: ['평양시', '보통강구역'], years: 5, cost: 150000, kpCost: 150000, persons: 100000,
     zones: [['평양시', '형제산구역'], ['평양시', '보통강구역'], ['평양시', '모란봉구역'], ['평양시', '평천구역']], from: ['평안남도', '황해남도', '황해북도'], net: 0.3,
     income: 1.02, conv: 1.1, amenity: 0.01, happy: 3, cat: '평양대도시권',
-    desc: '낡은 시가지를 재개발하고 녹지를 개발하는 20년 장기 계획(80만 호)의 1단계. 20만 호 공급, 인구 40만 명 증가 (늘어난 인구의 70%는 평안남도·황해도에서 옮겨 온다)' },
-  'py-2': { label: '평양 대개발 2단계 (서성·화성·룡성·대성·삼석)', where: ['평양시', '서성구역'], years: 5, cost: 150000, kpCost: 150000, persons: 400000, after: 'py-1',
+    desc: '낡은 시가지를 재개발하고 녹지를 개발하는 20년 장기 계획(20만 호)의 1단계. 5만 호 공급, 인구 10만 명 증가 (늘어난 인구의 70%는 평안남도·황해도에서 옮겨 온다)' },
+  'py-2': { label: '평양 대개발 2단계 (서성·화성·룡성·대성·삼석)', where: ['평양시', '서성구역'], years: 5, cost: 150000, kpCost: 150000, persons: 100000, after: 'py-1',
     zones: [['평양시', '서성구역'], ['평양시', '화성구역'], ['평양시', '룡성구역'], ['평양시', '대성구역'], ['평양시', '삼석구역']], from: ['평안남도', '황해남도', '황해북도'], net: 0.3,
     income: 1.02, conv: 1.1, amenity: 0.01, happy: 3, cat: '평양대도시권',
-    desc: '평양 대개발 2단계. 20만 호 공급, 인구 40만 명 증가 (1단계를 다 지은 뒤)' },
-  'py-3': { label: '평양 대개발 3단계 (락랑·칠골)', where: ['평양시', '락랑구역'], years: 5, cost: 150000, kpCost: 150000, persons: 400000, after: 'py-2',
+    desc: '평양 대개발 2단계. 5만 호 공급, 인구 10만 명 증가 (1단계를 다 지은 뒤)' },
+  'py-3': { label: '평양 대개발 3단계 (락랑·칠골)', where: ['평양시', '락랑구역'], years: 5, cost: 150000, kpCost: 150000, persons: 100000, after: 'py-2',
     zones: [['평양시', '락랑구역'], ['평양시', '만경대구역']], from: ['평안남도', '황해남도', '황해북도'], net: 0.3,
     income: 1.02, conv: 1.1, amenity: 0.01, happy: 3, cat: '평양대도시권',
-    desc: '평양 대개발 3단계 (칠골은 만경대구역). 20만 호 공급, 인구 40만 명 증가 (2단계를 다 지은 뒤)' },
-  'py-4': { label: '평양 대개발 4단계 (력포·사동)', where: ['평양시', '력포구역'], years: 5, cost: 150000, kpCost: 150000, persons: 400000, after: 'py-3',
+    desc: '평양 대개발 3단계 (칠골은 만경대구역). 5만 호 공급, 인구 10만 명 증가 (2단계를 다 지은 뒤)' },
+  'py-4': { label: '평양 대개발 4단계 (력포·사동)', where: ['평양시', '력포구역'], years: 5, cost: 150000, kpCost: 150000, persons: 100000, after: 'py-3',
     zones: [['평양시', '력포구역'], ['평양시', '사동구역']], from: ['평안남도', '황해남도', '황해북도'], net: 0.3,
     income: 1.02, conv: 1.1, amenity: 0.01, happy: 3, cat: '평양대도시권',
-    desc: '평양 대개발 4단계. 20만 호 공급, 인구 40만 명 증가 (3단계를 다 지은 뒤)' },
+    desc: '평양 대개발 4단계. 5만 호 공급, 인구 10만 명 증가 (3단계를 다 지은 뒤)' },
   'py-industry': { label: '평양 공업지구 이전', where: ['평양시', '평천구역'], years: 5, cost: 80000, kpCost: 80000, persons: 90000, needHDI: ['평양시', 0.9],
     zones: [['평양시', '만경대구역', { income: 1.08, persons: 6000 }], ['평양시', '보통강구역', { income: 1.08, persons: 6000 }], ['평양시', '평천구역', { income: 1.08, persons: 6000 }],
       ['평양시', '선교구역', { income: 1.08, persons: 6000 }], ['평양시', '대동강구역', { income: 1.08, persons: 6000 }],
       ['남포시', '와우도구역', { income: 1.06, persons: 20000 }], ['남포시', '항구구역', { income: 1.06, persons: 20000 }], ['황해북도', '송림시', { income: 1.06, persons: 20000 }]],
     income: 1.06, conv: 1.2, amenity: 0.01, happy: 2, cat: '평양대도시권',
     desc: '평양 공업지구(만경대·보통강·평천·선교·대동강구역)의 공장을 송림과 남포 일대로 옮기고 그 자리에 3차 산업을 들입니다. 평양 다섯 구역은 소득이 크게 오르고 인구가 조금 늘며, 남포(와우도·항구구역)와 송림은 인구와 소득이 늡니다' },
-  'hamhung-redev': { label: '함흥 지역 재개발', where: ['함경남도', '함흥시'], years: 5, cost: 80000, kpCost: 80000, persons: 200000, net: 0.5,
-    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '동북권 재개발', desc: '주택 공급과 산업 현대화. 인구 20만 명 증가, HDI·1인당 소득 증가' },
-  'hungnam-redev': { label: '흥남 지역 재개발', where: ['함경남도', '함흥시'], years: 5, cost: 80000, kpCost: 80000, persons: 200000, net: 0.5,
-    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '동북권 재개발', desc: '주택 공급과 산업·항만 현대화 (흥남은 함흥시에 든다). 인구 20만 명 증가, HDI·1인당 소득 증가' },
-  'chongjin-redev': { label: '청진시 재개발', where: ['함경북도', '청진시'], years: 5, cost: 80000, kpCost: 80000, persons: 200000, net: 0.5,
-    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '동북권 재개발', desc: '주택 공급과 산업·항만 현대화. 인구 20만 명 증가, HDI·1인당 소득 증가' },
-  'sinuiju-redev': { label: '신의주 재개발', where: ['평안북도', '신의주시'], years: 5, cost: 80000, kpCost: 80000, persons: 200000, net: 0.5,
-    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '국경도시 재개발', desc: '주택 공급과 산업 현대화. 인구 20만 명 증가, HDI·1인당 소득 증가' },
-  'rason-redev': { label: '나선 재개발', where: ['라선시', '라선시'], years: 5, cost: 80000, kpCost: 80000, persons: 200000, net: 0.5,
-    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '국경도시 재개발', desc: '주택 공급과 산업 현대화. 인구 20만 명 증가, HDI·1인당 소득 증가' },
+  'hamhung-redev': { label: '함흥 지역 재개발', where: ['함경남도', '함흥시'], years: 5, cost: 80000, kpCost: 80000, persons: 50000, net: 0.5,
+    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '동북권 재개발', desc: '주택 공급과 산업 현대화. 인구 5만 명 증가, HDI·1인당 소득 증가' },
+  'hungnam-redev': { label: '흥남 지역 재개발', where: ['함경남도', '함흥시'], years: 5, cost: 80000, kpCost: 80000, persons: 50000, net: 0.5,
+    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '동북권 재개발', desc: '주택 공급과 산업·항만 현대화 (흥남은 함흥시에 든다). 인구 5만 명 증가, HDI·1인당 소득 증가' },
+  'chongjin-redev': { label: '청진시 재개발', where: ['함경북도', '청진시'], years: 5, cost: 80000, kpCost: 80000, persons: 50000, net: 0.5,
+    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '동북권 재개발', desc: '주택 공급과 산업·항만 현대화. 인구 5만 명 증가, HDI·1인당 소득 증가' },
+  'sinuiju-redev': { label: '신의주 재개발', where: ['평안북도', '신의주시'], years: 5, cost: 80000, kpCost: 80000, persons: 50000, net: 0.5,
+    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '국경도시 재개발', desc: '주택 공급과 산업 현대화. 인구 5만 명 증가, HDI·1인당 소득 증가' },
+  'rason-redev': { label: '나선 재개발', where: ['라선시', '라선시'], years: 5, cost: 80000, kpCost: 80000, persons: 50000, net: 0.5,
+    income: 1.05, conv: 1.2, amenity: 0.01, happy: 3, cat: '국경도시 재개발', desc: '주택 공급과 산업 현대화. 인구 5만 명 증가, HDI·1인당 소득 증가' },
+  // ---- 관광거점도시 개발 (메일 건의): 숙박·관광 기반을 갖춰 소득이 오르고 관광객이 늘어난다. tour: 완공 뒤 늘어나는 연 관광객(백만 명, 통합도만큼 찾아온다)
+  'tour-wonsan': { label: '원산–금강산 관광거점도시', where: ['강원도', '원산시'], years: 4, cost: 25000, kpCost: 25000, persons: 20000, tour: 2, tourZones: [['강원도', '원산시'], ['강원도', '금강군']],
+    income: 1.05, conv: 1.2, amenity: 0.02, happy: 2, cat: '관광거점도시', desc: '갈마 해안관광지구와 금강산 관광을 잇는 숙박·관광 기반. 관광객 연 200만 명 증가 (원산·금강산), 소득 증가' },
+  'tour-kaesong': { label: '개성 고려왕도 관광거점도시', where: ['개성시', '개성시'], years: 4, cost: 15000, kpCost: 15000, persons: 10000, tour: 1.5,
+    income: 1.05, conv: 1.2, amenity: 0.02, happy: 2, cat: '관광거점도시', desc: '고려 왕도 유적(만월대·선죽교)과 개성 역사지구 관광 기반. 관광객 연 150만 명 증가, 소득 증가' },
+  'tour-pyongyang': { label: '평양 역사관광 거점도시', where: ['평양시', '중구역'], years: 4, cost: 20000, kpCost: 20000, persons: 10000, tour: 2,
+    income: 1.04, conv: 1.15, amenity: 0.02, happy: 2, cat: '관광거점도시', desc: '평양의 고구려·근현대 역사 유적을 묶은 관광 기반. 관광객 연 200만 명 증가, 소득 증가' },
+  'tour-hyesan': { label: '혜산–개마고원 관광거점도시', where: ['량강도', '혜산시'], years: 4, cost: 12000, kpCost: 12000, persons: 8000, tour: 1,
+    income: 1.06, conv: 1.25, amenity: 0.02, happy: 2, cat: '관광거점도시', desc: '개마고원 고원·산악 관광의 관문 도시. 관광객 연 100만 명 증가, 소득 증가' },
+  'tour-samjiyon': { label: '삼지연–백두산 관광거점도시', where: ['량강도', '삼지연시'], years: 4, cost: 12000, kpCost: 12000, persons: 8000, tour: 1.5,
+    income: 1.06, conv: 1.25, amenity: 0.02, happy: 2, cat: '관광거점도시', desc: '백두산(천지)과 삼지연 관광 기반. 관광객 연 150만 명 증가, 소득 증가' },
 };
 /** 존 찾기 (자료의 도·이름) */
 const zoneAt = (prov, name) => zoneProps.findIndex((z) => !z.ext && z.province === prov && z.name === name);
@@ -123,7 +134,7 @@ export function zoneDevHTML(zone, subs = null, name = zoneName(zone)) {
     const fx = k === 'redev' ? `인구 +${p.persons.toLocaleString()}명 (같은 쪽 다른 곳에서 옮겨 옴) · 분양 수익 ${formatWon(p.revenue)} · 주민 행복도 +${D.happy}`
       : `소득 목표 +${Math.round((D.income - 1) * 100)}% · 소득 수렴 ×${D.conv} · 일자리를 찾아 ${p.persons.toLocaleString()}명 유입`;
     return `<div class="item"><div class="t">${esc(D.label)}${k === 'redev' ? ` (${esc(name)})` : ''}</div><div class="m">${fx} · ${formatWon(p.cost)} · ${p.years}년${p.why ? ` · <span class="neg">${esc(p.why)}</span>` : ''}</div>
-      <div class="actions"><button class="small" data-zdev="${k}" data-zdev-zone="${zone}" data-zdev-name="${esc(name)}"${subs ? ` data-zdev-subs="${subs.join(',')}"` : ''} ${p.why ? 'disabled' : ''}>${esc(D.label)}</button></div></div>`;
+      <div class="actions"><button class="small" data-zdev="${k}" data-zdev-zone="${zone}" data-zdev-name="${esc(name)}"${subs ? ` data-zdev-subs="${subs.join(',')}"` : ''} ${p.why ? 'disabled' : ''}>착공</button></div></div>`;
   });
   // 이 자리의 대형 도시 개발 사업
   if (!subs) for (const [k, D] of Object.entries(SPECIAL_DEV)) {
@@ -206,5 +217,17 @@ export function powerEffects() {
   if (M['grid-emergency']) for (const [z, i] of kp) if (city(z)) out.push([i, 1.05, 1.3, 0]);
   if (M['grid-trunk']) for (const [z, i] of kp) if (/(시|구역)$/.test(z.name)) out.push([i, 1.03, 1.15, 0]);
   if (M['grid-dist']) for (const [z, i] of kp) if (/군$/.test(z.name)) out.push([i, 1.03, 1.15, 0]);
+  return out;
+}
+
+/** 완공된 관광거점도시 개발이 더하는 관광객: 존별 하루 방문객 (계산의 tourKP에 더한다, 통합도만큼 찾아온다) */
+export function zoneDevTourism(Z) {
+  const out = new Array(Z).fill(0);
+  for (const d of (state.zoneDev || []).filter((x) => x.done)) {
+    const D = SPECIAL_DEV[d.kind];
+    if (!D?.tour) continue;
+    const zs = (D.tourZones || [D.where]).map(([p, n]) => zoneAt(p, n)).filter((z) => z >= 0);
+    for (const z of zs) out[z] += (D.tour * 1e6) / 365 / zs.length;
+  }
   return out;
 }

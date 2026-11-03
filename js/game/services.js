@@ -27,7 +27,8 @@ export const TRAIN_TYPES = {
 /** 그 선로에 다닐 수 있는 열차 종류인지 (전동차는 비전철 구간을 지날 수 없다) */
 export function canRun(typeId, underLinks) {
   const t = TRAIN_TYPES[typeId];
-  return !t.electric || underLinks.every((l) => l.power && l.power !== 'none');
+  // 역 어귀의 아주 짧은 연결 선로(0.5km 미만, 자료에 전철화가 빠진 것)는 막지 않는다 (부산역 우암선 연결 등)
+  return !t.electric || underLinks.every((l) => (l.power && l.power !== 'none') || l.len < 0.5);
 }
 
 /** 노선에 맞는 기본 열차 종류 */
@@ -167,10 +168,12 @@ export function railPath(links, from, to, line, mode = 1, adj = railAdjacency(li
 export function railAdjacency(links, line, mode = 1) {
   const adj = new Map();
   links.forEach((l, i) => {
-    if (l.mode !== mode || !l.active || l.via || l.ext) return;
+    if (l.mode !== mode || !l.active || l.via) return;
     // 제 노선(여러 노선을 잇는 계통이면 그 노선들)을 따라가고, 다른 노선은 끊긴 곳을 이을 때만 쓴다
     // 환승 선로(같은 역의 다른 노선 승강장 사이)는 제 노선처럼 친다
     const own = !line || l.name?.endsWith(' 환승') || (line instanceof Set ? line.has(l.name) : Array.isArray(line) ? line.includes(l.name) : l.name === line);
+    // 국외 선로(단둥–선양 철도 등)는 계통이 그 노선을 적었을 때만 다닌다 (평양–베이징 직통)
+    if (l.ext && !(line && own)) return;
     const t = (l.len / l.speed) * (own ? 1 : 4);
     for (const [u, v] of [[l.a, l.b], [l.b, l.a]]) {
       if (!adj.has(u)) adj.set(u, []);
@@ -224,7 +227,8 @@ export function startService(state, svc) {
   const id = `svc${Date.now().toString(36)}`;
   const { underLinks, ...rec } = svc;
   (state.services ||= []).push({ ...rec, id, sets, fund, trains: tripsPerDay(sets, svc.runMin), built: false });
-  startProject(state, { id: crypto.randomUUID(), kind: 'service', service: id, links: [], cost, years: 1, fund,
+  // plan: 계획 사업(data/plans.json의 type 'service', 기존선 광역 전철)으로 연 계통이면 그 계획 (계획 목록에서 착공함으로 보인다)
+  startProject(state, { id: crypto.randomUUID(), kind: 'service', service: id, plan: svc.plan, links: [], cost, years: 1, fund,
     label: `운행 계통 ${svc.name} (${TRAIN_TYPES[svc.type].label} ${sets}편성, ${svc.stops.length}개 역)` });
   return { ok: true };
 }
@@ -302,8 +306,9 @@ export const EXISTING_SERVICES = [
   { name: 'GTX-A (수서–동탄)', color: '#9a6292', kind: 'express', type: 'intercity', sets: 6, lines: ['수도권광역급행철도에이선', '수서평택고속선'], stops: ['수서', '성남', '구성', '동탄'] },
   { name: 'GTX-A (운정–서울)', color: '#9a6292', kind: 'express', type: 'intercity', sets: 8, lines: ['수도권광역급행철도에이선'], stops: ['운정', '킨텍스', '대곡', '연신내', '서울'] },
   // 선로가 열리면(원시–서화성 연결, OSM 개통 예정 2030) 그해부터 다니는 계통
-  { name: '서해선 광역 직통 (대곡–서화성)', color: '#8fc31f', kind: 'commuter', type: 'commuter', sets: 12, lines: ['서해선'], from: '대곡', to: '서화성', wait: true },
-  { name: '서해선 직통 (대곡–홍성)', color: '#8fc31f', kind: 'express', type: 'intercity', sets: 6, lines: ['서해선'], from: '대곡', to: '홍성', wait: true },
+  // 전 구간이 열리면 대곡–홍성 계통 하나만 남긴다 (replaces: 그때 없애는 부분 계통)
+  { name: '서해선 (대곡–홍성)', color: '#8fc31f', kind: 'local', type: 'intercity', sets: 22, lines: ['서해선'], from: '대곡', to: '홍성', wait: true,
+    replaces: ['서해선 광역 (대곡–원시)', '서해선 일반 (서화성–홍성)'] },
   // 서울–삼성–수서 구간이 열리면 GTX-A 전 구간 직통
   { name: 'GTX-A (운정–동탄)', color: '#9a6292', kind: 'express', type: 'intercity', sets: 16, lines: ['수도권광역급행철도에이선', '수서평택고속선'], stops: ['운정', '킨텍스', '대곡', '연신내', '서울', '삼성', '수서', '성남', '구성', '동탄'], wait: true },
 ];
@@ -334,7 +339,7 @@ function existingService(s, links, stations, stationSet, strict) {
   if (!plan) return null;
   // 기다리는 계통은 제 노선 선로가 다 열려야 다닌다 (다른 노선으로 돌아가는 길로 먼저 다니지 않게)
   if (strict && plan.segs.some((sg) => sg.via.some((i) => links[i].name && !s.lines.includes(links[i].name) && !links[i].name.endsWith(' 환승')))) return null;
-  return { name: s.name, color: s.color, kind: s.kind, line: s.lines[0], lines: s.lines, cls: 'conv', stops, type: s.type, sets: s.sets,
+  return { name: s.name, color: s.color, kind: s.kind, line: s.lines[0], lines: s.lines, cls: s.cls || 'conv', stops, type: s.type, sets: s.sets,
     runMin: plan.runMin, km: plan.km, segs: plan.segs, id: `svc-${s.name}`, trains: tripsPerDay(s.sets, plan.runMin), built: true, existing: true };
 }
 
@@ -358,6 +363,8 @@ const REPLACED_SERVICES = {
   '수도권 전철 1호선 (천안–소요산)': '수도권 전철 1호선 (신창–소요산)',
   '수도권 전철 1호선 (경인)': '수도권 전철 1호선 (인천–광운대)', '수도권 전철 4호선 (과천·안산)': null,
 };
+/** 예전 판의 기다리는 계통 이름 → 지금 이름 (서해선 직통 둘은 전 구간 계통 하나로 합쳤다) */
+const RENAMED_WAITING = { '서해선 광역 직통 (대곡–서화성)': '서해선 (대곡–홍성)', '서해선 직통 (대곡–홍성)': '서해선 (대곡–홍성)' };
 
 /** 예전 저장의 기본 계통을 지금 기본 계통으로 바꾼다 (플레이어가 짠 계통은 그대로). 바꾼 이름 목록을 돌려준다 */
 export function refreshExistingServices(state, net, stations) {
@@ -394,10 +401,17 @@ export function openWaitingServices(state, net, stations, operator = 'korail') {
   const started = [];
   if (!state.waitingServices?.length) return started;
   const stationSet = new Set(stations.map((s) => s[1]));
+  state.waitingServices = [...new Set(state.waitingServices.map((n) => RENAMED_WAITING[n] || n))];
   state.waitingServices = state.waitingServices.filter((name) => {
     const s = EXISTING_SERVICES.find((x) => x.name === name);
     const svc = s && existingService(s, net.links, stations, stationSet, true);
     if (!svc) return true;
+    // 전 구간 계통이 다니면 그 구간의 부분 계통은 없앤다 (서해선 광역·일반 → 서해선 하나)
+    if (s.replaces) {
+      const gone = (state.services || []).filter((x) => x.existing && s.replaces.includes(x.name));
+      state.services = (state.services || []).filter((x) => !gone.includes(x));
+      for (const g of gone) state.log.unshift(`${state.year}년 운행 중단: ${g.name} (${name}로 합침)`);
+    }
     (state.services ||= []).push({ ...svc, fund: operator });
     state.log.unshift(`${state.year}년 선로 개통에 맞춰 운행 시작: ${name}`);
     started.push(name);

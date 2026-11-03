@@ -2,7 +2,7 @@
 // 그 선을 누르면 계획이 그리기로 열린다 (main.js openPlan).
 import { smoothSegments } from '../game/curve.js';
 
-export const PLAN_COLORS = { gtx: '#0b7a8f', hsr: '#2453c9', rail: '#6c3fa0', metro: '#1a9a6c', motorway: '#c0392b', trunk: '#d35400', tunnelRoad: '#c0392b', tunnelRail: '#2453c9' };
+export const PLAN_COLORS = { gtx: '#0b7a8f', hsr: '#2453c9', rail: '#6c3fa0', metro: '#1a9a6c', motorway: '#c0392b', trunk: '#d35400', tunnelRoad: '#c0392b', tunnelRail: '#2453c9', hsr350: '#2453c9', service: '#6c3fa0' };
 
 export function planLine(p) {
   const pts = p.points.map(([, lon, lat]) => ({ lon, lat }));

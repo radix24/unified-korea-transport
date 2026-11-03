@@ -121,7 +121,7 @@ export function annexBase(to, zi) {
   // 광역시로 승격한 신설 시는 존 바탕이 없다: 단체 이름을 그대로 적는다 (regionOf가 문자열 편입을 그대로 쓴다)
   if (admin()?.splits().some((u) => u.metro && u.region === to)) return to;
   const b = regionBase(state, zoneProps[zi]);
-  const c = state.local.independent.find((x) => metroName(x) === to);
+  const c = state.local.independent.find((x) => metroName(x, state.local) === to);
   return { prov: c || b.prov, side: b.side };
 }
 
@@ -321,7 +321,7 @@ export function makeBungu(unit, n, opts = {}) {
   subs.forEach((s, j) => { gu[subKey(s.i)] = shown[lab[j]]; });
   (state.local.bungu ||= {})[unit] = { n, gu, core: core >= 0 ? shown[core] : null, dirV: 2, ...(general ? { general: true } : {}) };
   guUnits.clear();   // 자세한 경계의 구 배정을 다시 한다
-  const where = general ? `${unit.startsWith('split:') ? state.local.splitUnit[unit].name : zoneName(zs[0])} 일반구` : pre ? `${annexRegion(unit)} ${pre}구` : unit.startsWith('split:') ? state.local.splitUnit[unit].region : metroName(unit);
+  const where = general ? `${unit.startsWith('split:') ? state.local.splitUnit[unit].name : zoneName(zs[0])} 일반구` : pre ? `${annexRegion(unit)} ${pre}구` : unit.startsWith('split:') ? state.local.splitUnit[unit].region : metroName(unit, state.local);
   state.log.unshift(`${state.year}년 ${where} 분구: ${[...new Set(shown)].join('·')}`);
   return true;
 }
@@ -573,7 +573,7 @@ export async function migrateSubKeys(st, oldStamp) {
 /** 분구할 수 있는 단위: 승격한 도시, 광역시에 편입한 시 (아직 나누지 않았고 읍면동이 둘 넘는 곳) → [[단위, 보이는 이름]] */
 export function bunguUnits() {
   const L = state.local;
-  const out = L.independent.filter((c) => !L.bungu?.[c] && cityCoreZones(c).some((z) => zoneProps[z].subs.length >= 2)).map((c) => [c, metroName(c)]);
+  const out = L.independent.filter((c) => !L.bungu?.[c] && cityCoreZones(c).some((z) => zoneProps[z].subs.length >= 2)).map((c) => [c, metroName(c, L)]);
   for (const k of Object.keys(L.annex || {})) {
     const to = annexRegion(k);
     if (L.bungu?.[k] || !isMetroCity(to) || !(/시$/.test(k.split('|')[1]) || L.cityUp?.includes(k))) continue;
@@ -1324,8 +1324,10 @@ export function megaHTML() {
   // 교류화 사업비는 남은 직류 구간 연장으로 (착공 전에만 다시 잰다)
   const ac = MEGA.find((m) => m.id === 'kp-ac');
   if (ac && !state.projects.some((x) => x.kind === 'mega' && x.mega === 'kp-ac')) ac.cost = state.mega?.['kp-ac'] ? ac.cost : kpACCost(base, state);
+  // 계획 사업과 겹쳐 물린 사업(retired)은 이미 짓거나 지은 저장에서만 보인다
+  const shown = MEGA.filter((m) => !m.retired || state.mega?.[m.id] || state.projects.some((x) => x.kind === 'mega' && x.mega === m.id));
   // 분야별로 접어 둔다 (처음에는 모두 접힘: 메일 건의)
-  const cats = [...new Set(MEGA.map((m) => m.cat || '기타'))];
+  const cats = [...new Set(shown.map((m) => m.cat || '기타'))];
   const megaRow = (m) => {
     const p = state.projects.find((x) => x.kind === 'mega' && x.mega === m.id);
     const status = state.mega?.[m.id] ? `<span class="pos">${state.mega[m.id]}년 완공</span>`
@@ -1338,9 +1340,9 @@ export function megaHTML() {
   };
   const pw = powerPct(state);
   const megaBody = `<p class="hint">해마다 예산을 들여 짓는 국가 단위 사업입니다. 선형을 지도에서 보고, 다 지었을 때의 효과와 예비타당성 평가를 미리 볼 수 있습니다.</p>
-    ${cats.map((c) => subFold(`mega:${c}`, `${esc(c)} <span class="cnt">${MEGA.filter((m) => (m.cat || '기타') === c).length + (c === '북측 철도 현대화' && kpStdAllHTML() ? 1 : 0)}</span>`,
+    ${cats.map((c) => subFold(`mega:${c}`, `${esc(c)} <span class="cnt">${shown.filter((m) => (m.cat || '기타') === c).length + (c === '북측 철도 현대화' && kpStdAllHTML() ? 1 : 0)}</span>`,
     `${c === '전력 현대화' ? `<p class="hint">북측 발전 현대화율 <b>${pw}%</b> (25·50·75·100%를 넘을 때마다 통합도 +1%p, 북측 소득 수렴이 빨라집니다)</p>` : ''}
-      <div class="list">${MEGA.filter((m) => (m.cat || '기타') === c).map(megaRow).join('')}${c === '북측 철도 현대화' ? kpStdAllHTML() : ''}</div>`)).join('')}`;
+      <div class="list">${shown.filter((m) => (m.cat || '기타') === c).map(megaRow).join('')}${c === '북측 철도 현대화' ? kpStdAllHTML() : ''}</div>`)).join('')}`;
   // 대형 도시 개발: 분야별로 접고, 그 자리에서 바로 착공한다 (시군 창의 '도시 개발'과 같은 사업)
   const devCats = [...new Set(Object.values(SPECIAL_DEV).map((D) => D.cat || '남측 도시 개발'))];
   const devRow = ([k, D]) => {
@@ -1353,7 +1355,7 @@ export function megaHTML() {
   const devBody = `<p class="hint">정해진 자리의 도시 개발 사업입니다. 여기서 착공하거나 그 시군 창의 '도시 개발'에서 착공합니다.</p>
     ${devCats.map((c) => subFold(`dev:${c}`, `${esc(c)} <span class="cnt">${Object.values(SPECIAL_DEV).filter((D) => (D.cat || '남측 도시 개발') === c).length}</span>`,
     `<div class="list">${Object.entries(SPECIAL_DEV).filter(([, D]) => (D.cat || '남측 도시 개발') === c).map(devRow).join('')}</div>`)).join('')}`;
-  return subFold('mega:all', `국가 대형 사업 <span class="cnt">${MEGA.length}</span>`, megaBody)
+  return subFold('mega:all', `국가 대형 사업 <span class="cnt">${shown.length}</span>`, megaBody)
     + subFold('dev:all', `대형 도시 개발 <span class="cnt">${Object.keys(SPECIAL_DEV).length}</span>`, devBody);
 }
 
@@ -1593,7 +1595,7 @@ export function bindLocalSettings(el) {
   el.querySelectorAll('[data-ev-city]').forEach((b) => {
     b.onclick = () => {
       const c = b.dataset.evCity;
-      if (!confirm(`${c}를 ${metroName(c)}로 ${L.historic && HISTORIC_CITIES.includes(c) ? '독립' : '승격'}할까요? 도에서 떨어져 나와 광역 단체가 되고, 시장·도지사를 다시 뽑습니다. ${formatWon(EVENT_COST.independence)}`)) return;
+      if (!confirm(`${c}를 ${metroName(c, L)}로 ${L.historic && HISTORIC_CITIES.includes(c) ? '독립' : '승격'}할까요? 도에서 떨어져 나와 광역 단체가 되고, 시장·도지사를 다시 뽑습니다. ${formatWon(EVENT_COST.independence)}`)) return;
       if (!payEvent(EVENT_COST.independence)) return;
       // 도시가 빠진 도와 새 광역시의 단체장을 다시 뽑는다. 원래 도는 지금 소속표의 그 도시 시군으로 (예전에는 이름이 맞는 첫 존 하나로
       // 찾아, 다른 도로 편입했다가 돌아온 조각·떨어진 존이 앞에 있으면 엉뚱한 도를 다시 뽑고 정작 원래 도는 빠졌다)
@@ -1607,7 +1609,7 @@ export function bindLocalSettings(el) {
       if (old?.general) { if (nGu > 1) delete L.bungu[unitId(state, zc)]; else { delete old.general; setCoreGu(unitId(state, zc)); } }   // 일반구 → 자치구 (구청장 선거)
       if (nGu > 1) makeBungu(c, nGu);
       drawBungu();
-      holdElection([metroName(c), ...parents.filter((r) => r !== metroName(c))], `${metroName(c)} ${L.historic ? '독립' : '광역시 승격'} 선거`);
+      holdElection([metroName(c, L), ...parents.filter((r) => r !== metroName(c, L))], `${metroName(c, L)} ${L.historic ? '독립' : '광역시 승격'} 선거`);
       syncMayors();   // 승격한 도시 자체(한 존)는 중구가 된다: 시장 → 중구청장
       refreshNames(map);
       save(state); renderAll();

@@ -773,6 +773,19 @@ export function splitLink(base, state, id, lon, lat) {
     if (p.status !== 'building') continue;
     for (const k of ['links', 'retire']) if (p[k]?.includes(id)) p[k] = p[k].filter((x) => x !== id).concat([first, first + 1]);
   }
+  // 이 구간을 지나는 운행 계통은 나뉜 두 구간을 달리는 차례대로 이어받는다 (예전에는 옛 구간을 붙들어 그 구간이 쉬었다)
+  for (const sv of state.services || []) {
+    for (const sg of sv.segs || []) {
+      if (!sg.via.includes(id)) continue;
+      let at = sg.a;
+      sg.via = sg.via.flatMap((i) => {
+        if (i !== id) { const x = linkAt(base, state, i); at = x.a === at ? x.b : x.a; return [i]; }
+        const fwd = at === l.a;
+        at = fwd ? l.b : l.a;
+        return fwd ? [first, first + 1] : [first + 1, first];
+      });
+    }
+  }
   return node;
 }
 
