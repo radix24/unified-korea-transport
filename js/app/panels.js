@@ -40,7 +40,7 @@ import { compareHTML, previewDraft } from './compare.js';
 import { goalHTML, reportBug, showReport } from './report.js';
 import { bindPPP, pppSection } from './ppp.js';
 import { startServicePick } from './pick.js';
-import { drawServices, setShowHousing, setShowServices, showHousing, showServices } from './svcmap.js';
+import { drawServices, goService, setShowHousing, setShowServices, showHousing, showServices } from './svcmap.js';
 
 // ------------------------------------------------------------ 화면
 
@@ -133,6 +133,7 @@ export function paletteCommands() {
   add('개량', '구간 개량하기', () => toast('지도에서 도로·철도 구간을 누르면 개량 메뉴가 열립니다. Shift를 누른 채 끌면 여러 구간을 한꺼번에 고릅니다.'), { keywords: '확장 복선화 전철화 차로', order: 3 });
   add('개량', '확장 요구 (혼잡 민원) 보기', () => switchTab('requests'), { keywords: '민원 정체 요구', order: 3 });
   add('운행', '역 골라 특급·급행 짜기', () => { switchTab('build'); startServicePick(); }, { keywords: '운행 계통 열차 노선 운행', order: 3 });
+  for (const s of state.services || []) add('운행 계통', s.name, () => goService(s.id), { keywords: `운행 계통 고치기 ${(s.lines || [s.line]).join(' ')}`, order: 4 });
   add('예산', '예산·사업 투입 속도', () => switchTab('projects'), { hint: `가용 ${formatWon(state.budget)}`, keywords: '돈 부채 공사 진행', order: 3 });
   add('도움말', '처음 안내 다시 보기', showGuide, { keywords: '튜토리얼 도움말 사용법', order: 9 });
   add('도움말', '오류 제보·의견 보내기', reportBug, { hint: BUG_MAIL, keywords: '버그 오류 신고 제보 문의 메일 error report', order: 9 });
@@ -501,7 +502,8 @@ export function renderBuild() {
     + extra('data-build="airport"', AIRPORT.build.label, `${formatWon(AIRPORT.build.cost)} · ${AIRPORT.build.years}년`, draft?.type === 'airport')
     + extra('id="housing-pick" title="지도에서 고른 곳에 주택 단지를 조성합니다 (인구 순증)"', '택지지구 개발', '지도에서 자리 고르기');
   const right = Object.keys(NEW_BUILDS).filter((k) => NEW_BUILDS[k].mode >= 1).map(card).join('')
-    + extra('', '철도 운행 계통 신설', '역을 골라 특급·급행·광역 짜기', false, 'svc-pick-b');
+    + extra('', '철도 운행 계통 신설', '역을 골라 특급·급행·광역 짜기', false, 'svc-pick-b')
+    + extra('id="svc-list-b"', '운행 계통 고치기', '목록에서 찾아 고르기');
   const tools = `<div class="tool-col">${left}</div><div class="tool-col">${right}</div>`;
   // 노선 추천·미리보기 기간은 '노선 추천 · 미리보기' 접힘에 (추천 결과가 있으면 펼친다)
   let body = `${compareHTML()}${subFold('build:more', '노선 추천 · 미리보기', `<div class="name-row" style="margin-bottom:4px"><input type="text" id="rec-text" placeholder="예: 평양에 도시철도 3호선을 짓고 싶어, 노선을 추천해줘" style="flex:1">
@@ -579,6 +581,7 @@ export function renderBuild() {
   if (draft) showPlan(null);
   el.querySelectorAll('[data-plan]').forEach((b) => { b.onclick = () => openPlan(b.dataset.plan); });
   el.querySelectorAll('.svc-pick-b').forEach((b) => { b.onclick = startServicePick; });
+  el.querySelector('#svc-list-b')?.addEventListener('click', () => { goSection('ops', '철도 운행 계통'); $('#svc-q')?.focus(); });
   el.querySelectorAll('[data-padd]').forEach((b) => { b.onclick = () => startPointAdd(b.dataset.padd); });
   el.querySelector('#univ-start')?.addEventListener('click', startUnivPick);
   const hp = el.querySelector('#housing-pick');

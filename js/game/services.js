@@ -338,17 +338,17 @@ export const EXISTING_SERVICES = [
 function existingService(s, links, stations, stationSet, strict) {
   const lineNodes = new Set();
   for (const l of links) if (l.mode === 1 && s.lines.includes(l.name)) { lineNodes.add(l.a); lineNodes.add(l.b); }
-  // 역 이름은 '역'을 떼고 맞춘다 (자료의 '서울'과 계통의 '서울역'). 제 노선 위의 역을 먼저, 없으면 같은 이름 역 가운데 노선 끝에 붙은 역 (부산역은 경부선 위)
+  // 역 이름은 '역'을 떼고 맞춘다 (자료의 '서울'과 계통의 '서울역'). 제 노선 위의 역을 먼저, 없으면 같은 이름 역 가운데 노선 끝에 붙은 역 (부산역은 경부선 위).
   const key = (nm) => (nm || '').replace(/역$/, '');
   const adj = new Map();
   for (const l of links) if (l.mode === 1 && !l.via) { (adj.get(l.a) || adj.set(l.a, []).get(l.a)).push(l.b); (adj.get(l.b) || adj.set(l.b, []).get(l.b)).push(l.a); }
   const near = (nd) => { const seen = new Set([nd]); let fr = [nd]; for (let k = 0; k < 4 && fr.length; k++) { fr = fr.flatMap((n) => adj.get(n) || []).filter((n) => !seen.has(n) && seen.add(n)); if (fr.some((n) => lineNodes.has(n))) return true; } return false; };
-  const find = (nm) => {
+  const find = (nm, loose = true) => {
     const c = stations.filter((x) => key(x[0]) === key(nm));
-    return (c.find((x) => lineNodes.has(x[1])) || c.find((x) => near(x[1])))?.[1];
+    return (c.find((x) => lineNodes.has(x[1])) || (loose ? c.find((x) => near(x[1])) : null))?.[1];
   };
   let stops;
-  if (s.stops) stops = s.stops.map(find).filter((n) => n != null);
+  if (s.stops) stops = s.stops.map((nm) => find(nm)).filter((n) => n != null);
   else {
     // 두 끝 역 사이 경로의 모든 역
     const a = find(s.from), b = find(s.to);
@@ -364,7 +364,12 @@ function existingService(s, links, stations, stationSet, strict) {
     }
   }
   if (stops.length < 2) return null;
-  const plan = planService(links, stationSet, stops, s.kind, new Set(s.lines), s.type);
+  let plan = planService(links, stationSet, stops, s.kind, new Set(s.lines), s.type);
+  if (!plan && s.stops) {
+    // 노선 밖 중간 역으로 경로를 못 짜면 그 역만 건너뛴다 (0.8.2: 대경선의 대구 때문에 계통 전체가 빠졌다)
+    stops = s.stops.map((nm, k) => find(nm, k === 0 || k === s.stops.length - 1)).filter((n) => n != null);
+    plan = stops.length >= 2 ? planService(links, stationSet, stops, s.kind, new Set(s.lines), s.type) : null;
+  }
   if (!plan) return null;
   // 기다리는 계통은 제 노선 선로가 다 열려야 다닌다 (다른 노선으로 돌아가는 길로 먼저 다니지 않게)
   if (strict && plan.segs.some((sg) => sg.via.some((i) => links[i].name && !s.lines.includes(links[i].name) && !links[i].name.endsWith(' 환승')))) return null;
@@ -375,9 +380,10 @@ function existingService(s, links, stations, stationSet, strict) {
 /** 새 게임에 EXISTING_SERVICES를 운행 중으로 넣는다 (차량비 없음, 이름으로 역을 찾고 없는 역은 건너뛴다).
  * wait인 계통은 선로가 아직 없으면 기다리는 목록에 두고, 해마다 openWaitingServices가 확인한다 */
 export function seedServices(state, base, operator = 'korail') {
-  if (state.servicesSeeded) return seedHsrServices(state, base, operator);
+  if (state.servicesSeeded) { restoreDaegyeong(state, base, operator); return seedHsrServices(state, base, operator); }
   state.servicesSeeded = true;
   state.hsrSeeded = true;
+  state.dkRestored = true;
   const links = base.links.map((l) => ({ ...l, active: !l.open }));
   const stationSet = new Set(base.stations.map((s) => s[1]));
   for (const s of EXISTING_SERVICES) {
@@ -385,6 +391,16 @@ export function seedServices(state, base, operator = 'korail') {
     if (svc) (state.services ||= []).push({ ...svc, fund: operator });
     else if (s.wait) (state.waitingServices ||= []).push(s.name);
   }
+}
+
+/** 0.8.2로 시작한 판에 빠진 대경선을 한 번 넣는다 (그 판에서는 대경선을 잇는 계획도 열리지 않았다) */
+function restoreDaegyeong(state, base, operator) {
+  if (state.dkRestored) return;
+  state.dkRestored = true;
+  if ((state.services || []).some((x) => x.name === '대경선')) return;
+  const links = base.links.map((l) => ({ ...l, active: !l.open }));
+  const svc = existingService(EXISTING_SERVICES.find((x) => x.name === '대경선'), links, base.stations, new Set(base.stations.map((s) => s[1])), false);
+  if (svc) (state.services ||= []).push({ ...svc, fund: operator });
 }
 
 /** 0.7.2에 더한 기본 고속열차 계통(KTX)을 예전 저장에 한 번 넣는다 (예전에는 고속선을 기본 열차로만 다녀 호남고속선 열차가 서울까지 이어지지 않았다) */

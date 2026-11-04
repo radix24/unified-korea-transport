@@ -10,11 +10,11 @@ import { base, CLASS_LABEL, esc, map, result, selection, state, wholeRoute } fro
 import { allLinks, linkTwins, nodeCoord, nodeNames, shownTraffic, stationKey } from './mapdata.js';
 import { select } from './interact.js';
 import { renderSelection } from './econ.js';
-import { railStationSet, servicePlan, serviceSection, setSvcEdit, stationRiders, svcEdit } from './svc.js';
+import { openServiceEditor, passingServicesHTML, railStationSet, servicePlan, serviceSection, setSvcEdit, stationRiders, svcEdit } from './svc.js';
 import { fundSelect } from './operators.js';
 import { pathCoords } from './straighten.js';
 import { toast } from '../ui/panel.js';
-import { drawServicePick, isCommuterLine, nearestStation, routeThrough, setSvcPick, svcPick } from './pick.js';
+import { drawServicePick, endMapTools, isCommuterLine, nearestStation, routeThrough, setSvcPick, svcPick } from './pick.js';
 import { LINE_ORIGIN, originConnector, reopenHTML, sameRoute } from './reopen.js';
 
 // ------------------------------------------------------------ 운행 계통을 지도에 노선으로
@@ -154,6 +154,28 @@ export function drawServices() {
   src.setData({ type: 'FeatureCollection', features: f });
 }
 
+/** 목록에서 계통 위에 마우스를 올리면 지도에서 그 계통만 진하게 (null이면 되돌린다) */
+const SVC_OPACITY = ['case', ['==', ['get', 'built'], 1], 0.9, 0.5];
+export function previewService(id) {
+  if (!map?.getLayer('services-line')) return;
+  map.setPaintProperty('services-line', 'line-opacity', id ? ['case', ['==', ['get', 'id'], id], 1, 0.1] : SVC_OPACITY);
+}
+
+/** 목록에서 고른 계통을 열고 지도를 그 노선에 맞춘다 */
+export function goService(id) {
+  const s = state.services.find((x) => x.id === id);
+  if (!s) return;
+  previewService(null);
+  if (svcPick) endServicePick();
+  endMapTools();
+  const c = serviceCoords(effectiveNetwork(base, state).links, s.segs || []);
+  openServiceEditor(s.line, s.cls, s.id);
+  if (c.length > 1) {
+    const xs = c.map((p) => p[0]), ys = c.map((p) => p[1]);
+    map.fitBounds([[Math.min(...xs), Math.min(...ys)], [Math.max(...xs), Math.max(...ys)]], { padding: 60, maxZoom: 11, duration: 500 });
+  }
+}
+
 /** 계통 편집 중: 지금 고른 정차역과 경로를 지도에 */
 export function drawServiceEdit() {
   const e = svcEdit;
@@ -176,7 +198,9 @@ export function serviceEditClick(ll) {
 export function serviceEditNode(n) {
   const e = svcEdit;
   if (e.nodes.includes(n)) {
-    if (e.stops.has(n)) e.stops.delete(n); else e.stops.add(n);
+    const on = !e.stops.has(n);
+    if (on) e.stops.add(n); else e.stops.delete(n);
+    toast(`${nodeNames().get(n)?.name || '역'} ${on ? '정차' : '통과'}`);   // 지도를 작게 보면 어느 역이 눌렸는지 알기 어렵다
     renderSelection();
     return;
   }
@@ -337,6 +361,7 @@ export function linkPanel(id) {
   const secLabel = sec && secIds.length > 1 ? `${nnS.get(sec.A)?.name || '교차로'} – ${nnS.get(sec.B)?.name || '교차로'}` : '';
   return `${header(l.name || CLASS_LABEL[l.cls])}
     ${secLabel ? `<p class="hint">선택 구간: <b>${esc(secLabel)}</b> · ${secKm.toFixed(1)}km (${secIds.length}개 링크). 개량은 이 구간 전체에 적용됩니다.</p>` : ''}
+    ${l.mode === 1 ? passingServicesHTML(secIds) : ''}
     <table class="kv">
       <tr><td>종류</td><td>${CLASS_LABEL[l.cls]} · ${l.kp ? '북' : '남'}</td></tr>
       ${operatorOf(state, l) ? `<tr><td>운영사</td><td>${opBadge(state, operatorOf(state, l))}</td></tr>` : ''}
@@ -344,7 +369,7 @@ export function linkPanel(id) {
       ${rows}
       <tr><td>혼잡도 (V/C)</td><td class="${vc > 1 ? 'neg' : ''}">${vc.toFixed(2)}</td></tr>
     </table>
-    ${l.mode >= 1 && l.name && !l.ext && !planned ? serviceSection(l) : ''}
+    ${l.mode >= 1 && l.name && !l.ext && !planned ? serviceSection(l, secIds) : ''}
     ${!planned && !busyProj ? reopenHTML(id, l) : ''}
     ${isNew && l.name ? `<h4>노선 이름</h4><div class="name-row"><input type="text" id="line-rename" value="${esc(l.name)}">
       <button class="small" id="line-rename-ok">바꾸기</button></div>` : ''}

@@ -29,7 +29,7 @@ import { bindPointAdd, pointAddPanel, REST_REMOVE_COST, startPointAdd } from './
 import { previewUpgrade } from './compare.js';
 import { bindSlots, copyShareLink, exportSave, importSave, reportBug, slotsHTML } from './report.js';
 import { endSection, sectionPanel, startSection, startServicePick } from './pick.js';
-import { bindServicePick, commitServicePick, confirmRetire, endServicePick, header, LINE_BATCH_DISCOUNT, lineBatch, linkPanel, multiPanel, servicePickPanel } from './svcmap.js';
+import { bindServicePick, commitServicePick, confirmRetire, endServicePick, goService, header, LINE_BATCH_DISCOUNT, lineBatch, linkPanel, multiPanel, previewService, servicePickPanel, svcColor } from './svcmap.js';
 import { closedPanel, openClosedStraight, sameRoute, startClosedReopen, startReopen } from './reopen.js';
 import {
   airportName, airportPanel, bindAnnexButtons, bindLevelLinks, bindUnitPanel, emdPanel, metroRename, nodePanel, regionPanel, regionReorg, restoreRow, riPanel, subPanel, unitPanel,
@@ -226,25 +226,62 @@ export function bindPolicy(el) {
   });
 }
 
+/** 운영 탭의 계통 목록: 모든 계통을 찾아 눌러 고른다 (차량 제작 중이거나 아직 계산 전인 계통도 든다) */
+let svcQuery = '';
+function serviceListHTML() {
+  const stats = new Map(svcStats().map((x) => [x.s.id, x])), nn = nodeNames();
+  const rows = (state.services || []).map((s, k) => {
+    const x = stats.get(s.id), kind = SERVICE_KINDS[s.kind].label;
+    const key = [s.name, kind, ...(s.lines || [s.line]), ...s.stops.map((n) => nn.get(n)?.name || '')].join(' ').toLowerCase();
+    return `<tr data-svc-go="${s.id}" data-svc-key="${esc(key)}" style="cursor:pointer" title="눌러서 고르기"><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${esc(svcColor(s, k))}"></span> <a href="#">${esc(s.name)}</a> <span class="m">${s.name.includes(kind) ? '' : `${kind} · `}${s.stops.length}역${s.built ? '' : ' · 차량 제작 중'}</span></td>
+    ${x ? `<td>${s.trains}</td><td>${Math.round(x.riders).toLocaleString()}</td><td>${Math.round(x.peak).toLocaleString()}</td><td>${Math.round(x.load * 100)}%</td><td class="${x.ratio > 100 ? 'neg' : ''}">${fmtRatio(x.ratio)}</td>` : `<td>${s.trains || '–'}</td><td>–</td><td>–</td><td>–</td><td>–</td>`}</tr>`;
+  }).join('');
+  if (!rows) return '<p class="hint">아직 짠 계통이 없습니다.</p>';
+  return `<div class="name-row"><span class="kind">찾기</span><input type="text" id="svc-q" value="${esc(svcQuery)}" placeholder="이름·노선·역·등급 (예: 전라선, 여수, 특급)" style="flex:1"><span class="m" id="svc-q-n"></span></div>
+    <p class="hint">줄을 누르면 그 계통을 지도에 보여 주고 고칠 수 있습니다. 마우스를 올리면 지도에서 그 계통만 진하게 보입니다.</p>
+    <div style="max-height:360px;overflow:auto"><table class="cmp" id="svc-list"><tr><th>계통</th><th>회/일</th><th title="하루 이용객 (어림: 구간 이용객이 늘어난 만큼 탄 것으로 셈)">이용객/일</th><th title="가장 붐비는 구간의 하루 이용객">최대 구간</th><th>승차율</th><th>영업계수</th></tr>${rows}</table></div>`;
+}
+
+function bindServiceList(el) {
+  el.querySelectorAll('.svc-pick-b').forEach((b) => { b.onclick = startServicePick; });
+  const rows = [...el.querySelectorAll('[data-svc-go]')];
+  rows.forEach((r) => {
+    r.onclick = (ev) => { ev.preventDefault(); goService(r.dataset.svcGo); };
+    r.onmouseenter = () => previewService(r.dataset.svcGo);
+    r.onmouseleave = () => previewService(null);
+  });
+  const q = el.querySelector('#svc-q');
+  if (!q) return;
+  const apply = () => {
+    svcQuery = q.value;
+    const w = svcQuery.trim().toLowerCase().split(/\s+/).filter(Boolean).map((x) => x.replace(/(.)역$/, '$1'));
+    let n = 0;
+    for (const r of rows) { r.hidden = !w.every((x) => r.dataset.svcKey.includes(x)); if (!r.hidden) n++; }
+    el.querySelector('#svc-q-n').textContent = `${n} / ${rows.length}개`;
+  };
+  q.oninput = apply;
+  apply();
+}
+
 /** 운영 탭: 철도 운행 계통, 철도 회사(재원·합병), 노선 영업계수·감편·폐선, 항공 자동 운영 */
 export function renderOps() {
   const el = $('[data-panel=ops]');
   if (!el) return;
-  if (!result) { el.innerHTML = '<p class="hint">계산 중입니다…</p>'; return; }
-  const svcRows = svcStats().map((x) => `<tr><td>${esc(x.s.name)} <span class="m">${x.s.name.includes(SERVICE_KINDS[x.s.kind].label) ? '' : `${SERVICE_KINDS[x.s.kind].label} · `}${x.s.stops.length}역</span></td>
-    <td>${x.s.trains}</td><td>${Math.round(x.riders).toLocaleString()}</td><td>${Math.round(x.peak).toLocaleString()}</td><td>${Math.round(x.load * 100)}%</td><td class="${x.ratio > 100 ? 'neg' : ''}">${fmtRatio(x.ratio)}</td></tr>`).join('');
-  el.innerHTML = `
-    <h3>철도 운행 계통</h3>
+  previewService(null);
+  const svcHead = `<h3>철도 운행 계통</h3>
     <div class="actions"><button class="small primary svc-pick-b">역 골라 특급·급행 짜기</button></div>
-    <p class="hint">역을 누르면 그 역을 지나는 노선의 노선도·운행 계통을 보고 고칠 수 있습니다.</p>
-    ${svcRows ? `<table class="cmp"><tr><th>계통</th><th>회/일</th><th title="하루 이용객 (어림: 구간 이용객이 늘어난 만큼 탄 것으로 셈)">이용객/일</th><th title="가장 붐비는 구간의 하루 이용객">최대 구간</th><th>승차율</th><th>영업계수</th></tr>${svcRows}</table>` : '<p class="hint">아직 짠 계통이 없습니다.</p>'}
+    ${serviceListHTML()}`;
+  // 계산이 끝나기 전에도 계통은 고를 수 있다 (예전에는 첫 계산이 끝날 때까지 운영 탭 전체가 비었다)
+  if (!result) { el.innerHTML = `${svcHead}<p class="hint">수지는 계산 중입니다…</p>`; bindServiceList(el); return; }
+  el.innerHTML = `
+    ${svcHead}
     ${railStatsHTML()}
     ${econPanelHTML()}
     <h3 style="margin-top:16px">항공</h3>
     <label class="name-row"><input type="checkbox" id="air-auto" ${state.air?.auto ? 'checked' : ''}>
       <span>항공 노선 자동 운영 (수요에 따른 취항·증편·단항)</span></label>
     <p class="hint">노선을 직접 열거나 닫으려면 지도에서 공항을 누르세요.</p>`;
-  el.querySelectorAll('.svc-pick-b').forEach((b) => { b.onclick = startServicePick; });
+  bindServiceList(el);
   el.querySelector('#air-auto').onchange = (e) => { state.air.auto = e.target.checked; save(state); };
   bindRailStats(el);
   bindEcon(el);
@@ -252,6 +289,7 @@ export function renderOps() {
 
 export function renderSelection() {
   const el = $('#selection');
+  previewService(null);   // 패널을 다시 그리면 마우스가 떠난 줄을 알 수 없다
   if (!selection) { el.hidden = true; setHighlight(); return; }
   el.hidden = false;
   if (selection.type === 'link') el.innerHTML = linkPanel(selection.id);
@@ -367,6 +405,8 @@ export function renderSelection() {
       const s = state.services.find((x) => x.id === b.dataset.svcEdit);
       openServiceEditor(s.line, s.cls, s.id);
     };
+    b.onmouseenter = () => previewService(b.dataset.svcEdit);
+    b.onmouseleave = () => previewService(null);
   });
   el.querySelectorAll('[data-line-batch]').forEach((b) => {
     b.onclick = () => {

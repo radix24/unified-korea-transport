@@ -286,9 +286,9 @@ export function servicePanel() {
   const powerHint = noPower.size ? `<p class="hint" style="color:#b54708">비전철 구간이 있어 전동차는 다닐 수 없습니다: ${[...noPower].map(([n, km]) => `${esc(n)} ${km.toFixed(0)}km`).join(', ')}.
     디젤 객차로 다니거나, 이 구간을 전철화하세요 (완공되면 전동차를 고를 수 있습니다).</p>
     <div class="actions"><button class="small" id="svc-electrify" data-ids="${JSON.stringify(noPowerIds)}">비전철 구간 전철화 (${noPowerIds.length}개 구간)</button></div>` : '';
-  // 정차역은 지도에서 눌러 넣고 뺀다. 여기서는 순서대로 보여 주고 ×로 뺄 수 있게만
-  const rows = stops.map((n) => `<span class="svc-stop" style="display:inline-flex;align-items:center;gap:2px;margin:2px 4px 2px 0;padding:1px 6px;border-radius:10px;background:var(--chip, #eef1f5)">
-      ${esc(nn.get(n)?.name || `역 ${n}`)} <span class="m">${Math.round(r.get(n) || 0).toLocaleString()}</span><a href="#" data-unstop="${n}" title="정차 빼기" style="text-decoration:none">×</a></span>`).join('');
+  // 경로 위 모든 역을 차례로: 누르면 서고 지나간다 (옅은 역은 통과. 예전에는 서는 역만 보여 지나는 역은 지도에서 찾아 눌러야 했다)
+  const rows = e.nodes.map((n) => { const on = e.stops.has(n); return `<a href="#" class="svc-stop" data-stop-toggle="${n}" title="${on ? '누르면 통과' : '누르면 정차'}" style="display:inline-flex;align-items:center;gap:3px;margin:2px 4px 2px 0;padding:1px 6px;border-radius:10px;text-decoration:none;color:inherit;${on ? 'background:var(--chip, #eef1f5);font-weight:600' : 'opacity:.55;border:1px dashed currentColor'}">
+      ${esc(nn.get(n)?.name || `역 ${n}`)} <span class="m">${Math.round(r.get(n) || 0).toLocaleString()}</span></a>`; }).join('');
   return `${header(e.id ? `운행 계통: ${e.name}` : `${e.line} 운행 계통 짜기`)}
     <div class="name-row"><span class="kind">이름</span><input type="text" id="svc-name" value="${esc(e.name)}"><input type="color" id="svc-color" value="${esc(e.color)}" title="노선 색 (지도에 이 색으로 그립니다)"></div>
     <p class="hint"><b>지도에서 역을 누르거나 아래에서 이름으로 찾으면</b> 정차역을 넣고 뺍니다. 계통 밖의 역을 고르면 그 역까지 경로를 늘려 잇습니다.</p>
@@ -334,8 +334,8 @@ export function servicePanel() {
         + (c.length ? `<div class="name-row"><span class="kind">이어 가기</span>
       <select id="svc-ext">${c.map((x, i) => `<option value="${i}">${lab[x.end]} ${esc(nn.get(e.nodes[x.end ? last : 0])?.name || '')}에서 → ${esc(x.name)} (${esc(nn.get(x.far)?.name || '')}까지)</option>`).join('')}</select><button class="small" id="svc-ext-ok">노선 잇기 (직통)</button></div>` : '');
     })()}
-    <div class="name-row"><span class="kind">정차역</span><span class="m">(숫자: 하루 이용객)</span></div>
-    <div style="max-height:200px;overflow:auto;line-height:1.9">${rows || '<span class="m">지도에서 역을 누르세요.</span>'}</div>
+    <div class="name-row"><span class="kind">정차역</span><span class="m">진한 역에 섭니다. 눌러서 넣고 빼세요 (숫자: 하루 이용객)</span></div>
+    <div id="svc-stops" style="max-height:200px;overflow:auto;line-height:1.9">${rows}</div>
     ${e.id ? '' : fundSelect(plan ? [serviceOperator({ segs: plan.segs })] : [])}
     <div class="actions">
       <button class="primary" id="svc-ok" ${plan && typeOk ? '' : 'disabled'}>${e.id ? (cost ? `저장 (차량 ${formatWon(cost)})` : '저장') : `운행 시작 (차량 ${formatWon(cost)} · 1년)`}</button>
@@ -371,9 +371,13 @@ export function bindService(el) {
   bindStationSearch(el, 'svc-find', () => e.nodes, (n) => serviceEditNode(n));
   el.querySelector('#svc-sets').oninput = (ev) => { e.sets = +ev.target.value; ev.target.nextElementSibling.textContent = `${e.sets}편성`; };
   el.querySelector('#svc-sets').onchange = () => renderSelection();
-  el.querySelectorAll('[data-unstop]').forEach((a) => {
-    a.onclick = (ev) => { ev.preventDefault(); e.stops.delete(+a.dataset.unstop); renderSelection(); };
+  el.querySelectorAll('[data-stop-toggle]').forEach((a) => {
+    a.onclick = (ev) => { ev.preventDefault(); const n = +a.dataset.stopToggle; if (e.stops.has(n)) e.stops.delete(n); else e.stops.add(n); renderSelection(); };
   });
+  // 역을 눌러도 목록이 맨 위로 돌아가지 않게
+  const stopBox = el.querySelector('#svc-stops');
+  stopBox.scrollTop = e.stopScroll || 0;
+  stopBox.onscroll = () => { e.stopScroll = stopBox.scrollTop; };
   el.querySelectorAll('[data-svc-preset]').forEach((b) => { b.onclick = () => { e.stops = defaultStops(e.nodes, b.dataset.svcPreset); renderSelection(); }; });
   el.querySelector('#svc-ok').onclick = () => {
     const { stops, plan } = servicePlan();
@@ -433,13 +437,26 @@ export function bindService(el) {
   });
 }
 
+/** 이 구간을 실제로 지나는 계통 (지도에서 선로를 누르면 맨 위에 보여 한 번 더 눌러 고른다) */
+export function servicesOn(ids) {
+  const set = new Set(ids);
+  return (state.services || []).filter((s) => s.segs?.some((sg) => sg.via.some((i) => set.has(i))));
+}
+export function passingServicesHTML(ids) {
+  const list = servicesOn(ids);
+  if (!list.length) return '';
+  return `<h4>이 구간을 지나는 운행 계통 ${list.length}개</h4>
+    <div class="actions">${list.map((s) => `<button class="small" data-svc-edit="${s.id}" title="이 계통 고치기"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${esc(svcColor(s, state.services.indexOf(s)))}"></span> ${esc(s.name)}</button>`).join('')}</div>`;
+}
+
 /** 링크 패널의 운행 계통·수익성 (도시철도는 수익성만) */
-export function serviceSection(l) {
+export function serviceSection(l, ids = []) {
   const ec = lineEconomics().find((x) => x.name === l.name);
   const econ = ec ? `<p class="hint">이 노선: 연 수입 ${formatWon(ec.rev / 1e8)} · 비용 ${formatWon(ec.cost / 1e8)} · 영업계수 <b class="${ec.ratio > 100 ? 'neg' : ''}">${fmtRatio(ec.ratio)}</b></p>` : '';
   const diagram = '<button class="small" id="line-diagram">노선도 보기 (열차 위치·정차역·혼잡도)</button>';
   if (l.mode === 2) return `<h4>노선도 · 수익성</h4><div class="actions">${diagram}</div>${econ}<p class="hint">도시철도 이용객에는 같은 구 안의 짧은 이용(역세권 인구로 어림)이 들어 있습니다.</p>`;
-  const list = (state.services || []).filter((s) => s.line === l.name || s.lines?.includes(l.name));
+  const here = new Set(servicesOn(ids));   // 이 구간을 지나는 계통은 패널 맨 위에
+  const list = (state.services || []).filter((s) => !here.has(s) && (s.line === l.name || s.lines?.includes(l.name)));
   // 보통(자동) 열차: 모든 노선에 저절로 다니는 모든 역 정차 열차. 운행 비율(감편)은 여기서도 바꾼다
   const t = autoLocalTrains(l.name, l.cls), f = state.lineFreq?.[l.name] || 1;
   const autoRow = `<div class="item opt"><div class="opt-row">

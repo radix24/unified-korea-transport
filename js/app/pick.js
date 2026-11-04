@@ -130,11 +130,16 @@ export function sectionOf(id) {
 export let svcPick = null;   // {picks: [역 노드]}
 export function setSvcPick(v) { return (svcPick = v); }
 
-export function startServicePick(first = []) {
+/** 지도 클릭을 가로채는 다른 작업을 끝낸다 */
+export function endMapTools() {
   endHousingPick();   // 택지지구 고르기 중이면 끝낸다 (지도 클릭을 가로채지 않도록)
   cancelDraft();
   if (straight) endStraighten();
   if (secPick) endSection();
+}
+
+export function startServicePick(first = []) {
+  endMapTools();
   svcPick = { picks: [...first] };
   map.getCanvas().style.cursor = 'crosshair';
   select({ type: 'svcpick' });
