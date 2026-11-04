@@ -7,12 +7,13 @@ import { t } from '../i18n.js';
 import { kmBetween } from '../sim/model.js';
 import { railStd } from '../ui/railkind.js';
 import { base, CLASS_LABEL, esc, map, result, selection, state, wholeRoute } from './core.js';
-import { allLinks, linkTwins, nodeCoord, nodeNames, shownTraffic } from './mapdata.js';
+import { allLinks, linkTwins, nodeCoord, nodeNames, shownTraffic, stationKey } from './mapdata.js';
 import { select } from './interact.js';
 import { renderSelection } from './econ.js';
-import { servicePlan, serviceSection, setSvcEdit, svcEdit } from './svc.js';
+import { railStationSet, servicePlan, serviceSection, setSvcEdit, stationRiders, svcEdit } from './svc.js';
 import { fundSelect } from './operators.js';
 import { pathCoords } from './straighten.js';
+import { toast } from '../ui/panel.js';
 import { drawServicePick, isCommuterLine, nearestStation, routeThrough, setSvcPick, svcPick } from './pick.js';
 import { LINE_ORIGIN, originConnector, reopenHTML, sameRoute } from './reopen.js';
 
@@ -167,8 +168,13 @@ export function drawServiceEdit() {
 
 /** 계통 편집 중 지도에서 역을 누르면: 계통 위 역은 정차를 넣고 빼고, 계통 밖 역은 가장 덜 돌아가는 자리에 넣어 경로를 늘린다 */
 export function serviceEditClick(ll) {
-  const e = svcEdit, n = nearestStation(ll);
-  if (n == null) return;
+  const n = nearestStation(ll);
+  if (n != null) serviceEditNode(n);
+}
+
+/** 계통 편집: 역 하나를 넣고 뺀다 (경로 위 역이면 정차를 켜고 끄고, 밖의 역이면 그 역까지 경로를 늘린다) */
+export function serviceEditNode(n) {
+  const e = svcEdit;
   if (e.nodes.includes(n)) {
     if (e.stops.has(n)) e.stops.delete(n); else e.stops.add(n);
     renderSelection();
@@ -189,6 +195,50 @@ export function serviceEditClick(ll) {
   renderSelection();
 }
 
+// ------------------------------------------------------------ 역 이름으로 찾기 (지도에서 작은 역을 누르기 어려워서)
+
+/** 철도역 이름 목록 (datalist) 과 찾기 칸 */
+export function stationSearchHTML(id, placeholder) {
+  const nn = nodeNames(), names = new Set();
+  for (const n of railStationSet()) { const nm = nn.get(n)?.name; if (nm) names.add(nm); }
+  return `<div class="name-row"><span class="kind">역 찾기</span><input type="text" id="${id}" list="${id}-list" placeholder="${esc(placeholder)}" style="flex:1">
+    <datalist id="${id}-list">${[...names].sort((a, b) => a.localeCompare(b)).map((x) => `<option value="${esc(x)}">`).join('')}</datalist></div>`;
+}
+
+/** 이름에 맞는 철도역 노드. 같은 이름 역이 여럿이면 near(노드 목록)에 가장 가까운 역, near가 없으면 이용객이 많은 역 */
+export function findStationNode(name, near = []) {
+  const key = stationKey(name || '');
+  if (!key) return null;
+  const nn = nodeNames(), cands = [...railStationSet()].filter((n) => nn.get(n) && stationKey(nn.get(n).name) === key && nodeCoord(n));
+  if (!cands.length) return null;
+  const ref = near.map(nodeCoord).filter(Boolean);
+  if (ref.length) {
+    const dist = (n) => { const c = nodeCoord(n); return Math.min(...ref.map((q) => kmBetween(c[0], c[1], q[0], q[1]))); };
+    return cands.sort((a, b) => dist(a) - dist(b))[0];
+  }
+  const r = stationRiders();
+  return cands.sort((a, b) => (r.get(b) || 0) - (r.get(a) || 0))[0];
+}
+
+/** 찾기 칸: Enter나 목록에서 고르면 on(노드)을 부르고 그 역으로 지도를 옮긴다 */
+export function bindStationSearch(el, id, near, on) {
+  const inp = el.querySelector('#' + id);
+  if (!inp) return;
+  const go = () => {
+    const v = inp.value.trim();
+    if (!v) return;
+    const n = findStationNode(v, near());
+    if (n == null) { toast(`'${v}' 역을 찾지 못했습니다.`); return; }
+    map.easeTo({ center: nodeCoord(n), zoom: Math.max(map.getZoom(), 10) });
+    inp.value = '';
+    on(n);
+    setTimeout(() => document.querySelector('#' + id)?.focus(), 0);
+  };
+  inp.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); go(); } });
+  // 목록에서 고르면 input 이벤트로 값이 통째로 들어온다
+  inp.addEventListener('input', (ev) => { if (ev.inputType === 'insertReplacementText' || ev.inputType == null) go(); });
+}
+
 export function endServicePick() {
   setSvcPick(null);
   map.getCanvas().style.cursor = '';
@@ -197,20 +247,33 @@ export function endServicePick() {
 
 export function servicePickClick(ll) {
   const best = nearestStation(ll);
-  if (best == null) return;
-  const k = svcPick.picks.indexOf(best);
-  if (k >= 0) svcPick.picks.splice(k, 1); else svcPick.picks.push(best);   // 다시 누르면 뺀다
+  if (best != null) servicePickNode(best);
+}
+
+export function servicePickNode(n) {
+  const k = svcPick.picks.indexOf(n);
+  if (k >= 0) svcPick.picks.splice(k, 1); else svcPick.picks.push(n);   // 다시 누르면 뺀다
   drawServicePick();
   renderSelection();
 }
 
 export function servicePickPanel() {
   const nn = nodeNames(), picks = svcPick.picks;
+  const r = picks.length >= 2 ? routeThrough(picks) : null;
   return `${header('역 골라 계통 짜기')}
-    <p class="hint">열차가 설 역을 지도에서 차례로 누르세요 (다시 누르면 빠집니다). 노선이 달라도 됩니다 — 사이 경로와 지나는 노선은 저절로 잡고 지도에 미리 그립니다.</p>
-    <div class="m">${picks.map((n, i) => `${i + 1}. ${esc(nn.get(n)?.name || '')}`).join(' → ') || '아직 고른 역이 없습니다.'}</div>
+    <p class="hint">열차가 설 역을 <b>지도에서 차례로 누르거나 이름으로 찾으세요</b> (다시 누르면 빠집니다). 노선이 달라도 됩니다 — 사이 경로와 지나는 노선은 저절로 잡고 지도에 미리 그립니다.
+      처음 역과 끝 역만 골라도 되고, 사이 정차역은 다음 화면에서 고칠 수 있습니다.</p>
+    ${stationSearchHTML('sp-find', '예: 용산, 여수엑스포')}
+    <div style="line-height:1.9">${picks.map((n, i) => `<span class="svc-stop" style="display:inline-flex;align-items:center;gap:2px;margin:2px 4px 2px 0;padding:1px 6px;border-radius:10px;background:var(--chip, #eef1f5)">${i + 1}. ${esc(nn.get(n)?.name || '')}<a href="#" data-sp-del="${i}" title="빼기" style="text-decoration:none">×</a></span>`).join(' → ') || '<span class="m">아직 고른 역이 없습니다.</span>'}</div>
+    ${picks.length >= 2 ? (r ? `<p class="hint">지나는 노선: ${r.lines.map(esc).join(' → ')} · 지나는 역 ${r.nodes.length}개</p>` : '<p class="hint" style="color:#b54708">고른 역 사이를 잇는 철도 경로가 없습니다.</p>') : ''}
     <div class="actions">
-      <button class="primary" id="sp-ok" ${picks.length >= 2 ? '' : 'disabled'}>이 역들로 계통 만들기</button><button id="sp-cancel">취소</button></div>`;
+      <button class="primary" id="sp-ok" ${r ? '' : 'disabled'}>이 역들로 계통 만들기</button>${picks.length ? '<button id="sp-clear">모두 지우기</button>' : ''}<button id="sp-cancel">취소</button></div>`;
+}
+
+export function bindServicePick(el) {
+  bindStationSearch(el, 'sp-find', () => svcPick.picks.slice(-1), (n) => { if (!svcPick.picks.includes(n)) servicePickNode(n); });
+  el.querySelectorAll('[data-sp-del]').forEach((a) => { a.onclick = (ev) => { ev.preventDefault(); svcPick.picks.splice(+a.dataset.spDel, 1); drawServicePick(); renderSelection(); }; });
+  el.querySelector('#sp-clear')?.addEventListener('click', () => { svcPick.picks.length = 0; drawServicePick(); renderSelection(); });
 }
 
 /** 고른 역들을 차례로 잇는 경로를 찾아, 지나는 노선·역 순서로 계통 편집 창을 연다 */

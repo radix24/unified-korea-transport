@@ -378,6 +378,8 @@ export function withTangents(points, mode) {
   for (const [i, j] of [[0, 1], [out.length - 1, out.length - 2]]) {
     const p = out[i], q = out[j];
     delete p.tan; delete p.lead;
+    // 앞뒤 단계와 이어지는 끝(plans.js가 정한 방향): 두 단계가 경계에서 같은 방향을 쓴다. 끝을 옮겼으면(700m 넘게) 따르지 않는다
+    if (p.through && kmBetween(p.lon, p.lat, p.through.at[0], p.through.at[1]) < 0.7) { p.tan = p.through.dir; continue; }
     if (p.node == null && p.split == null) continue;
     // 노드에 붙었으면 그 노드에서 뻗는 방향, 선로 중간(아직 자르기 전)이면 그 자리의 선로 앞뒤 방향
     const dirs = p.node != null ? nodeDirs(p.node, mode) : splitDirs(p, mode);
@@ -609,7 +611,8 @@ export function terrainAlign() {
   const dist = (p, q) => kmBetween(p.lon, p.lat, q.lon, q.lat);
   const dry = (lon, lat) => { const t = terrainAt(lon, lat); return !(t && t.sea); };
   if (changed) {
-    const st = out.filter((p) => !p.via && p.kind);   // 역·IC (끌어 끼운 경유점은 선형만 지난다)
+    // 역·IC (끌어 끼운 경유점은 선형만 지난다). 단계 경계는 이름 없는 도로 끝이어도 넣는다: 지형 점이 끝까지 붙어 있으면 이어지는 방향으로 나갈 틈이 없다
+    const st = out.filter((p) => !p.via && (p.kind || p.through));
     for (let k = out.length - 1; k >= 0; k--) if (out[k].via && !out[k].leadPt && st.some((q) => dist(out[k], q) < 2 * L)) out.splice(k, 1);
     // 끝 역의 접선 이끎 점: 지형 경로가 실제로 나가는 쪽(다음 점)과 37° 넘게 어긋나면 뺀다 (접선으로 나갔다 되돌아 U자가 생겼다)
     const bend = (A, B, C) => {

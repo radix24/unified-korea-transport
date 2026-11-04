@@ -106,7 +106,13 @@ export function gazetteData(p) {
   const retire = !!up?.retire;
   const straightened = p.kind === 'new' && !!p.retire && (!!p.straightKm || /직선화/.test(p.label || ''));
   const word = up ? GZ_UPGRADE[up.id] || resolve(up.label, ls[0]) : straightened ? '선형개량(직선화)' : '';
-  const lineName = ls[0].name || (up ? CLASS_LABEL[ls[0].cls] : '') || p.label.replace(/\s*\(.*$/, '');
+  // 여러 노선을 한 사업으로 개량하면(북측 철도 일괄 개량·노선 일괄) 첫 링크 이름(간리–보통강 연결선 등)이 아니라 노선 묶음으로 적는다
+  const lineKm = new Map();
+  for (const l of ls) if (l.name) lineKm.set(l.name, (lineKm.get(l.name) || 0) + (l.len || 0));
+  const lineList = [...lineKm].sort((a, b) => b[1] - a[1]).map(([n]) => n);
+  const multi = !!up && lineList.length > 1;
+  const lineName = multi ? (p.kpStdAll ? '북측 철도' : `${lineList[0]} 등 ${lineList.length}개 노선`)
+    : ls[0].name || (up ? CLASS_LABEL[ls[0].cls] : '') || p.label.replace(/\s*\(.*$/, '');
   const color = up ? (ls[0].colour || (ls[0].cls === 'hsr' ? '#1f5fd1' : metro ? '#1a9a6c' : rail ? '#7b3fa0' : '#2e7d4f')) : GZ_COLOR[p.type] || '#7b3fa0';
   // 노선을 따라 노드 차례와 누적 거리 (떨어진 구간은 이어서 센다)
   const cum = new Map();
@@ -135,8 +141,17 @@ export function gazetteData(p) {
   // 새 정거장과, 노선이 지나는 기존 역(환승역). 개량 구간 끝이 역이 아니면 가까운 지명으로 적는다
   const stSet = new Set(effectiveNetwork(base, state).stations);
   const ends = new Set([order[0], order[order.length - 1]]);
-  const stops = [...new Set(rail ? order.filter((n) => (p.stations || []).includes(n) || stSet.has(n) || (up && ends.has(n)))
+  let stops = [...new Set(rail ? order.filter((n) => (p.stations || []).includes(n) || stSet.has(n) || (up && ends.has(n)))
     : order.filter((n, i) => i === 0 || i === order.length - 1 || names.get(n)))];
+  // 여러 노선 개량: 역을 다 늘어놓지 않고 긴 노선 열두 개의 양 끝 역만
+  if (multi && rail) {
+    const at = new Map(order.map((n, i) => [n, i])), onStop = new Set(stops), pick = [];
+    for (const nm of lineList.slice(0, 12)) {
+      const ns = [...new Set(ls.filter((l) => l.name === nm).flatMap((l) => [l.a, l.b]))].filter((n) => onStop.has(n)).sort((a, b) => at.get(a) - at.get(b));
+      if (ns.length) pick.push(ns[0], ns[ns.length - 1]);
+    }
+    stops = [...new Set(pick)];
+  }
   const code0 = 101;
   const nearPlace = (c) => { const q = namer?.nearbyPlaces(c[0], c[1], 10, 1)[0]; return q ? `${kpFix(stem(q[0]), q[2], q[3])} 부근` : ''; };
   const stations = stops.map((n, i) => {
@@ -151,7 +166,8 @@ export function gazetteData(p) {
     });
     const named = names.get(n)?.name || anyStationName(n);
     return {
-      node: n, name: named || (up ? nearPlace(c) || `${i + 1}` : rail ? `${code0 + i}정거장` : `${i + 1}`), code: rail && !up ? String(code0 + i) : '', km: cum.get(n) || 0,
+      // 이름 없는 도로 끝(평화로 백마고지 쪽 등)은 '1'이 아니라 가까운 지명으로
+      node: n, name: named || (rail && !up ? `${code0 + i}정거장` : nearPlace(c) || `${i + 1}`), code: rail && !up ? String(code0 + i) : '', km: cum.get(n) || 0,
       // 소재지는 게임 속 지금 이름으로 (행정구역 정리로 바뀐 소속 도·시군 이름: 간성군 등)
       lon: c[0], lat: c[1], transfers, isNew: n >= base.nodes.length && !up,
       place: zi >= 0 ? [regionOf(state, zoneProps[zi]) || zf.province, zoneName(zi)].filter(Boolean).join(' ') : '',
@@ -187,7 +203,7 @@ export function gazetteData(p) {
   // 고시 번호·날짜 (사업마다 고정)
   const h = [...p.id].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
   const seq = 100 + state.projects.indexOf(p) + 1;
-  const date = `${p.startYear}. ${1 + (h % 12)}. ${1 + ((h >> 4) % 28)}.`;
+  const date = `${p.startYear}. ${1 + (h % 12)}. ${1 + ((h >>> 4) % 28)}.`;   // >>>: 부호 없이 (>>면 '9. -19.'처럼 음수 날짜가 나왔다)
   const kp = ls.every((l) => l.kp);
   const kindWord = metro ? '도시철도' : p.type === 'hsr' || ls[0].cls === 'hsr' ? '고속철도' : p.type === 'gtx' ? '광역급행철도' : rail ? '철도' : '도로';
   const reopen = p.closedLine != null || !!plans.find((x) => x.id === p.plan)?.closedLine;
@@ -216,6 +232,9 @@ export function gazetteData(p) {
   const transferCount = new Set(stations.flatMap((s) => s.transfers.map((x) => x.name))).size;
   const catch1 = rail ? Math.round(stations.reduce((acc, s) => acc + popWithin(s.lon, s.lat, 1), 0)) : 0;
   const sk = p.straightKm;
+  // 받침 따라 '로/으로' (남측 규격 개량으로, 복선화로)
+  const ro = (w) => { const c = (w || '').charCodeAt(w.length - 1) - 0xac00; return c >= 0 && c < 11172 && c % 28 && c % 28 !== 8 ? '으로' : '로'; };
+  const span = multi ? `${lineName} ${km.toFixed(1)}km` : `${first.name}–${last.name} ${km.toFixed(1)}km 구간`;
   const effects = retire ? [
     `이용이 적은 ${first.name}–${last.name} ${km.toFixed(1)}km 구간을 정리해 유지관리 비용 절감`,
     '폐지한 부지는 지역 개발·녹지 등으로 활용',
@@ -224,11 +243,11 @@ export function gazetteData(p) {
     '곡선 구간 속도 제한을 풀어 열차 운행 시간 단축',
     kp ? '남북 철도망 통합과 북측 지역 균형 발전에 기여' : '철도 경쟁력 향상으로 도로 혼잡 완화와 온실가스 감축',
   ] : up && rail ? [
-    `${first.name}–${last.name} ${km.toFixed(1)}km 구간 ${word}로 선로 용량과 운행 속도 향상`,
+    `${span} ${word}${ro(word)} 선로 용량과 운행 속도 향상`,
     '열차 운행 시간 단축과 정시성 향상',
     kp ? '남북 철도망 통합과 북측 지역 균형 발전에 기여' : '철도 수송 분담률을 높여 도로 혼잡 완화와 온실가스 감축',
   ] : up ? [
-    `${first.name}–${last.name} ${km.toFixed(1)}km 구간 ${word}로 통행 속도 향상과 상습 정체 완화`,
+    `${span} ${word}${ro(word)} 통행 속도 향상과 상습 정체 완화`,
     '교통사고 감소와 물류 비용 절감',
   ] : rail ? [
     `${first.name}–${last.name} ${km.toFixed(1)}km 구간에 ${stations.length}개 정거장을 놓아 철도 서비스 소외 지역을 해소`,
@@ -250,7 +269,8 @@ export function gazetteData(p) {
       : `연장 ${km.toFixed(1)}km, ${stopWord} ${stations.length}개소${rail ? `, ${tracks}${electric}` : ''}`;
   const overview = [
     ['사 업 명', esc(retire ? `${lineName} ${first.name}–${last.name} 구간 폐지` : `${work}사업`)],
-    ['사업 구간', esc(`${first.name} ~ ${last.name} (${first.place} ~ ${last.place})`)],
+    ['사업 구간', esc(multi ? `${lineList.slice(0, 6).join('·')}${lineList.length > 6 ? ` 등 ${lineList.length}개 노선` : ''} (${[...new Set(stations.map((x) => x.place.split(' ')[0]).filter(Boolean))].join('·')})`
+      : `${first.name} ~ ${last.name} (${first.place} ~ ${last.place})`)],
     ['사업 규모', esc(scale)],
     ...(retire ? [] : [['설계 속도', esc(`${after?.speed || '-'}km/h`)]]),
     ['총사업비', esc(formatWon(p.cost))],

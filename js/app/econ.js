@@ -29,7 +29,7 @@ import { bindPointAdd, pointAddPanel, REST_REMOVE_COST, startPointAdd } from './
 import { previewUpgrade } from './compare.js';
 import { bindSlots, copyShareLink, exportSave, importSave, reportBug, slotsHTML } from './report.js';
 import { endSection, sectionPanel, startSection, startServicePick } from './pick.js';
-import { commitServicePick, confirmRetire, endServicePick, header, LINE_BATCH_DISCOUNT, lineBatch, linkPanel, multiPanel, servicePickPanel } from './svcmap.js';
+import { bindServicePick, commitServicePick, confirmRetire, endServicePick, header, LINE_BATCH_DISCOUNT, lineBatch, linkPanel, multiPanel, servicePickPanel } from './svcmap.js';
 import { closedPanel, openClosedStraight, sameRoute, startClosedReopen, startReopen } from './reopen.js';
 import {
   airportName, airportPanel, bindAnnexButtons, bindLevelLinks, bindUnitPanel, emdPanel, metroRename, nodePanel, regionPanel, regionReorg, restoreRow, riPanel, subPanel, unitPanel,
@@ -321,6 +321,7 @@ export function renderSelection() {
     el.querySelector('.close').onclick = end;
     el.querySelector('#sp-cancel').onclick = end;
     el.querySelector('#sp-ok').onclick = commitServicePick;
+    bindServicePick(el);
     return;
   }
   else if (selection.type === 'section') {

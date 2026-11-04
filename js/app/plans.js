@@ -22,10 +22,11 @@ export function setPlans(v) { return (plans = v); }
 setPlansOf(() => plans, planLineName);
 
 /** 경유지 이름과 좌표로 기존 역(또는 도로 노드)을 찾는다: 같은 이름의 역이 6km 안에 있으면 그 역, 아니면 가까운 노드 */
-export function resolveWaypoint([name, lon, lat], mode, motorwayEnd = false) {
+export function resolveWaypoint([name, lon, lat], mode, motorwayEnd = false, joint = false) {
   // 고속도로 계획의 양 끝은 8km 안의 기존 고속도로 노드에 붙인다 (남북 연결 고속도로가 기존 고속도로와 이어지게)
   if (mode === 0 && motorwayEnd) {
-    let best = null, bd = 8;
+    // 단계 경계(joint)는 1.5km 안만: 8km 옆 노드로 끌려가면 경계에서 노선이 꺾였다
+    let best = null, bd = joint ? 1.5 : 8;
     allLinks().forEach((l, i) => {
       const e = linkAt(base, state, i);
       if (e.mode !== 0 || e.cls !== 'motorway' || e.ext) return;
@@ -66,7 +67,7 @@ export function resolveWaypoint([name, lon, lat], mode, motorwayEnd = false) {
   }
   // 이름이 같은 역이 없으면 새 역이다: 그 자리(250m 안)의 노드에만 붙인다.
   // 예전에는 1.5km 안의 아무 역에나 붙여, 서부선의 연희·명지대 등이 홍대입구·증산으로 바뀌어 노선이 엉뚱하게 그려졌다
-  return nearestNode({ lng: lon, lat }, mode, null, mode === 0 ? 4 : name ? 0.25 : 1.5);
+  return nearestNode({ lng: lon, lat }, mode, null, mode === 0 ? (joint ? 1.5 : 4) : name ? 0.25 : 1.5);
 }
 
 /** 예전 저장: 복원 사업 구간이 계획 이름으로 따로 놓였으면 이어지는 노선 이름으로 바꾼다 (계통이 경의선 → 평부선처럼 이어지게) */
@@ -151,6 +152,63 @@ function sameNameNear(name, lon, lat, km) {
   return false;
 }
 
+/** 같은 노선의 앞뒤 단계: 끝과 끝이 1.5km 안에서 만나고, after로 이어졌거나 노선 이름이 같은 계획 */
+function phaseNeighbors(plan) {
+  const stemOf = (n) => n.replace(/\s*\(.*$/, '').replace(/\s*(\d단계|남북 연결|북측 연장|재건설|중국 연결|러시아 연결).*$/, '').trim();
+  const mode = NEW_BUILDS[plan.type]?.mode, P = plan.points, ends = (x) => [x.points[0], x.points[x.points.length - 1]];
+  const loop = (x) => { const [a, b] = ends(x); return kmBetween(a[1], a[2], b[1], b[2]) < 0.05; };
+  if (loop(plan)) return {};
+  const find = (mine, theirEnd, link) => {
+    const c = plans.filter((x) => x !== plan && x.type !== 'service' && x.points?.length > 1 && NEW_BUILDS[x.type]?.mode === mode && !loop(x)
+      && kmBetween(mine[1], mine[2], ends(x)[theirEnd][1], ends(x)[theirEnd][2]) < 1.5
+      && (link(x) || stemOf(x.name) === stemOf(plan.name) || (x.lineName && x.lineName === plan.lineName) || plan.joins?.includes(x.id) || x.joins?.includes(plan.id)));
+    return c.find(link) || c[0];
+  };
+  return { prev: find(P[0], 1, (x) => plan.after === x.id), next: find(P[P.length - 1], 0, (x) => x.after === plan.id) };
+}
+
+/** 노드 pt에 닿은 기존 링크(keep)를 곧게 잇는 방향 (노선 안쪽으로). 닿은 링크가 없으면 undefined, 120° 넘게 되돌아가면 null */
+function continueDir(pt, inner, keep) {
+  if (pt.node == null) return undefined;
+  const ck = Math.cos((pt.lat * Math.PI) / 180);
+  const unit = (x, y) => { const l = Math.hypot(x, y); return l > 0 ? [x / l, y / l] : null; };
+  const to = unit((inner[1] - pt.lon) * ck, inner[2] - pt.lat);
+  const all = allLinks();
+  for (let i = 0; i < all.length; i++) {
+    const l = all[i];
+    if ((l.a !== pt.node && l.b !== pt.node) || !keep(i, l)) continue;
+    const g = [];
+    for (let k = 0; k + 1 < (l.geom || []).length; k += 2) if (l.geom[k] === l.geom[k]) g.push([l.geom[k], l.geom[k + 1]]);
+    if (g.length < 2) continue;
+    if (kmBetween(pt.lon, pt.lat, g[0][0], g[0][1]) > kmBetween(pt.lon, pt.lat, g[g.length - 1][0], g[g.length - 1][1])) g.reverse();
+    const q = g.find((v) => kmBetween(pt.lon, pt.lat, v[0], v[1]) > 0.4) || g[g.length - 1];
+    const out = unit((pt.lon - q[0]) * ck, pt.lat - q[1]);
+    return out && to && out[0] * to[0] + out[1] * to[1] > -0.5 ? unit(out[0] / ck, out[1]) : null;
+  }
+  return undefined;
+}
+
+/**
+ * 단계 경계에서 이 노선이 나가는 방향(경위도 단위 벡터, 노선 안쪽으로).
+ * 이웃 단계를 이미 착공했으면 그 선로가 실제로 닿는 방향을 잇고, 아니면 앞 단계 → 경계 → 뒤 단계의 이등분 방향을 쓴다
+ * (어느 단계를 먼저 지어도 같은 방향이다). 예전에는 단계마다 따로 잡아, 특히 지형 맞춤 뒤에 경계에서 직각으로 꺾였다
+ */
+function throughDir(pt, inner, neighbor, outer) {
+  const ck = Math.cos((pt.lat * Math.PI) / 180);
+  const unit = (x, y) => { const l = Math.hypot(x, y); return l > 0 ? [x / l, y / l] : null; };
+  const toDeg = (v) => { const u = unit(v[0] / ck, v[1]); return u; };
+  const to = unit((inner[1] - pt.lon) * ck, inner[2] - pt.lat);
+  if (!to) return null;
+  const pj = state.projects.find((x) => x.plan === neighbor.id && x.links?.length);
+  if (pj) { const c = continueDir(pt, inner, (i) => pj.links.includes(i)); if (c !== undefined) return c; }
+  const from = unit((pt.lon - outer[1]) * ck, pt.lat - outer[2]);
+  if (!from) return null;
+  // 100° 넘게 꺾이는 경계는 실제로 돌아 나가는 자리라 곧게 잇지 않는다
+  if (from[0] * to[0] + from[1] * to[1] < Math.cos((100 * Math.PI) / 180)) return null;
+  const mid = unit(from[0] + to[0], from[1] + to[1]);
+  return mid && toDeg(mid);
+}
+
 /** 계획 노선을 그리기로 연다 (경유지가 찍힌 상태). 확인하고 고친 뒤 착공한다 */
 export function openPlan(id) {
   const plan = plans.find((p) => p.id === id);
@@ -159,6 +217,7 @@ export function openPlan(id) {
   if (plan.type === 'service') { openServicePlan(plan); return; }
   startDraft(plan.type);
   const spec = NEW_BUILDS[plan.type];
+  const { prev, next } = phaseNeighbors(plan);
   for (const wp of plan.points) {
     // 노선 이름이 붙은 이름 없는 점은 그 노선 위의 분기점 (역 없이 선로를 잘라 잇는다: 서해선–경부고속선 연결선)
     const jn = wp[0] == null && wp[3] ? planJunction(wp, spec.mode) : null;
@@ -166,7 +225,8 @@ export function openPlan(id) {
     // 이름이 없는 경유점은 선형만 잡는 점 (역·IC를 만들지 않는다)
     if (wp[0] == null) { draft.points.push({ node: null, lon: wp[1], lat: wp[2], split: null, via: true }); continue; }
     const isEnd = wp === plan.points[0] || wp === plan.points[plan.points.length - 1];
-    const node = resolveWaypoint(wp, spec.mode, isEnd && spec.attrs?.cls === 'motorway');
+    const joint = (wp === plan.points[0] && !!prev) || (wp === plan.points[plan.points.length - 1] && !!next);
+    const node = resolveWaypoint(wp, spec.mode, isEnd && spec.attrs?.cls === 'motorway', joint);
     const c = node != null ? nodeCoord(node) : [wp[1], wp[2]];
     const pt = { node, lon: c[0], lat: c[1], split: null };
     draft.points.push(pt);
@@ -175,6 +235,27 @@ export function openPlan(id) {
     // 15km 안에 같은 이름의 역이 이미 있으면 계획 이름을 쓰지 않는다 (같은 이름 역이 둘 생기지 않게: 지명 짓기가 겹치지 않는 이름을 고른다)
     const nm = spec.mode >= 1 && !pt.existing ? planStationName(wp[0]) : null;
     if (nm && !sameNameNear(nm, wp[1], wp[2], 15)) { if (pt.reserved) namer.release(pt.name, 'station'); pt.name = nm; pt.auto = false; }
+  }
+  // 단계 경계: 앞뒤 단계가 같은 방향으로 만나게 (지형 맞춤을 해도 이 방향으로 나간다)
+  const P = plan.points, D = draft.points, setThrough = (pt, inner, nb, outer) => {
+    if (!pt || !nb || !outer) return;
+    const dir = throughDir(pt, inner, nb, outer);
+    if (dir) pt.through = { dir, at: [pt.lon, pt.lat] };
+  };
+  if (P.length > 1) {
+    setThrough(D[0], P[1], prev, prev?.points[prev.points.length - 2]);
+    setThrough(D[D.length - 1], P[P.length - 2], next, next?.points[1]);
+    // 끊긴 기존 노선을 잇는 계획(경원선 복원의 평강 등): 같은 이름 선로를 곧게 잇는다
+    const own = planLineName(plan);
+    const joinOld = (pt, inner) => {
+      if (pt.through || !own) return;
+      // 복원 계획(plan.line)은 끊긴 끝의 선로가 이름이 달라도 잇는다 (평강 북쪽은 강원선)
+      const same = (l, i) => !l.ext && linkAt(base, state, i).mode === spec.mode;
+      const atNode = pt.node == null ? [] : allLinks().map((l, i) => [l, i]).filter(([l, i]) => (l.a === pt.node || l.b === pt.node) && same(l, i));
+      const dir = continueDir(pt, inner, (i, l) => same(l, i) && (l.name === own || (plan.line && atNode.length === 1)));
+      if (dir) pt.through = { dir, at: [pt.lon, pt.lat] };
+    };
+    joinOld(D[0], P[1]); joinOld(D[D.length - 1], P[P.length - 2]);
   }
   // 옛 노선을 걷어 내는 계획(현대화·고속화)은 새 선형 곁의 옛 역을 새 노선 역으로 넣는다 (완공 뒤에도 그 역의 여객 영업이 이어진다)
   // keepStops: 계획이 옛 역 가운데 남길 역을 이미 골라 둔 현대화(나머지 옛 역 자리는 경유점)는 옛 역을 더 넣지 않는다

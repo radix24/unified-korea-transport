@@ -338,7 +338,15 @@ export const EXISTING_SERVICES = [
 function existingService(s, links, stations, stationSet, strict) {
   const lineNodes = new Set();
   for (const l of links) if (l.mode === 1 && s.lines.includes(l.name)) { lineNodes.add(l.a); lineNodes.add(l.b); }
-  const find = (nm) => stations.find((x) => x[0] === nm && lineNodes.has(x[1]))?.[1];
+  // 역 이름은 '역'을 떼고 맞춘다 (자료의 '서울'과 계통의 '서울역'). 제 노선 위의 역을 먼저, 없으면 같은 이름 역 가운데 노선 끝에 붙은 역 (부산역은 경부선 위)
+  const key = (nm) => (nm || '').replace(/역$/, '');
+  const adj = new Map();
+  for (const l of links) if (l.mode === 1 && !l.via) { (adj.get(l.a) || adj.set(l.a, []).get(l.a)).push(l.b); (adj.get(l.b) || adj.set(l.b, []).get(l.b)).push(l.a); }
+  const near = (nd) => { const seen = new Set([nd]); let fr = [nd]; for (let k = 0; k < 4 && fr.length; k++) { fr = fr.flatMap((n) => adj.get(n) || []).filter((n) => !seen.has(n) && seen.add(n)); if (fr.some((n) => lineNodes.has(n))) return true; } return false; };
+  const find = (nm) => {
+    const c = stations.filter((x) => key(x[0]) === key(nm));
+    return (c.find((x) => lineNodes.has(x[1])) || c.find((x) => near(x[1])))?.[1];
+  };
   let stops;
   if (s.stops) stops = s.stops.map(find).filter((n) => n != null);
   else {
@@ -412,9 +420,11 @@ export function refreshExistingServices(state, net, stations) {
   const fixed = [];
   state.services = (state.services || []).map((s) => {
     const def = s.existing && !(s.name in REPLACED_SERVICES) && EXISTING_SERVICES.find((x) => x.name === s.name);
-    if (!def || offKm(s) <= 3) return s;
-    const svc = existingService(def, net.links, stations, stationSet, true);
-    if (!svc || offKm(svc) >= offKm(s)) return s;
+    // 정해진 정차역이 빠진 기본 계통(0.8.2 전: 서울역·부산을 찾지 못한 KTX)도 다시 짠다
+    const short = def && def.stops && (s.stops || []).length < def.stops.length;
+    if (!def || (offKm(s) <= 3 && !short)) return s;
+    const svc = existingService(def, net.links, stations, stationSet, !short);
+    if (!svc || (offKm(svc) >= offKm(s) && !(short && svc.stops.length > s.stops.length))) return s;
     fixed.push(s.name);
     return { ...svc, fund: s.fund, sets: s.sets ?? svc.sets, color: s.color ?? svc.color, trains: tripsPerDay(s.sets ?? svc.sets, svc.runMin) };
   });

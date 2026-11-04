@@ -19,7 +19,7 @@ import { renderAll } from './panels.js';
 import { renderSelection } from './econ.js';
 import { autoLocalTrains, fundSelect, serviceBrand, serviceOperator } from './operators.js';
 import { routeThrough, sectionOf } from './pick.js';
-import { drawServiceEdit, header, nextSvcColor, svcColor } from './svcmap.js';
+import { bindStationSearch, drawServiceEdit, header, nextSvcColor, serviceEditNode, stationSearchHTML, svcColor } from './svcmap.js';
 import { popWithin } from './gazette.js';
 
 // ------------------------------------------------------------ 운행 계통 (특급·급행·보통)
@@ -101,20 +101,29 @@ export function chainStations(net, lines) {
   return chain.filter((n, k) => chain.indexOf(n) === k);
 }
 
-/** 계통 끝 역 가까이(5km)에서 시작하는 다른 노선들 (이어 갈 수 있는 노선) */
-/** 계통 양 끝(5km 안)에서 이어지는 다른 노선: [{ name, end: 0|1 }] (end는 어느 끝에서 이어지는지) */
+/** 계통 양 끝 역에서 이어지는 다른 노선: [{ name, end: 0|1, far: 그 노선 반대쪽 끝 역 }].
+ * 끝 역에 닿는(1.5km 안) 노선만 든다 (예전에는 5km 안의 아무 노선이나 들어 용산에서 공항철도가 골라지기도 했다) */
 export function connectableLines(net, e) {
-  const ends = [e.nodes[0], e.nodes[e.nodes.length - 1]].map((n) => nodeCoord(n));
-  const out = new Map();
+  const endN = [e.nodes[0], e.nodes[e.nodes.length - 1]], ends = endN.map((n) => nodeCoord(n));
+  const touch = new Map();
   for (const l of net.links) {
-    if (l.mode !== 1 || !l.active || l.via || !l.name || e.lines.includes(l.name) || l.ext || out.has(l.name)) continue;
+    if (l.mode !== 1 || !l.active || l.via || !l.name || e.lines.includes(l.name) || l.ext || touch.has(l.name)) continue;
     for (const n of [l.a, l.b]) {
       const c = nodeCoord(n);
-      const k = c ? ends.findIndex((q) => kmBetween(q[0], q[1], c[0], c[1]) < 5) : -1;
-      if (k >= 0) { out.set(l.name, k); break; }
+      const k = c ? ends.findIndex((q) => q && kmBetween(q[0], q[1], c[0], c[1]) < 1.5) : -1;
+      if (k >= 0) { touch.set(l.name, k); break; }
     }
   }
-  return [...out].map(([name, end]) => ({ name, end })).sort((a, b) => a.end - b.end || a.name.localeCompare(b.name));
+  const set = railStationSet(), out = [];
+  for (const [name, end] of touch) {
+    const st = lineStations(net, set, name);
+    if (st.length < 2) continue;
+    const q = ends[end], dist = (n) => { const c = nodeCoord(n); return c ? kmBetween(q[0], q[1], c[0], c[1]) : 0; };
+    const far = [st[0], st[st.length - 1]].sort((x, y) => dist(y) - dist(x))[0];
+    if (dist(far) < 3 || e.nodes.includes(far)) continue;
+    out.push({ name, end, far });
+  }
+  return out.sort((x, y) => x.end - y.end || x.name.localeCompare(y.name));
 }
 
 /** 계통 양 끝의 방위 이름: 남북으로 길면 북단·남단, 동서로 길면 서단·동단 */
@@ -202,15 +211,33 @@ export function openServicePlan(plan) {
 }
 
 /** 계통에 다른 노선을 이어 붙인다 (직통 운전) */
-export function extendServiceLine(name) {
+/** 이어 가기: 끝 역에서 그 노선 반대쪽 끝 역까지 실제 경로로 늘린다 (새로 붙은 큰 역은 등급 기준으로 선다) */
+export function extendServiceLine(x) {
   const e = svcEdit;
-  e.lines = [...e.lines, name];
+  const stops = e.nodes.filter((n) => e.stops.has(n));
+  const picks = x.end === 0 ? [x.far, ...stops] : [...stops, x.far];
+  const r = routeThrough(picks, isCommuter(e.kind, e.type));
+  if (!r) { alert('이 노선으로 이어지는 철도 경로가 없습니다.'); return; }
   const before = new Set(e.nodes);
-  e.nodes = chainStations(effectiveNetwork(base, state), e.lines);
-  // 새로 붙은 역 가운데 큰 역은 기본으로 선다 (등급 기준)
+  e.lines = r.lines; e.line = r.lines[0]; e.nodes = r.nodes;
   const add = defaultStops(e.nodes, e.kind);
   for (const n of e.nodes) if (!before.has(n) && add.has(n)) e.stops.add(n);
-  if (!e.nameEdited) e.name = `${e.lines.map((x) => x.replace(/선$/, '')).join('·')} 직통 ${SERVICE_KINDS[e.kind].label}`;
+  e.stops.add(x.far);
+  if (!e.nameEdited) e.name = `${e.lines.map((y) => y.replace(/선$/, '')).join('·')} 직통 ${SERVICE_KINDS[e.kind].label}`;
+  renderSelection();
+}
+
+/** 시점·종점 바꾸기: 지금 경로에서 두 역 사이만 남긴다 (양 끝은 정차역) */
+export function trimService(i, j) {
+  const e = svcEdit;
+  if (!(i < j)) return;
+  const keep = e.nodes.slice(i, j + 1);
+  const stops = keep.filter((n) => e.stops.has(n));
+  if (stops[0] !== keep[0]) stops.unshift(keep[0]);
+  if (stops[stops.length - 1] !== keep[keep.length - 1]) stops.push(keep[keep.length - 1]);
+  const r = routeThrough(stops, isCommuter(e.kind, e.type));
+  if (r) { e.lines = r.lines; e.line = r.lines[0]; e.nodes = r.nodes; } else e.nodes = keep;
+  e.stops = new Set(stops);
   renderSelection();
 }
 
@@ -264,7 +291,8 @@ export function servicePanel() {
       ${esc(nn.get(n)?.name || `역 ${n}`)} <span class="m">${Math.round(r.get(n) || 0).toLocaleString()}</span><a href="#" data-unstop="${n}" title="정차 빼기" style="text-decoration:none">×</a></span>`).join('');
   return `${header(e.id ? `운행 계통: ${e.name}` : `${e.line} 운행 계통 짜기`)}
     <div class="name-row"><span class="kind">이름</span><input type="text" id="svc-name" value="${esc(e.name)}"><input type="color" id="svc-color" value="${esc(e.color)}" title="노선 색 (지도에 이 색으로 그립니다)"></div>
-    <p class="hint"><b>지도에서 역을 누르면</b> 정차역을 넣고 뺍니다. 계통 밖의 역을 누르면 그 역까지 경로를 늘려 잇습니다.</p>
+    <p class="hint"><b>지도에서 역을 누르거나 아래에서 이름으로 찾으면</b> 정차역을 넣고 뺍니다. 계통 밖의 역을 고르면 그 역까지 경로를 늘려 잇습니다.</p>
+    ${stationSearchHTML('svc-find', '역 이름 (정차 넣기·빼기, 경로 늘리기)')}
     ${e.underLink != null ? '<div class="actions"><button class="small" id="svc-under">이 자리 선로(구간) 보기</button></div>' : ''}
     <div class="name-row"><span class="kind">등급</span><select id="svc-kind" title="특급·급행은 고른 역에만 서서 통과역마다 정차 시간을 줄이고, 정차역의 배차 간격이 짧아집니다. 열차는 같은 선로 용량을 나눠 씁니다">${Object.entries(SERVICE_KINDS)
       .map(([k, v]) => `<option value="${k}" ${k === e.kind ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
@@ -297,11 +325,14 @@ export function servicePanel() {
       <button class="small" data-svc-preset="limited">주요 역만</button></div>
     <div class="name-row"><span class="kind">노선</span><span>${e.lines.map(esc).join(' → ')}</span></div>
     ${(() => {
-      const lab = endLabels(e), endName = [nn.get(e.nodes[0])?.name || '', nn.get(e.nodes[e.nodes.length - 1])?.name || ''];
+      const lab = endLabels(e), last = e.nodes.length - 1;
       const c = connectableLines(effectiveNetwork(base, state), e);
-      return `<div class="name-row"><span class="kind">구간</span><span>${lab[0]} ${esc(endName[0])} ↔ ${lab[1]} ${esc(endName[1])}</span></div>`
+      e.ext = c;
+      const opts = (sel) => e.nodes.map((n, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${esc(nn.get(n)?.name || `역 ${n}`)}</option>`).join('');
+      return `<div class="name-row"><span class="kind">구간</span><span class="m">${lab[0]}</span><select id="svc-from" title="시점: 이 역보다 바깥은 운행하지 않습니다">${opts(0)}</select>
+        <span>↔</span><span class="m">${lab[1]}</span><select id="svc-to" title="종점">${opts(last)}</select></div>`
         + (c.length ? `<div class="name-row"><span class="kind">이어 가기</span>
-      <select id="svc-ext">${c.map((x) => `<option value="${esc(x.name)}">${lab[x.end]} ${esc(endName[x.end])}에서 → ${esc(x.name)}</option>`).join('')}</select><button class="small" id="svc-ext-ok">노선 잇기 (직통)</button></div>` : '');
+      <select id="svc-ext">${c.map((x, i) => `<option value="${i}">${lab[x.end]} ${esc(nn.get(e.nodes[x.end ? last : 0])?.name || '')}에서 → ${esc(x.name)} (${esc(nn.get(x.far)?.name || '')}까지)</option>`).join('')}</select><button class="small" id="svc-ext-ok">노선 잇기 (직통)</button></div>` : '');
     })()}
     <div class="name-row"><span class="kind">정차역</span><span class="m">(숫자: 하루 이용객)</span></div>
     <div style="max-height:200px;overflow:auto;line-height:1.9">${rows || '<span class="m">지도에서 역을 누르세요.</span>'}</div>
@@ -333,7 +364,11 @@ export function bindService(el) {
   };
   el.querySelector('#svc-type').onchange = (ev) => { e.type = ev.target.value; renderSelection(); };
   el.querySelector('#svc-upgrade')?.addEventListener('change', (ev) => { e.upgrade = ev.target.checked; if (!e.upgrade && !canRun(e.type, servicePlan().plan?.under || [])) e.type = 'diesel'; renderSelection(); });
-  el.querySelector('#svc-ext-ok')?.addEventListener('click', () => extendServiceLine(el.querySelector('#svc-ext').value));
+  el.querySelector('#svc-ext-ok')?.addEventListener('click', () => { const x = e.ext?.[+el.querySelector('#svc-ext').value]; if (x) extendServiceLine(x); });
+  const from = el.querySelector('#svc-from'), to = el.querySelector('#svc-to');
+  const trim = () => { if (+from.value >= +to.value) { alert('시점이 종점보다 앞이어야 합니다.'); renderSelection(); return; } trimService(+from.value, +to.value); };
+  if (from) { from.onchange = trim; to.onchange = trim; }
+  bindStationSearch(el, 'svc-find', () => e.nodes, (n) => serviceEditNode(n));
   el.querySelector('#svc-sets').oninput = (ev) => { e.sets = +ev.target.value; ev.target.nextElementSibling.textContent = `${e.sets}편성`; };
   el.querySelector('#svc-sets').onchange = () => renderSelection();
   el.querySelectorAll('[data-unstop]').forEach((a) => {
