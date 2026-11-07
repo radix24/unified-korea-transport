@@ -181,8 +181,8 @@ export function drawServiceEdit() {
   const e = svcEdit;
   if (!e) return;
   const { plan } = servicePlan();
-  const f = [...e.stops].filter((n) => nodeCoord(n)).map((n) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: nodeCoord(n) } }));
-  if (plan) f.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: serviceCoords(effectiveNetwork(base, state).links, plan.segs) } });
+  const f = [...e.stops].filter((n) => nodeCoord(n)).map((n) => ({ type: 'Feature', properties: { svc: 1 }, geometry: { type: 'Point', coordinates: nodeCoord(n) } }));
+  if (plan) f.push({ type: 'Feature', properties: { svc: 1, color: e.color }, geometry: { type: 'LineString', coordinates: serviceCoords(effectiveNetwork(base, state).links, plan.segs) } });
   map.getSource('draft').setData({ type: 'FeatureCollection', features: f });
   const src = map.getSource('services');
   if (src && e.id) drawServices();
@@ -344,7 +344,7 @@ export function servicePickPanel() {
       <span class="m">${r.lines.map(esc).join(' → ')}</span></div>
       ${doublesBack(r) ? '<p class="hint warn-text">경로가 같은 선로를 되짚어 돌아갑니다. 거쳐 갈 역이 시점·종점 바깥에 있지 않은지 보세요.</p>' : ''}
       <div class="name-row"><span class="kind">방식</span></div>
-      <div class="mode-pick" role="radiogroup" aria-label="계통 방식">${Object.entries(SERVICE_MODES).map(([k, v]) => `<button type="button" role="radio" aria-checked="${k === mode}" class="${k === mode ? 'on' : ''}" data-sp-mode="${k}">
+      <div class="mode-pick" role="radiogroup" aria-label="계통 방식">${Object.entries(SERVICE_MODES).map(([k, v]) => `<button type="button" role="radio" aria-checked="${k === mode}" tabindex="${k === mode ? 0 : -1}" class="${k === mode ? 'on' : ''}" data-sp-mode="${k}">
         <b>${v.label}</b><span class="m">${v.sub}${k === rec ? ' · 추천' : ''}</span></button>`).join('')}</div>`
     : picks.length >= 2 ? '<p class="hint warn-text">고른 역 사이를 잇는 철도 경로가 없습니다. 다른 역을 골라 보세요.</p>' : ''}
     <div class="actions">
@@ -369,6 +369,16 @@ export function bindServicePick(el) {
   bindStationSearch(el, 'sp-via', () => picks, (n) => { if (!picks.includes(n)) insertVia(picks, n); redo(); });
   el.querySelectorAll('[data-sp-del]').forEach((b) => { b.onclick = () => { picks.splice(+b.dataset.spDel, 1); redo(); }; });
   el.querySelectorAll('[data-sp-mode]').forEach((b) => { b.onclick = () => { svcPick.mode = b.dataset.spMode; renderSelection(); }; });
+  // 방식 고르기는 라디오처럼 화살표로 옮긴다
+  el.querySelector('.mode-pick')?.addEventListener('keydown', (ev) => {
+    const keys = Object.keys(SERVICE_MODES), d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[ev.key];
+    if (!d) return;
+    ev.preventDefault();
+    const cur = keys.indexOf(ev.target.closest('[data-sp-mode]')?.dataset.spMode);
+    svcPick.mode = keys[(cur + d + keys.length) % keys.length];
+    renderSelection();
+    document.querySelector(`[data-sp-mode="${svcPick.mode}"]`)?.focus();
+  });
   el.querySelector('#sp-swap')?.addEventListener('click', () => { picks.reverse(); redo(); });
 }
 
@@ -383,7 +393,7 @@ export function commitServicePick() {
   const type = m.types.find((t) => canRun(t, under)) || 'diesel';
   const stops = m.kind === 'local' || m.kind === 'commuter' ? new Set(nodes) : new Set([...defaultStops(nodes, m.kind), ...picks]);
   setSvcEdit({ line: lines[0], lines, cls, kind: m.kind, name: `${nn.get(picks[0])?.name}–${nn.get(picks[picks.length - 1])?.name} ${m.label}`,
-    type, sets: m.sets, nodes, stops, id: null, nameEdited: false, color: nextSvcColor(), mode: mk });
+    type, sets: m.sets, nodes, stops, id: null, nameEdited: false, color: nextSvcColor(), mode: mk, modeLabel: m.label, picks: [...picks] });
   endServicePick();
   select({ type: 'service' });
 }

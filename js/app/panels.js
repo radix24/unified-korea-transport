@@ -73,9 +73,11 @@ export function bindUI() {
   // 통일 첫해: 행정구역 정리 창을 먼저 띄우고, 정하면 사용법 안내로 이어진다
   if (needsAdminSetup()) setTimeout(() => adminSetup(true), 400);
   else if (guideShouldAutoShow()) setTimeout(showGuide, 600);
+  try { if (localStorage.getItem('ukt-legend-open') === '1') $('#legend').classList.add('open'); } catch { /* 기본은 접음 */ }
   $('#legend').addEventListener('click', (e) => {
     if (!e.target.closest('.lg-toggle')) return;
     $('#legend').classList.toggle('open');
+    try { localStorage.setItem('ukt-legend-open', $('#legend').classList.contains('open') ? '1' : '0'); } catch { /* 이번만 적용 */ }
     e.target.textContent = $('#legend').classList.contains('open') ? '범례 접기' : '범례 더 보기';
   });
   $('#legend').addEventListener('change', (e) => {

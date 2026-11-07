@@ -17,8 +17,8 @@ import { select } from './interact.js';
 import { fmtMin } from './route.js';
 import { renderAll } from './panels.js';
 import { renderSelection } from './econ.js';
-import { autoLocalTrains, fundSelect, serviceBrand, serviceOperator } from './operators.js';
-import { routeThrough, sectionOf } from './pick.js';
+import { autoLocalTrains, fundSelect, isConnectorLine, serviceBrand, serviceOperator } from './operators.js';
+import { routeThrough, sectionOf, startServicePick, svcPick } from './pick.js';
 import { bindStationSearch, drawServiceEdit, header, nextSvcColor, serviceEditNode, stationSearchHTML, svcColor } from './svcmap.js';
 import { popWithin } from './gazette.js';
 
@@ -287,8 +287,9 @@ export function servicePanel() {
     디젤 객차로 다니거나, 이 구간을 전철화하세요 (완공되면 전동차를 고를 수 있습니다).</p>
     <div class="actions"><button class="small" id="svc-electrify" data-ids="${JSON.stringify(noPowerIds)}">비전철 구간 전철화 (${noPowerIds.length}개 구간)</button></div>` : '';
   // 경로 위 모든 역을 노선도처럼 한 줄로: 누르면 서고 지나간다 (진한 역에 선다. 예전에는 서는 역만 보여 지나는 역은 지도에서 찾아 눌러야 했다)
+  const via = new Set((e.picks || []).slice(1, -1));   // 계통을 짤 때 고른 거쳐 갈 역
   const rows = e.nodes.map((n) => { const on = e.stops.has(n); return `<li><button type="button" class="svc-stop${on ? ' on' : ''}" data-stop-toggle="${n}" aria-pressed="${on}" title="${on ? '누르면 통과' : '누르면 정차'}">
-      <span class="dot" aria-hidden="true"></span>${esc(nn.get(n)?.name || `역 ${n}`)}<span class="m">${Math.round(r.get(n) || 0).toLocaleString()}명</span></button></li>`; }).join('');
+      <span class="dot" aria-hidden="true"></span>${esc(nn.get(n)?.name || `역 ${n}`)}${via.has(n) ? '<span class="via-tag">거쳐 감</span>' : ''}<span class="m">${result ? `${Math.round(r.get(n) || 0).toLocaleString()}명` : ''}</span></button></li>`; }).join('');
   // 접는 칸 (연 상태는 편집 중에 기억한다)
   const open = (e.openSec ||= { route: true, train: true, name: !e.id, stats: !!e.id });
   const sec = (k, title, body) => `<details class="svc-sec" data-sec="${k}" ${open[k] ? 'open' : ''}><summary>${title}</summary>${body}</details>`;
@@ -297,16 +298,17 @@ export function servicePanel() {
   e.ext = ext;
   const opts = (sel) => e.nodes.map((n, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${esc(nn.get(n)?.name || `역 ${n}`)}</option>`).join('');
   const routeSec = sec('route', `경로·정차역 <span class="m">${stops.length} / ${e.nodes.length}개 역 정차</span>`, `
+    ${!e.id && e.picks ? '<div class="actions"><button class="small" id="svc-back" title="시점·종점·거쳐 갈 역·방식을 다시 고릅니다">← 경로 다시 고르기</button></div>' : ''}
     <div class="name-row"><span class="kind">노선</span><span>${e.lines.map(esc).join(' → ')}</span></div>
-    <div class="name-row"><label class="kind" for="svc-from">${lab[0]}</label><select id="svc-from" title="시점: 이 역보다 바깥은 운행하지 않습니다">${opts(0)}</select></div>
-    <div class="name-row"><label class="kind" for="svc-to">${lab[1]}</label><select id="svc-to" title="종점">${opts(last)}</select></div>
-    ${ext.length ? `<div class="name-row"><label class="kind" for="svc-ext">이어 가기</label>
-      <select id="svc-ext">${ext.map((x, i) => `<option value="${i}">${lab[x.end]} ${esc(nn.get(e.nodes[x.end ? last : 0])?.name || '')}에서 → ${esc(x.name)} (${esc(nn.get(x.far)?.name || '')}까지)</option>`).join('')}</select><button class="small" id="svc-ext-ok">노선 잇기</button></div>` : ''}
+    <div class="name-row"><label class="kind" for="svc-from">시점</label><select id="svc-from" title="${lab[0]} 끝 역: 이 역보다 바깥은 운행하지 않습니다">${opts(0)}</select></div>
+    <div class="name-row"><label class="kind" for="svc-to">종점</label><select id="svc-to" title="${lab[1]} 끝 역">${opts(last)}</select></div>
     ${stationSearchHTML('svc-find', '역 이름 (정차 넣기·빼기, 경로 늘리기)')}
     ${e.underLink != null ? '<div class="actions"><button class="small" id="svc-under">이 자리 선로(구간) 보기</button></div>' : ''}
-    <div class="actions"><button class="small" data-svc-preset="local">모든 역</button><button class="small" data-svc-preset="express">큰 역 절반</button><button class="small" data-svc-preset="limited">주요 역만</button></div>
-    <p class="hint">진한 역에 섭니다. 눌러서 넣고 빼세요. 지도에서 계통 밖의 역을 누르면 그 역까지 경로를 늘립니다 (숫자: 하루 이용객).</p>
-    <ol id="svc-stops" class="stop-strip" style="--line-color:${esc(e.color)}">${rows}</ol>`);
+    <div class="actions"><button class="small" data-svc-preset="local">모든 역</button><button class="small" data-svc-preset="express">큰 역 절반</button><button class="small" data-svc-preset="limited">큰 역만</button></div>
+    <p class="hint">진한 역에 섭니다. 눌러서 넣고 빼세요. 지도에서 계통 밖의 역을 누르면 그 역까지 경로를 늘립니다${result ? ' (숫자: 하루 이용객)' : ''}.</p>
+    <ol id="svc-stops" class="stop-strip" style="--line-color:${esc(e.color)}">${rows}</ol>
+    ${ext.length ? `<div class="name-row"><label class="kind" for="svc-ext">노선 더 잇기</label>
+      <select id="svc-ext"><option value="">끝 역에서 이어 갈 노선…</option>${ext.map((x, i) => `<option value="${i}">${lab[x.end]} ${esc(nn.get(e.nodes[x.end ? last : 0])?.name || '')}에서 → ${esc(x.name)} (${esc(nn.get(x.far)?.name || '')}까지)</option>`).join('')}</select><button class="small" id="svc-ext-ok">잇기</button></div>` : ''}`);
   const trainSec = sec('train', `열차·편성 <span class="m">${esc(SERVICE_KINDS[e.kind].label)} · ${esc(TRAIN_TYPES[e.type].label.split(' ')[0])} ${e.sets}편성</span>`, `
     <div class="name-row"><label class="kind" for="svc-kind">등급</label><select id="svc-kind" title="특급·급행은 고른 역에만 서서 통과역마다 정차 시간을 줄이고, 정차역의 배차 간격이 짧아집니다. 열차는 같은 선로 용량을 나눠 씁니다">${Object.entries(SERVICE_KINDS)
       .map(([k, v]) => `<option value="${k}" ${k === e.kind ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
@@ -343,7 +345,7 @@ export function servicePanel() {
       <button class="primary" id="svc-ok" ${plan && typeOk ? '' : 'disabled'}>${e.id ? '저장' : '운행 시작'}</button>
       ${e.id ? '<button id="svc-del" class="danger">운행 중단</button>' : ''}
     </div></div>`;
-  return `${header(e.id ? `운행 계통 고치기: ${e.name}` : '운행 계통 신설')}
+  return `${header(e.id ? `운행 계통 고치기: ${e.name}` : `운행 계통 신설${e.modeLabel ? ` · ${e.modeLabel}` : ''}`)}
     ${routeSec}${trainSec}${statsSec}${nameSec}${foot}`;
 }
 
@@ -362,6 +364,7 @@ export function bindService(el) {
   drawServiceEdit();
   el.querySelector('#svc-kind').onchange = (ev) => {
     e.kind = ev.target.value;
+    e.modeLabel = null;   // 등급을 바꾸면 처음 고른 방식(KTX 등) 표시는 맞지 않는다
     // 이름을 손대지 않았으면 시점–종점과 새 등급으로 (예전에는 첫 노선 이름으로 바뀌어 '경부선 급행'이 되었다)
     if (!e.nameEdited) { const nn = nodeNames(), st = e.nodes.filter((n) => e.stops.has(n)); e.name = `${nn.get(st[0])?.name}–${nn.get(st[st.length - 1])?.name} ${SERVICE_KINDS[e.kind].label}`; }
     if (!e.id) e.stops = defaultStops(e.nodes, e.kind);
@@ -369,7 +372,14 @@ export function bindService(el) {
   };
   el.querySelector('#svc-type').onchange = (ev) => { e.type = ev.target.value; renderSelection(); };
   el.querySelector('#svc-upgrade')?.addEventListener('change', (ev) => { e.upgrade = ev.target.checked; if (!e.upgrade && !canRun(e.type, servicePlan().plan?.under || [])) e.type = 'diesel'; renderSelection(); });
-  el.querySelector('#svc-ext-ok')?.addEventListener('click', () => { const x = e.ext?.[+el.querySelector('#svc-ext').value]; if (x) extendServiceLine(x); });
+  el.querySelector('#svc-ext-ok')?.addEventListener('click', () => {
+    const v = el.querySelector('#svc-ext').value;
+    if (v === '') { toast('이어 갈 노선을 먼저 고르세요.'); return; }
+    const x = e.ext?.[+v];
+    if (x) extendServiceLine(x);
+  });
+  // 경로 다시 고르기: 고른 역과 방식을 그대로 들고 계통 신설 첫 화면으로
+  el.querySelector('#svc-back')?.addEventListener('click', () => { const picks = e.picks, mode = e.mode; startServicePick(picks); if (svcPick) svcPick.mode = mode; });
   const from = el.querySelector('#svc-from'), to = el.querySelector('#svc-to');
   const trim = () => { if (+from.value >= +to.value) { toast('시점은 종점보다 앞 역이어야 합니다.'); renderSelection(); return; } trimService(+from.value, +to.value); };
   if (from) { from.onchange = trim; to.onchange = trim; }
@@ -471,7 +481,8 @@ export function serviceSection(l, ids = []) {
   const list = (state.services || []).filter((s) => !here.has(s) && (s.line === l.name || s.lines?.includes(l.name)));
   // 보통(자동) 열차: 모든 노선에 저절로 다니는 모든 역 정차 열차. 운행 비율(감편)은 여기서도 바꾼다
   const t = autoLocalTrains(l.name, l.cls), f = state.lineFreq?.[l.name] || 1;
-  const autoRow = `<div class="item opt"><div class="opt-row">
+  // 연결선은 다른 노선 열차가 지나기만 한다: 보통 열차 줄 대신 그렇다고 알린다
+  const autoRow = isConnectorLine(l.name) ? '<p class="hint">다른 노선 열차가 지나는 연결선입니다. 보통 열차는 따로 다니지 않습니다.</p>' : `<div class="item opt"><div class="opt-row">
       <span>${esc(autoBrand(l.cls === 'hsr' ? 'hsr' : 'conv', operatorOf(state, l)))} (자동) <span class="m">모든 역 정차 · 하루 ${t}회 · 약 ${Math.max(1, Math.round(SERVICE_DAY_MIN / Math.max(1, t / 2)))}분 간격 · 노선 최대 이용객에 맞춰 저절로 정함${l.cls === 'hsr' ? '' : ' (광역 전철이 같이 다니는 구간은 전철 운행까지 센 횟수)'}</span></span>
       <select data-freq="${esc(l.name)}" title="보통 열차 운행 비율 (감편)">${FREQ_STEPS.map((x) => `<option value="${x}" ${x === f ? 'selected' : ''}>운행 ${Math.round(x * 100)}%</option>`).join('')}</select></div></div>`;
   return `<h4>노선도 · 운행 계통 · 수익성</h4><div class="actions">${diagram}

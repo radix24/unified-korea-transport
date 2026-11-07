@@ -220,8 +220,10 @@ export function routeThrough(picks, noHsr = false) {
 
 export function drawServicePick() {
   const picks = svcPick.picks;
-  const f = picks.map((n) => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: nodeCoord(n) } }));
+  // 시점·종점에 이름표를 달고, 경로는 굵은 테두리 선으로 (인구 지도 위에서도 보이게)
+  const last = picks.length - 1;
+  const f = picks.map((n, i) => ({ type: 'Feature', properties: { svc: 1, label: i === 0 ? '시점' : i === last ? '종점' : '' }, geometry: { type: 'Point', coordinates: nodeCoord(n) } }));
   const r = picks.length >= 2 ? routeThrough(picks) : null;
-  if (r) f.push({ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: serviceCoords(effectiveNetwork(base, state).links, r.segs) } });
+  if (r) f.push({ type: 'Feature', properties: { svc: 1 }, geometry: { type: 'LineString', coordinates: serviceCoords(effectiveNetwork(base, state).links, r.segs) } });
   map.getSource('draft').setData({ type: 'FeatureCollection', features: f });
 }

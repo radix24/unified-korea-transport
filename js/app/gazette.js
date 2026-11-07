@@ -13,7 +13,7 @@ import { zoneName } from './year.js';
 import { allLinks, anyStationName, kpFix, nodeCoord, nodeNames, shownStation } from './mapdata.js';
 import { fmtPop } from './panels.js';
 import { SERVICE_DAY_MIN } from './svc.js';
-import { autoLocalTrains } from './operators.js';
+import { autoLocalTrains, isConnectorLine } from './operators.js';
 import { plans } from './plans.js';
 import { effectiveGrid } from './housing.js';
 import { metroStationEst } from './ppp.js';
@@ -400,7 +400,7 @@ export function stationPanel(id, n) {
     const key = `${near[i].name}|${near[i].lines.join(',')}`;
     if (seen.has(key)) near.splice(i--, 1); else seen.add(key);
   }
-  const modeLabel = (l) => (l.mode === 2 ? '도시철도' : l.cls === 'conv' && isCommuterLine(l.name) ? '광역철도' : CLASS_LABEL[l.cls]);
+  const modeLabel = (l) => (isConnectorLine(l.name) ? '연결선' : l.mode === 2 ? '도시철도' : l.cls === 'conv' && isCommuterLine(l.name) ? '광역철도' : CLASS_LABEL[l.cls]);
   const svcRow = (s, stop) => `<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${esc(svcColor(s, state.services.indexOf(s)))}"></span>
     ${esc(s.name)} <span class="m">${SERVICE_KINDS[s.kind].label}${s.built ? '' : ' · 차량 제작 중'}</span> <button class="small" data-svc-edit="${s.id}">고치기</button></td>
     <td>${stop ? `하루 ${s.trains}회 · 약 ${Math.round(SERVICE_DAY_MIN / Math.max(1, s.trains / 2))}분 간격` : '통과'}</td></tr>`;
@@ -418,7 +418,7 @@ export function stationPanel(id, n) {
     ${riders == null && !lines.some((l) => l.mode === 2) ? '<p class="hint">아직 운행하지 않는 역입니다.</p>' : ''}
     ${lines.some((l) => l.mode === 2) ? '<p class="hint">도시철도 승하차는 역 반경 800m 인구로 어림한 값입니다 (모형의 시군구 사이 통행에 빠진 구 안 이용 포함).</p>' : ''}
     <h4>운행 계통</h4>
-    <table class="kv">${lines.filter((l) => l.named).map((l) => { const t = autoLocalTrains(l.name, l.mode === 2 ? 'metro' : l.cls);
+    <table class="kv">${lines.filter((l) => l.named && !isConnectorLine(l.name)).map((l) => { const t = autoLocalTrains(l.name, l.mode === 2 ? 'metro' : l.cls);
       return `<tr><td>${esc(l.name)} ${l.cls === 'hsr' ? '고속' : '보통'} <span class="m">자동 · 24시간</span></td><td>하루 ${t}회 · 약 ${Math.max(1, Math.round(SERVICE_DAY_MIN / Math.max(1, t / 2)))}분 간격</td></tr>`; }).join('')}
       ${stopping.map((s) => svcRow(s, true)).join('')}${passing.map((s) => svcRow(s, false)).join('')}</table>
     ${svcTrains ? `<p class="hint">이 역에 서는 특급·급행 등 계통 열차 하루 ${svcTrains}회</p>` : '<p class="hint">보통 열차는 모든 노선에 저절로 다닙니다. 특급·급행은 계통을 짜야 다닙니다.</p>'}

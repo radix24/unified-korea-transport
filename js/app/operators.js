@@ -19,6 +19,10 @@ import { flyToNode } from './transfer.js';
 // ------------------------------------------------------------ 노선 모식도
 
 /** 보통(자동) 열차의 하루 운행 횟수: 노선 최대 구간 이용객을 승차율 65%로 실을 만큼 (최소 운행 횟수 ~ 300회) */
+/** 다른 노선 열차가 지나기만 하는 짧은 선로 (대전남연결선·삼각선 등): 보통 열차가 따로 다니지 않는다 */
+export const CONNECTOR_LINE = /(연결선|삼각선|기지선|진입선|입환선| 환승)$/;
+export function isConnectorLine(name) { return !!name && CONNECTOR_LINE.test(name); }
+
 export function autoLocalTrains(line, cls, peak) {
   const c = cls === 'metro' ? 'metro' : cls === 'hsr' ? 'hsr' : 'conv';
   if (peak == null) peak = lineEconomics().find((x) => x.name === line)?.peak || 0;

@@ -765,7 +765,12 @@ export function addLayers(map, zonesFC, linksFC, subsFC) {
       'line-width': ['interpolate', ['linear'], ['zoom'], 6, 2, 10, 3.5, 13, 5] } }, 'points');
 
   map.addSource('draft', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
-  map.addLayer({ id: 'draft-line', type: 'line', source: 'draft', filter: ['==', ['geometry-type'], 'LineString'],
+  // 운행 계통 신설·편집 미리보기: 흰 테두리를 두른 굵은 선 (점선 그리기 선과 구별, 인구 지도 위에서도 보이게)
+  map.addLayer({ id: 'svc-draft-casing', type: 'line', source: 'draft', filter: ['all', ['==', ['geometry-type'], 'LineString'], ['has', 'svc']],
+    layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': '#ffffff', 'line-width': 9, 'line-opacity': 0.9 } });
+  map.addLayer({ id: 'svc-draft-line', type: 'line', source: 'draft', filter: ['all', ['==', ['geometry-type'], 'LineString'], ['has', 'svc']],
+    layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': ['coalesce', ['get', 'color'], '#1f5fbf'], 'line-width': 5 } });
+  map.addLayer({ id: 'draft-line', type: 'line', source: 'draft', filter: ['all', ['==', ['geometry-type'], 'LineString'], ['!', ['has', 'svc']]],
     paint: { 'line-color': '#1f5fbf', 'line-width': 3, 'line-dasharray': [1.5, 1] } });
   // 선을 잡아 끄는 자리 (route.js enableDraftDrag): 보이지 않는 넓은 선. 3px 선은 정확히 누르기 어려웠다
   map.addLayer({ id: 'draft-line-hit', type: 'line', source: 'draft', filter: ['==', ['geometry-type'], 'LineString'],
@@ -779,6 +784,9 @@ export function addLayers(map, zonesFC, linksFC, subsFC) {
   map.addLayer({ id: 'draft-pts', type: 'circle', source: 'draft', filter: ['all', ['==', ['geometry-type'], 'Point'], ['!', ['has', 'sharp']]],
     paint: { 'circle-radius': ['case', ['==', ['get', 'pass'], 1], 4, 6], 'circle-color': ['case', ['==', ['get', 'pass'], 1], '#fff', '#1f5fbf'],
       'circle-stroke-color': ['case', ['==', ['get', 'pass'], 1], '#1f5fbf', '#fff'], 'circle-stroke-width': 2 } });
+  map.addLayer({ id: 'svc-draft-label', type: 'symbol', source: 'draft', filter: ['all', ['has', 'svc'], ['!=', ['get', 'label'], '']],
+    layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Regular'], 'text-size': 12, 'text-offset': [0, -1.2], 'text-anchor': 'bottom', 'text-allow-overlap': true },
+    paint: { 'text-color': '#1f5fbf', 'text-halo-color': '#ffffff', 'text-halo-width': 1.6 } });
 }
 
 export function colorFor(metric, v) {
