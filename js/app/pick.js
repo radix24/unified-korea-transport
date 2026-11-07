@@ -208,7 +208,11 @@ export function routeThrough(picks, noHsr = false) {
   // 몇 km 안 되는 연결선은 계통 노선 목록에서 뺀다 (경로에는 그대로 쓰인다)
   const lines = [...lineKm].filter(([, v]) => v >= 3).map(([n]) => n);
   if (!lines.length) lines.push(...lineKm.keys());
-  const cls = net.links.some((l) => lines.includes(l.name) && l.cls === 'hsr') && lines.every((n) => net.links.find((l) => l.name === n)?.cls === 'hsr') ? 'hsr' : 'conv';
+  // 고속 계통인지: 실제로 지나는 거리의 3분의 1 이상이 고속선이면 (전라선 KTX처럼 고속선에서 기존선으로 직통하는 계통.
+  // 예전에는 모든 노선이 고속선일 때만이라 용산–여수 KTX(고속선 196km / 393km)가 간선 전동차로 시작했다)
+  let hsrKm = 0, allKm = 0;
+  for (const sg of segs) for (const i of sg.via) { const l = net.links[i]; if (!l) continue; allKm += l.len; if (l.cls === 'hsr') hsrKm += l.len; }
+  const cls = allKm > 0 && hsrKm * 3 >= allKm ? 'hsr' : 'conv';
   // 열차 종류는 실제로 지나는 구간으로 정한다 (노선 전체로 보면 공사 중인 비전철 구간(신분당선 신사–용산)에 걸려 디젤이 된다)
   const under = segs.flatMap((sg) => sg.via.map((i) => net.links[i])).filter((l) => l && l.mode === 1 && !l.via);
   return { nodes: nodes.filter((n, i) => nodes.indexOf(n) === i), lines, cls, under, segs };

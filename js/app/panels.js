@@ -132,7 +132,7 @@ export function paletteCommands() {
   add('건설', `새로 놓기: ${AIRPORT.build.label}`, () => { switchTab('build'); startDraft('airport'); }, { keywords: '공항 신설', order: 2 });
   add('개량', '구간 개량하기', () => toast('지도에서 도로·철도 구간을 누르면 개량 메뉴가 열립니다. Shift를 누른 채 끌면 여러 구간을 한꺼번에 고릅니다.'), { keywords: '확장 복선화 전철화 차로', order: 3 });
   add('개량', '확장 요구 (혼잡 민원) 보기', () => switchTab('requests'), { keywords: '민원 정체 요구', order: 3 });
-  add('운행', '역 골라 특급·급행 짜기', () => { switchTab('build'); startServicePick(); }, { keywords: '운행 계통 열차 노선 운행', order: 3 });
+  add('운행', '운행 계통 신설', () => { switchTab('build'); startServicePick(); }, { keywords: '운행 계통 열차 노선 운행', order: 3 });
   for (const s of state.services || []) add('운행 계통', s.name, () => goService(s.id), { keywords: `운행 계통 고치기 ${(s.lines || [s.line]).join(' ')}`, order: 4 });
   add('예산', '예산·사업 투입 속도', () => switchTab('projects'), { hint: `가용 ${formatWon(state.budget)}`, keywords: '돈 부채 공사 진행', order: 3 });
   add('도움말', '처음 안내 다시 보기', showGuide, { keywords: '튜토리얼 도움말 사용법', order: 9 });
@@ -298,7 +298,7 @@ export function setBusy(on, label = '', v = 0) {
   setBusyValue(on);
   $('#busy').hidden = !on;
   $('.busy-label').textContent = autoYears ? `${label} · 이어 넘기기 ${autoYears}년 남음` : label;
-  $('#busy-bar').style.width = `${Math.round(v * 100)}%`;
+  $('#busy-bar').style.transform = `scaleX(${Math.max(0, Math.min(1, v))})`;
   $('#btn-next').disabled = on || !result;
   updateAutoBtn();
 }
@@ -502,7 +502,7 @@ export function renderBuild() {
     + extra('data-build="airport"', AIRPORT.build.label, `${formatWon(AIRPORT.build.cost)} · ${AIRPORT.build.years}년`, draft?.type === 'airport')
     + extra('id="housing-pick" title="지도에서 고른 곳에 주택 단지를 조성합니다 (인구 순증)"', '택지지구 개발', '지도에서 자리 고르기');
   const right = Object.keys(NEW_BUILDS).filter((k) => NEW_BUILDS[k].mode >= 1).map(card).join('')
-    + extra('', '철도 운행 계통 신설', '역을 골라 특급·급행·광역 짜기', false, 'svc-pick-b')
+    + extra('', '운행 계통 신설', '시점·종점을 골라 KTX·ITX·광역 짜기', false, 'svc-pick-b')
     + extra('id="svc-list-b"', '운행 계통 고치기', '목록에서 찾아 고르기');
   const tools = `<div class="tool-col">${left}</div><div class="tool-col">${right}</div>`;
   // 노선 추천·미리보기 기간은 '노선 추천 · 미리보기' 접힘에 (추천 결과가 있으면 펼친다)

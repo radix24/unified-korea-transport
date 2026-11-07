@@ -269,7 +269,7 @@ export function renderOps() {
   if (!el) return;
   previewService(null);
   const svcHead = `<h3>철도 운행 계통</h3>
-    <div class="actions"><button class="small primary svc-pick-b">역 골라 특급·급행 짜기</button></div>
+    <div class="actions"><button class="small primary svc-pick-b">운행 계통 신설</button></div>
     ${serviceListHTML()}`;
   // 계산이 끝나기 전에도 계통은 고를 수 있다 (예전에는 첫 계산이 끝날 때까지 운영 탭 전체가 비었다)
   if (!result) { el.innerHTML = `${svcHead}<p class="hint">수지는 계산 중입니다…</p>`; bindServiceList(el); return; }
@@ -357,7 +357,6 @@ export function renderSelection() {
     el.innerHTML = servicePickPanel();
     const end = () => { endServicePick(); select(null); };
     el.querySelector('.close').onclick = end;
-    el.querySelector('#sp-cancel').onclick = end;
     el.querySelector('#sp-ok').onclick = commitServicePick;
     bindServicePick(el);
     return;

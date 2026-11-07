@@ -422,7 +422,7 @@ export function stationPanel(id, n) {
       return `<tr><td>${esc(l.name)} ${l.cls === 'hsr' ? '고속' : '보통'} <span class="m">자동 · 24시간</span></td><td>하루 ${t}회 · 약 ${Math.max(1, Math.round(SERVICE_DAY_MIN / Math.max(1, t / 2)))}분 간격</td></tr>`; }).join('')}
       ${stopping.map((s) => svcRow(s, true)).join('')}${passing.map((s) => svcRow(s, false)).join('')}</table>
     ${svcTrains ? `<p class="hint">이 역에 서는 특급·급행 등 계통 열차 하루 ${svcTrains}회</p>` : '<p class="hint">보통 열차는 모든 노선에 저절로 다닙니다. 특급·급행은 계통을 짜야 다닙니다.</p>'}
-    ${lines.some((l) => l.mode === 1) ? `<div class="actions"><button class="small primary" data-svc-from="${id}" title="이 역에서 시작해, 설 역을 지도에서 차례로 누릅니다">이 역에서 운행 계통 짜기</button></div>` : ''}
+    ${lines.some((l) => l.mode === 1) ? `<div class="actions"><button class="small primary" data-svc-from="${id}" title="이 역을 시점으로 새 계통을 짭니다">이 역에서 운행 계통 신설</button></div>` : ''}
     <h4>환승</h4>
     ${lines.filter((l) => l.named).length > 1 ? `<p class="hint">같은 역 환승: ${lines.filter((l) => l.named).map((l) => esc(l.name)).join(', ')}</p>` : ''}
     ${near.length ? `<table class="kv">${near.map((x) => `<tr><td><a href="#" data-st-goto="${x.node}">${esc(x.name)}</a>
