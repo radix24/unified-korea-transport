@@ -86,13 +86,13 @@ export function showRoute(r) {
   const won = (v) => `${(Math.round(v / 100) * 100).toLocaleString()}원`;
   const detail = (k) => {
     const v = r[k];
-    if (k === 'car') return `${v.km.toFixed(0)}km · 유류비 등 약 ${won(v.cost)}`;
-    if (k === 'rail' || k === 'conv') return `${st(v.s)}→${st(v.t)} · ${v.km.toFixed(0)}km${v.hsrKm > 1 ? ` (고속선 ${v.hsrKm.toFixed(0)}km)` : ''} · 대기 ${Math.round(v.wait)}분 · 약 ${won(v.cost)}`;
-    if (k === 'air') return `${esc(airportName(v.a))}→${esc(airportName(v.b))} · 하루 ${v.freq}편 · 약 ${won(v.cost)}`;
-    return `${v.metroKm > 0.5 ? `도시철도 ${v.metroKm.toFixed(0)}km · ` : ''}버스 ${(v.busKm || 0).toFixed(0)}km · 약 ${won(v.cost)}`;
+    if (k === 'car') return `${v.km.toFixed(0)}km, 유류비 등 약 ${won(v.cost)}`;
+    if (k === 'rail' || k === 'conv') return `${st(v.s)}→${st(v.t)}, ${v.km.toFixed(0)}km${v.hsrKm > 1 ? ` (고속선 ${v.hsrKm.toFixed(0)}km)` : ''}, 대기 ${Math.round(v.wait)}분, 약 ${won(v.cost)}`;
+    if (k === 'air') return `${esc(airportName(v.a))}→${esc(airportName(v.b))}, 하루 ${v.freq}편, 약 ${won(v.cost)}`;
+    return `${v.metroKm > 0.5 ? `도시철도 ${v.metroKm.toFixed(0)}km, ` : ''}버스 ${(v.busKm || 0).toFixed(0)}km, 약 ${won(v.cost)}`;
   };
   $('#selection').innerHTML = `${header('소요 시간 측정')}
-    <p class="hint">직선거리 ${r.crowKm.toFixed(0)}km · 올해 혼잡 반영 · 수단을 누르면 그 경로만 지도에 보입니다.</p>
+    <p class="hint">직선거리 ${r.crowKm.toFixed(0)}km, 올해 혼잡 반영, 수단을 누르면 그 경로만 지도에 보입니다.</p>
     <table class="kv route-tbl">${rows.map((k) => `<tr data-route-k="${k}" style="cursor:pointer;${routeShown && routeShown !== k ? 'opacity:.5' : ''}"><td style="white-space:normal">
       <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${ROUTE_MODES[k].color};margin-right:4px"></span>${k === best ? '<b>' : ''}${ROUTE_MODES[k].label}${k === best ? '</b>' : ''}<div class="m">${detail(k)}</div></td><td style="white-space:nowrap;font-weight:600">${fmtMin(r[k].min)}</td></tr>`).join('')
       || '<tr><td>이을 수단이 없습니다</td><td></td></tr>'}</table>
@@ -188,7 +188,7 @@ export function avoidSea(i) {
     if (back) i += via.length;   // 앞 구간에 끼웠으면 뒤 구간 번호가 밀린다
     msgs.push(after > 0.1 ? `바다를 피해 돌았습니다 (남은 바다 ${after.toFixed(1)}km)` : '바다를 피해 해안 안쪽으로 돌았습니다');
   }
-  if (msgs.length) toast(msgs.join(' · '));
+  if (msgs.length) toast(msgs.join(', '));
 }
 
 /** 점을 누른 자리에 놓는다: 기존 역·노드(24px)나 선(16px), 공항 가까이면 거기에 붙이고 이름을 정한다 */
@@ -550,7 +550,7 @@ export function drawDraft() {
         }
         for (const [x, y, r] of kept) {
           const v = Math.max(curveSpeed(r, spec.mode), 30);
-          f.push({ type: 'Feature', properties: { sharp: 1, label: `${v}km/h · R${r < 1 ? `${Math.round(r * 1000)}m` : `${r.toFixed(1)}km`}` }, geometry: { type: 'Point', coordinates: [x, y] } });
+          f.push({ type: 'Feature', properties: { sharp: 1, label: `${v}km/h, R${r < 1 ? `${Math.round(r * 1000)}m` : `${r.toFixed(1)}km`}` }, geometry: { type: 'Point', coordinates: [x, y] } });
         }
       }
     }

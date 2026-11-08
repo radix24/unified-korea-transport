@@ -457,7 +457,7 @@ export function retireChoiceHTML() {
 export function startedNotice(p) {
   if (!p) return;
   if (showGazette(p, { fromBuild: true })) return;
-  toast(`<b>착공</b> ${esc(p.label)} · ${formatWon(p.cost)} · ${p.doneYear}년 완공 예정 <a href="#" data-toast-tab="projects">사업 탭</a>`);
+  toast(`<b>착공</b> ${esc(p.label)}, ${formatWon(p.cost)}, ${p.doneYear}년 완공 예정 <a href="#" data-toast-tab="projects">사업 탭</a>`);
   document.querySelector('#toast [data-toast-tab]')?.addEventListener('click', (e) => { e.preventDefault(); switchTab('projects'); });
 }
 
@@ -473,7 +473,7 @@ export function plansHTML() {
     for (let i = 1; i < p.points.length; i++) km += kmBetween(p.points[i - 1][1], p.points[i - 1][2], p.points[i][1], p.points[i][2]);
     const spec = NEW_BUILDS[p.type];
     if (p.type === 'service') return servicePlanRow(p, started, building);
-    return `<div class="item line"><div class="n" data-plan-show="${p.id}" style="cursor:pointer;${shownPlan === p.id ? 'text-decoration:underline' : ''}" title="지도에 노선 보기"><span class="t-row"><b>${esc(p.phase ? p.name.replace(/ \d단계/, '') : p.name)}</b>${p.phase ? ` <span class="cnt phase-tag">${esc(p.phase)}</span>` : ''}</span>${p.after && !started.has(p.after) ? ' <span class="m">1단계를 먼저 지으면 같은 노선으로 이어집니다</span>' : ''}${p.note ? ` <span class="m">${esc(p.note)}</span>` : ''}<span class="m" title="${esc(p.source || '')}">${spec.label.replace(/ (부설|건설)/, '')} · 약 ${Math.round(km * 1.1)}km · ${formatWon(km * 1.1 * spec.perKm)}</span></div>
+    return `<div class="item line"><div class="n" data-plan-show="${p.id}" style="cursor:pointer;${shownPlan === p.id ? 'text-decoration:underline' : ''}" title="지도에 노선 보기"><span class="t-row"><b>${esc(p.phase ? p.name.replace(/ \d단계/, '') : p.name)}</b>${p.phase ? ` <span class="cnt phase-tag">${esc(p.phase)}</span>` : ''}</span>${p.after && !started.has(p.after) ? ' <span class="m">1단계를 먼저 지으면 같은 노선으로 이어집니다</span>' : ''}${p.note ? ` <span class="m">${esc(p.note)}</span>` : ''}<span class="m" title="${esc(p.source || '')}">${spec.label.replace(/ (부설|건설)/, '')}, 약 ${Math.round(km * 1.1)}km, ${formatWon(km * 1.1 * spec.perKm)}</span></div>
       <button class="small" data-plan="${p.id}" ${started.has(p.id) ? 'disabled' : ''}>${building.has(p.id) ? `공사 중 (${building.get(p.id).doneYear}년)` : started.has(p.id) ? '착공함' : '열기'}</button></div>`;
   };
   // 묶음은 '지역/종류/권역' 길(tree)로 겹겹이 접는다 (2026.11 건의: 남한·북한·남북·국제 사업 → 고속철도·일반철도… → 수도권·비수도권…)
@@ -498,6 +498,6 @@ export function plansHTML() {
 function servicePlanRow(p, started, building) {
   const need = p.after && plans.find((x) => x.id === p.after);
   const tt = TRAIN_TYPES[p.train || 'commuter'], cost = (p.sets || 6) * tt.setCost;
-  return `<div class="item line"><div class="n" data-plan-show="${p.id}" style="cursor:pointer;${shownPlan === p.id ? 'text-decoration:underline' : ''}" title="지도에 노선 보기"><span class="t-row"><b>${esc(p.name)}</b></span>${need && !started.has(need.id) ? ` <span class="m">${esc(need.name)}를 마치면 더 빨라집니다 (지금 선로로도 다닙니다)</span>` : ''}${p.requires?.length ? ` <span class="m">먼저 완공: ${p.requires.map((id) => esc(requireName(id).replace(/ \(.*\)$/, ''))).join(', ')}</span>` : ''}${p.note ? ` <span class="m">${esc(p.note)}</span>` : ''}<span class="m" title="${esc(p.source || '')}">운행 계통 · ${p.train === 'hsr' ? '' : '기존선 '}${esc(servicePlanLines(p).join('·'))} ${esc(p.from)}–${esc(p.to)} · ${p.train === 'hsr' ? '고속열차' : '광역 전동차'} ${p.sets || 6}편성 ${formatWon(cost)}${p.upgrade === false ? '' : ' + 복선 전철화'}${p.newStops?.length ? ` · 광역철도 전용역 신설 ${p.newStops.length}곳` : ''}</span></div>
+  return `<div class="item line"><div class="n" data-plan-show="${p.id}" style="cursor:pointer;${shownPlan === p.id ? 'text-decoration:underline' : ''}" title="지도에 노선 보기"><span class="t-row"><b>${esc(p.name)}</b></span>${need && !started.has(need.id) ? ` <span class="m">${esc(need.name)}를 마치면 더 빨라집니다 (지금 선로로도 다닙니다)</span>` : ''}${p.requires?.length ? ` <span class="m">먼저 완공: ${p.requires.map((id) => esc(requireName(id).replace(/ \(.*\)$/, ''))).join(', ')}</span>` : ''}${p.note ? ` <span class="m">${esc(p.note)}</span>` : ''}<span class="m" title="${esc(p.source || '')}">운행 계통, ${p.train === 'hsr' ? '' : '기존선 '}${esc(servicePlanLines(p).join('·'))} ${esc(p.from)}–${esc(p.to)}, ${p.train === 'hsr' ? '고속열차' : '광역 전동차'} ${p.sets || 6}편성 ${formatWon(cost)}${p.upgrade === false ? '' : ' + 복선 전철화'}${p.newStops?.length ? `, 광역철도 전용역 신설 ${p.newStops.length}곳` : ''}</span></div>
     <button class="small" data-plan="${p.id}" ${started.has(p.id) ? 'disabled' : ''}>${building.has(p.id) ? `차량 도입 중 (${building.get(p.id).doneYear}년)` : started.has(p.id) ? '운행함' : '열기'}</button></div>`;
 }

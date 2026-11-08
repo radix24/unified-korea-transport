@@ -164,7 +164,7 @@ export function univRankHTML(u) {
     return `<h4>설립·순위·재정</h4>
     <table class="kv">
       <tr><td>개교 예정</td><td>${proj ? `${proj.doneYear}년 (착공 ${proj.startYear}년, 사업비 ${formatWon(proj.cost)})` : '설립 중'}</td></tr>
-      <tr><td>개교 때 평판·순위 (어림)</td><td>${base}점 · 지금 기준 전국 ${rank}위 / ${all.length + 1}곳</td></tr>
+      <tr><td>개교 때 평판·순위 (어림)</td><td>${base}점, 지금 기준 전국 ${rank}위 / ${all.length + 1}곳</td></tr>
       <tr><td>개교 뒤 재정 투입</td><td>연 ${formatWon(f)} × ${UNIV_NEW_FUND_YEARS}년 (최대, 합계 ${formatWon(f * UNIV_NEW_FUND_YEARS)})</td></tr>
     </table>`;
   }
@@ -173,8 +173,8 @@ export function univRankHTML(u) {
   const f = state.univFund?.[e.key] || 0;
   return `<h4>순위·재정 투입</h4>
     <table class="kv">
-      <tr><td>평판</td><td>${e.score.toFixed(1)}점 · 전국 ${e.rank}위 / ${all.length}곳</td></tr>
-      <tr><td>순위 단위</td><td>${esc(e.name)}${e.branch ? ' · 분교로 따로 셈' : e.campuses.length > 1 ? ` · 캠퍼스 ${e.campuses.length}곳 함께 셈 (이원화)` : ''}</td></tr>
+      <tr><td>평판</td><td>${e.score.toFixed(1)}점, 전국 ${e.rank}위 / ${all.length}곳</td></tr>
+      <tr><td>순위 단위</td><td>${esc(e.name)}${e.branch ? ', 분교로 따로 셈' : e.campuses.length > 1 ? `, 캠퍼스 ${e.campuses.length}곳 함께 셈 (이원화)` : ''}</td></tr>
     </table>
     <div class="name-row"><span>연 재정 투입 (억원)</span><input type="number" id="univ-fund" data-key="${esc(e.key)}" class="small" min="0" step="50" value="${f}" list="univ-fund-list" style="width:110px">
       <datalist id="univ-fund-list">${UNIV_FUNDS.map((v) => `<option value="${v}">${v ? formatWon(v) : '없음'}</option>`).join('')}</datalist></div>
@@ -191,7 +191,7 @@ export function univRankTable() {
     <td><a href="#" data-univ-go="${esc(e.main.key)}">${esc(e.name)}</a>${!e.branch && e.campuses.length > 1 ? ` <span class="m">캠퍼스 ${e.campuses.length}</span>` : ''}</td>
     <td class="m">${esc(regionOf(state, zoneProps[e.zone]))}</td><td>${e.score.toFixed(1)}</td><td>${F[e.key] ? formatWon(F[e.key]) : ''}</td></tr>`).join('');
   return `<h3 style="margin-top:16px">대학 순위</h3>
-    <table class="cmp"><tr><th><input type="checkbox" data-univ-pick-all title="보이는 대학 모두 고르기"> 순위</th><th>대학</th><th>지역</th><th>평판</th><th>재정/년</th></tr>${rows}</table>
+    <table class="cmp univ-t"><tr><th><input type="checkbox" data-univ-pick-all title="보이는 대학 모두 고르기"> 순위</th><th>대학</th><th>지역</th><th>평판</th><th>재정/년</th></tr>${rows}</table>
     <div class="name-row" style="margin-top:6px;flex-wrap:wrap;gap:6px"><span>고른 대학 <b data-univ-pick-n>${univPicked.size}</b>곳에 연</span>
       <input type="number" data-univ-pick-amt class="small" min="0" step="50" value="${univPickAmt}" style="width:100px"><span>억원</span>
       <button class="small primary" data-univ-pick-apply>재정 투입</button><button class="small" data-univ-pick-max title="대학마다 교육 효과가 거의 다 차는 금액">대학마다 최대로</button><button class="small" data-univ-pick-clear>고른 대학 투입 끄기</button></div>
@@ -279,14 +279,14 @@ export function univPanel(key) {
   return `${header(u.name)}
     <table class="kv">
       <tr><td>소재</td><td>${esc(regionOf(state, zoneProps[u.zone]))} ${esc(zoneName(u.zone))}</td></tr>
-      <tr><td>종류</td><td>${esc(kindLabel || '')}${u.isNew ? ' · 게임에서 세움' : ''}</td></tr>
+      <tr><td>종류</td><td>${esc(kindLabel || '')}${u.isNew ? ', 게임에서 세움' : ''}</td></tr>
       <tr><td>정원 (어림)</td><td>${u.seats.toLocaleString()}명</td></tr>
       ${u.built ? '' : '<tr><td>상태</td><td>설립 중</td></tr>'}
       ${edu ? `<tr><td>새 대학·재정 효과 (이 시군)</td><td>기대 교육연수 목표 +${edu.toFixed(2)}년</td></tr>` : ''}
     </table>
     ${univRankHTML(u)}
     ${to ? `<h4>이름 되돌리기</h4><p class="hint">인물 이름이 든 대학을 지명 이름으로 바꿉니다: <b>${esc(to)}</b>. 교표·문서·간판을 바꾸는 데 예산이 들고, 끝나면 그 시군 주민 행복도가 오릅니다.</p>
-      ${proj ? `<p class="hint">${proj.doneYear}년 완료 예정</p>` : `<button class="small primary" data-univ-restore="${u.idx}">이름 되돌리기 · ${formatWon(UNIV_RENAME.cost)} · ${UNIV_RENAME.years}년 · 행복도 +${UNIV_RENAME.bonus}</button>`}` : ''}
+      ${proj ? `<p class="hint">${proj.doneYear}년 완료 예정</p>` : `<button class="small primary" data-univ-restore="${u.idx}">이름 되돌리기, ${formatWon(UNIV_RENAME.cost)}, ${UNIV_RENAME.years}년, 행복도 +${UNIV_RENAME.bonus}</button>`}` : ''}
     ${univMergeHTML(u)}
     <h4>이름 바꾸기</h4>
     <div class="name-row"><input type="text" id="univ-name" value="${esc(u.name)}"><button class="small" id="univ-rename">바꾸기</button></div>
@@ -299,14 +299,14 @@ function univMergeHTML(u) {
   if (u.isNew || !u.built || state.univMoved?.[u.orig]) return '';
   const r = regionOf(state, zoneProps[u.zone]);
   const pend = state.projects.find((p) => p.kind === 'univMerge' && p.status === 'building' && (p.target === u.orig || p.members.includes(u.orig)));
-  if (pend) return `<h4>통합 이전</h4><p class="hint">${esc(pend.label)} · ${pend.doneYear}년 완료 예정</p>`;
+  if (pend) return `<h4>통합 이전</h4><p class="hint">${esc(pend.label)}, ${pend.doneYear}년 완료 예정</p>`;
   const cand = univList().filter((x) => !x.isNew && x.orig !== u.orig && !state.univMoved?.[x.orig] && !Object.values(state.univMoved || {}).includes(x.orig)
     && regionOf(state, zoneProps[x.zone]) === r).sort((a, b) => kmBetween(u.lon, u.lat, a.lon, a.lat) - kmBetween(u.lon, u.lat, b.lon, b.lat)).slice(0, 40);
   if (!cand.length) return '';
   const def = `${stem(r.replace(/(특별자치시|특별자치도|광역시|특별시|직할시|시|도)$/, '')) || stem(zoneName(u.zone))}대학교`;
   const kp = u.country === 'KP' ? KP_COST_FACTOR * 0.6 : 1;
-  return `<h4>통합 이전</h4><p class="hint">${esc(r)} 안의 다른 대학을 골라 이 대학 자리로 옮겨 한 대학으로 합칩니다 (남측 국립대처럼 단과대학이 한 캠퍼스에). 정원은 더하고, 옮긴 대학의 교육 효과도 이 자리로 옵니다 · 대학마다 ${formatWon(Math.round(UNIV_MERGE.perCampus * kp))} · ${UNIV_MERGE.years}년</p>
-    <div class="list" style="max-height:180px;overflow:auto">${cand.map((x) => `<label class="item" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-merge-univ="${esc(x.orig)}"><span class="t" style="flex:1">${esc(x.name)}</span><span class="m">${esc(zoneName(x.zone))} · ${kmBetween(u.lon, u.lat, x.lon, x.lat).toFixed(0)}km</span></label>`).join('')}</div>
+  return `<h4>통합 이전</h4><p class="hint">${esc(r)} 안의 다른 대학을 골라 이 대학 자리로 옮겨 한 대학으로 합칩니다 (남측 국립대처럼 단과대학이 한 캠퍼스에). 정원은 더하고, 옮긴 대학의 교육 효과도 이 자리로 옵니다, 대학마다 ${formatWon(Math.round(UNIV_MERGE.perCampus * kp))}, ${UNIV_MERGE.years}년</p>
+    <div class="list" style="max-height:180px;overflow:auto">${cand.map((x) => `<label class="item" style="display:flex;gap:6px;align-items:center"><input type="checkbox" data-merge-univ="${esc(x.orig)}"><span class="t" style="flex:1">${esc(x.name)}</span><span class="m">${esc(zoneName(x.zone))}, ${kmBetween(u.lon, u.lat, x.lon, x.lat).toFixed(0)}km</span></label>`).join('')}</div>
     <div class="name-row"><span class="kind">새 이름</span><input type="text" id="univ-merge-name" value="${esc(def)}"><button class="small primary" data-univ-merge="${esc(u.orig)}">통합 이전</button></div>`;
 }
 
@@ -422,12 +422,12 @@ export function univPickClick(ll) {
   const kp = isKP(ll.lat, ll.lng);
   const wrap = document.createElement('div');
   wrap.className = 'setup-wrap';
-  wrap.innerHTML = `<div class="setup" role="dialog" aria-modal="true"><h2>대학 설립 · <input type="text" id="u-name" value="${esc(nm)}" list="u-names" style="font:inherit;width:11em"><datalist id="u-names">${cands.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></h2>
-    <p class="hint">이름 후보: ${cands.map(esc).join(' · ')} (칸을 눌러 고르거나 직접 쓰세요)</p>
+  wrap.innerHTML = `<div class="setup" role="dialog" aria-modal="true"><h2>대학 설립, <input type="text" id="u-name" value="${esc(nm)}" list="u-names" style="font:inherit;width:11em"><datalist id="u-names">${cands.map((c) => `<option value="${esc(c)}">`).join('')}</datalist></h2>
+    <p class="hint">이름 후보: ${cands.map(esc).join(', ')} (칸을 눌러 고르거나 직접 쓰세요)</p>
     <p class="setup-intro hint">${esc(regionOf(state, zoneProps[zi]))} ${esc(zoneName(zi))}. 개교하면 이 시군과 90분 안팎에 닿는 시군의 기대 교육연수가 오르고(최대 +1.5년, 정원이 모자란 곳일수록 크게), 평균 교육연수·HDI가 수십 년에 걸쳐 따라 오릅니다. 교통망이 좋을수록 효과가 멀리 퍼집니다.</p>
     <div class="setup-body"><div class="list">${Object.entries(UNIV_TYPES).map(([k, t]) => {
       const cost = Math.round(t.cost * (kp ? KP_COST_FACTOR : 1));
-      return `<div class="item"><div class="t">${t.label} · 정원 ${t.seats.toLocaleString()}명</div><div class="m">${formatWon(cost)} · ${t.years}년${k === 'kaist' ? ` · 이름은 ${esc(kaistName)}(${kaistAcronym(kaistName)}) (이름 칸을 고치면 그 이름)` : ''}</div>
+      return `<div class="item"><div class="t">${t.label}, 정원 ${t.seats.toLocaleString()}명</div><div class="m">${formatWon(cost)}, ${t.years}년${k === 'kaist' ? `, 이름은 ${esc(kaistName)}(${kaistAcronym(kaistName)}) (이름 칸을 고치면 그 이름)` : ''}</div>
         <button class="small primary" data-univ-type="${k}">설립</button></div>`;
     }).join('')}</div></div>
     <div class="setup-btns"><span style="flex:1"></span><button class="small" data-univ-type="cancel">닫기</button></div></div>`;

@@ -474,13 +474,13 @@ export function guNamingDialog(unit, opts = {}) {
     if (!b) { close(); return; }
     const col = guColorMap(unit), gs = [...col.keys()];
     const typed = new Map([...el.querySelectorAll('[data-gu-old]')].map((x) => [x.dataset.guOld, x.value]));
-    el.innerHTML = `<h3>분구 미리보기 · ${esc(where())}</h3>
+    el.innerHTML = `<h3>분구 미리보기, ${esc(where())}</h3>
       <p class="hint">지도에 구마다 색을 칠했습니다. 동을 누르면 그 동이 속할 구를 고를 수 있습니다(맞닿은 구로만, 월경지가 생기지 않게). 이름을 고치고 확정하세요.</p>
       <div class="list">${gs.map((g) => {
         const ss = guSubs(rep, g), pop = result ? ss.reduce((t, i) => t + result.subs.pop[i], 0) : 0;
         const ns = [...ss].sort((x, y) => (result ? result.subs.pop[y] - result.subs.pop[x] : 0)).map((i) => subName(i)).filter(Boolean);
         return `<div class="item"><div class="name-row"><span class="gu-swatch" style="background:${col.get(g)}"></span><input type="text" data-gu-old="${esc(g)}" value="${esc(typed.get(g) ?? g)}" style="flex:1"></div>
-          <div class="m">${g === gs[0] && !b.general && gs.length > 2 ? '가운데 구 · ' : ''}동 ${ss.length}곳 · ${fmtPop(pop)} · ${esc(ns.slice(0, 5).join(', '))}${ns.length > 5 ? ' …' : ''}</div></div>`;
+          <div class="m">${g === gs[0] && !b.general && gs.length > 2 ? '가운데 구, ' : ''}동 ${ss.length}곳, ${fmtPop(pop)}, ${esc(ns.slice(0, 5).join(', '))}${ns.length > 5 ? ' …' : ''}</div></div>`;
       }).join('')}</div>
       ${opts.noResplit ? '' : `<div class="row" style="display:flex;gap:6px;align-items:center;margin-top:6px"><span class="m">구 수</span>
         <select id="gu-float-n" class="small">${[2, 3, 4, 5].map((n) => `<option value="${n}" ${n === gs.length ? 'selected' : ''}>${n}개</option>`).join('')}</select>
@@ -936,8 +936,8 @@ export function guPanel(z, gu) {
   const p = provincePops().get(r), pc = p ? p.pop / Math.max(p.pop0, 1) - 1 : 0;
   return `${header(name)}
     <table class="kv">
-      <tr><td>소속</td><td>${esc(r)} (${zp.country === 'KP' ? '북' : '남'})${general ? ` · ${esc(zoneName(z))}의 일반구 (구청장은 시장이 임명)` : ''}</td></tr>
-      ${p ? `<tr><td>${esc(r)} 인구</td><td>${fmtPop(p.pop)} <span class="${pc >= 0 ? 'pos' : 'neg'}">(${pc >= 0 ? '+' : ''}${pct(pc)})</span> · 이 시군구가 ${pct(pop / Math.max(p.pop, 1))}</td></tr>` : ''}
+      <tr><td>소속</td><td>${esc(r)} (${zp.country === 'KP' ? '북' : '남'})${general ? `, ${esc(zoneName(z))}의 일반구 (구청장은 시장이 임명)` : ''}</td></tr>
+      ${p ? `<tr><td>${esc(r)} 인구</td><td>${fmtPop(p.pop)} <span class="${pc >= 0 ? 'pos' : 'neg'}">(${pc >= 0 ? '+' : ''}${pct(pc)})</span>, 이 시군구가 ${pct(pop / Math.max(p.pop, 1))}</td></tr>` : ''}
       ${happy != null ? `<tr><td>주민 행복도</td><td>${happy.toFixed(1)}</td></tr>` : ''}
       <tr><td>인구</td><td>${fmtPop(pop)} <span class="${change >= 0 ? 'pos' : 'neg'}">(${change >= 0 ? '+' : ''}${pct(change)})</span></td></tr>
       <tr><td>지난해 순이동</td><td>${Math.round(zs.reduce((t, j) => t + R.netMig[j], 0) * pop / Math.max(cpop, 1)).toLocaleString()}명</td></tr>
@@ -947,14 +947,14 @@ export function guPanel(z, gu) {
       <tr><td>접근성 (중앙값=1)</td><td>${(avg(R.access) / accRef).toFixed(2)}</td></tr>
       <tr><td>이용 철도역</td><td>${stName ? esc(stName) : '없음 (25km 밖)'}</td></tr>
     </table>
-    <h4>지방자치 · ${esc(r)}</h4>
+    <h4>지방자치, ${esc(r)}</h4>
     <div class="m" style="margin:2px 0">${officeLine(L.offices[`g:${r}`])}</div>
     <div class="m" style="margin:2px 0">${officeLine(L.offices[general ? mayorKey(z) : guKey(z, gu)])}</div>
     ${supportHTML(z)}
     ${zoneAdminHTML(z)}
     ${(() => {
       const t = guMoveTargets(subs);
-      return t.length ? `<h4>구 통째 편입</h4><p class="hint">${esc(gu)}를 통째로 맞닿은 광역시의 자치구로 옮깁니다 (같은 이름, 구청장 선거) · ${formatWon(EVENT_COST.annex)}</p>
+      return t.length ? `<h4>구 통째 편입</h4><p class="hint">${esc(gu)}를 통째로 맞닿은 광역시의 자치구로 옮깁니다 (같은 이름, 구청장 선거), ${formatWon(EVENT_COST.annex)}</p>
         <div class="actions">${t.map((r) => `<button class="small" data-gu-move="${esc(r)}">${esc(r)}에 편입</button>`).join('')}</div>` : '';
     })()}
     ${zoneDevHTML(z, subs, name)}
@@ -1331,8 +1331,8 @@ export function megaHTML() {
   const megaRow = (m) => {
     const p = state.projects.find((x) => x.kind === 'mega' && x.mega === m.id);
     const status = state.mega?.[m.id] ? `<span class="pos">${state.mega[m.id]}년 완공</span>`
-      : p ? `공사 중 · ${p.doneYear}년 완공 예정`
-      : `<button class="small primary" data-mega="${m.id}" ${m.ready(state) ? '' : 'disabled'}>착공 ${formatWon(m.cost)} · ${m.years}년</button>
+      : p ? `공사 중, ${p.doneYear}년 완공 예정`
+      : `<button class="small primary" data-mega="${m.id}" ${m.ready(state) ? '' : 'disabled'}>착공 ${formatWon(m.cost)}, ${m.years}년</button>
         ${m.noMap ? '' : `<button class="small" data-mega-prev="${m.id}">효과 미리보기</button>`}${m.ready(state) || !m.need ? '' : ` <span class="m">조건: ${esc(m.need)}</span>`}`;
     const acInfo = m.id === 'kp-ac' ? (() => { const L = kpDCLines(base, state); return ` 남은 직류 구간 ${L.length}개 노선 ${Math.round(L.reduce((s0, g) => s0 + g.km, 0)).toLocaleString()}km.`; })() : '';
     return `<div class="item"><div class="t">${esc(m.name)} ${m.id === 'kp-ac' || m.noMap ? '' : `<button class="small" data-mega-show="${m.id}">선형 보기</button>`}</div>
@@ -1347,8 +1347,8 @@ export function megaHTML() {
   const devCats = [...new Set(Object.values(SPECIAL_DEV).map((D) => D.cat || '남측 도시 개발'))];
   const devRow = ([k, D]) => {
     const d = (state.zoneDev || []).find((x) => x.kind === k), zi = specialZone(k), p = zi >= 0 ? zoneDevPlan(k, zi) : null;
-    return `<div class="item"><div class="t">${esc(D.label)}</div><div class="m">${esc(D.desc)} · 인구 +${D.persons.toLocaleString()}명 · ${formatWon(p?.cost ?? D.cost)} · ${D.years}년</div>
-      <div class="row" style="display:flex;gap:4px;flex-wrap:wrap">${d ? (d.done ? '<span class="pos">완공</span>' : `공사 중 · ${d.year + D.years}년 완공 예정`)
+    return `<div class="item"><div class="t">${esc(D.label)}</div><div class="m">${esc(D.desc)}, 인구 +${D.persons.toLocaleString()}명, ${formatWon(p?.cost ?? D.cost)}, ${D.years}년</div>
+      <div class="row" style="display:flex;gap:4px;flex-wrap:wrap">${d ? (d.done ? '<span class="pos">완공</span>' : `공사 중, ${d.year + D.years}년 완공 예정`)
       : p ? `<button class="small primary" data-zdev="${k}" data-zdev-zone="${zi}" data-zdev-name="${esc(D.label)}" ${p.why ? 'disabled' : ''}>착공</button>${p.why ? ` <span class="m">${esc(p.why)}</span>` : ''}` : ''}
       <button class="small" data-special-go="${k}">시군 창 열기</button></div></div>`;
   };
@@ -1367,7 +1367,7 @@ function kpStdAllHTML() {
   return `<div class="item"><div class="t">북측 철도 남측 규격 일괄 개량 (전체)</div>
     <div class="m">개량 전 북측 철도를 노선마다 고르지 않고 모두 한 사업으로 남측 규격(복선·교류 25kV·120km/h·표준궤)으로 바꿉니다. 노선 일괄처럼 10% 덜 듭니다.
       ${k.ids.length ? ` 남은 구간 ${k.lines}개 노선 ${Math.round(k.km).toLocaleString()}km.` : ''}</div>
-    <div class="row" style="display:flex;gap:4px;flex-wrap:wrap">${k.ids.length ? `<button class="small ${k.ok ? 'primary' : ''}" data-kpstd-all ${k.ok ? '' : 'disabled'}>착공 ${formatWon(k.cost)} · ${k.years}년</button>${k.ok ? '' : ' <span class="m">예산이 모자랍니다 (노선 창의 노선 일괄로 나눠 지을 수 있습니다)</span>'}` : ''}
+    <div class="row" style="display:flex;gap:4px;flex-wrap:wrap">${k.ids.length ? `<button class="small ${k.ok ? 'primary' : ''}" data-kpstd-all ${k.ok ? '' : 'disabled'}>착공 ${formatWon(k.cost)}, ${k.years}년</button>${k.ok ? '' : ' <span class="m">예산이 모자랍니다 (노선 창의 노선 일괄로 나눠 지을 수 있습니다)</span>'}` : ''}
       ${doing ? '<span class="m">공사 중인 일괄 개량이 있습니다</span>' : ''}</div></div>`;
 }
 
@@ -1377,7 +1377,7 @@ export function bindMega(el) {
     b.onclick = () => {
       const m = MEGA.find((x) => x.id === b.dataset.mega);
       if (!confirm(`${m.label}을(를) 착공할까요?
-${formatWon(m.cost)} · ${m.years}년 (해마다 ${formatWon(m.cost / m.years)})`)) return;
+${formatWon(m.cost)}, ${m.years}년 (해마다 ${formatWon(m.cost / m.years)})`)) return;
       const r = startMega(state, m.id);
       if (!r.ok) { alert(r.reason); return; }
       save(state); renderAll();
@@ -1387,7 +1387,7 @@ ${formatWon(m.cost)} · ${m.years}년 (해마다 ${formatWon(m.cost / m.years)})
     b.onclick = () => {
       const k = kpStdAll();
       if (!confirm(`북측 철도 ${k.lines}개 노선 ${Math.round(k.km).toLocaleString()}km를 남측 규격으로 일괄 개량할까요?
-${formatWon(k.cost)} · ${k.years}년 (해마다 ${formatWon(k.cost / k.years)})`)) return;
+${formatWon(k.cost)}, ${k.years}년 (해마다 ${formatWon(k.cost / k.years)})`)) return;
       const r = startUpgrade(base, state, k.ids, 'kpstd', { discount: LINE_BATCH_DISCOUNT, label: '북측 철도 남측 규격 일괄 개량 (전체)' });
       if (!r.ok) { alert(r.reason); return; }
       state.projects[state.projects.length - 1].kpStdAll = true;

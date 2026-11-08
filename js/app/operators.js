@@ -96,19 +96,19 @@ export function openLineDiagram(id) {
     // 열차의 출발·도착역은 계통 전체의 두 끝 (다른 노선으로 이어 가도). 노선도 왼쪽→오른쪽이 계통 첫 역 쪽인지
     const fwd = (idx.get(s.stops[0]) ?? first) <= (idx.get(s.stops[s.stops.length - 1]) ?? last);
     const ends = [nn.get(s.stops[0])?.name || '', nn.get(s.stops[s.stops.length - 1])?.name || ''];
-    rows.push({ name: s.name.includes(brand) ? s.name : `${brand} · ${s.name}`, brand, from: fwd ? ends[0] : ends[1], to: fwd ? ends[1] : ends[0],
+    rows.push({ name: s.name.includes(brand) ? s.name : `${brand}, ${s.name}`, brand, from: fwd ? ends[0] : ends[1], to: fwd ? ends[1] : ends[0],
       kind: s.kind, first, last, stops, trains: s.built ? s.trains : 0, times: timesFor(first, last, stops, Math.max(1, (s.runMin || baseRun) / baseRun)),
       segVC: v ? segVC : null,
-      label: `${SERVICE_KINDS[s.kind].label} · ${TRAIN_TYPES[s.type]?.label.split(' ')[0] || ''} ${s.sets}편성 · ${s.trains}회/일${s.built ? '' : ' · 제작 중'}` });
+      label: `${SERVICE_KINDS[s.kind].label}, ${TRAIN_TYPES[s.type]?.label.split(' ')[0] || ''} ${s.sets}편성, ${s.trains}회/일${s.built ? '' : ', 제작 중'}` });
   }
   // 보통(자동): 모든 노선에 저절로 다니는 모든 역 정차 열차. 운행 횟수는 이용객을 승차율 65%로 실을 만큼
   const baseTrains = autoLocalTrains(line, mode === 2 ? 'metro' : l0.cls, Math.max(0, ...segs.map((s) => s.vol)));
   const all = new Set(nodes.map((_, i) => i));
   const autoName = autoBrand(mode === 2 ? 'metro' : l0.cls, operatorOf(state, l0), nodes.map(foreignCountry).find(Boolean));
   rows.push({ name: `${autoName} (자동)`, brand: autoName, from: stations[0].name, to: stations[stations.length - 1].name, kind: 'base', first: 0, last: nodes.length - 1, stops: all, trains: baseTrains,
-    times: timesFor(0, nodes.length - 1, all, 1), segVC: null, label: `모든 역 · 24시간 · ${baseTrains}회/일` });
+    times: timesFor(0, nodes.length - 1, all, 1), segVC: null, label: `모든 역, 24시간, ${baseTrains}회/일` });
   showLineDiagram($('#linediagram'), {
-    title: `${line} · ${km.toFixed(0)}km · ${nodes.length}역${building ? ' · 공사 중' : ''}`, badge: opBadge(state, operatorOf(state, l0)), stations, segs, rows,
+    title: `${line}, ${km.toFixed(0)}km, ${nodes.length}역${building ? ', 공사 중' : ''}`, badge: opBadge(state, operatorOf(state, l0)), stations, segs, rows,
     onStation: (i) => { flyToNode(stations[i].node); select({ type: 'node', id: stations[i].node }); },
   });
 }

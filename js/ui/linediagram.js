@@ -57,7 +57,7 @@ export function showLineDiagram(el, d, onClose) {
   });
   d.segs.forEach((sg, i) => {
     svg += `<line x1="${xs[i]}" y1="${top}" x2="${xs[i + 1]}" y2="${top}" stroke="${vcColor(sg.vc)}" stroke-width="7" ${sg.gap ? 'stroke-dasharray="3 3"' : ''}>
-      <title>${esc(d.stations[i].name)}–${esc(d.stations[i + 1].name)}: V/C ${sg.vc.toFixed(2)} · ${Math.round(sg.vol).toLocaleString()}명/일</title></line>`;
+      <title>${esc(d.stations[i].name)}–${esc(d.stations[i + 1].name)}: V/C ${sg.vc.toFixed(2)}, ${Math.round(sg.vol).toLocaleString()}명/일</title></line>`;
   });
   d.stations.forEach((s, i) => { svg += `<circle cx="${xs[i]}" cy="${top}" r="3.5" class="ld-dot"/>`; });
   svg += `<text x="12" y="${top + 4}" class="ld-row">선로 혼잡도</text>`;
@@ -86,7 +86,7 @@ export function showLineDiagram(el, d, onClose) {
       <button class="small" id="ld-play">⏸</button>
       <select id="ld-speed"><option value="1">1분/0.1초</option><option value="5" selected>5분/0.1초</option><option value="15">15분/0.1초</option></select>
       <span class="ld-tabs"><button class="small on" data-ld-view="line">노선도</button><button class="small" data-ld-view="dia">운행 다이어 (24시간)</button></span>
-      <span class="ld-legend" id="ld-legend">● 정차 │ 통과 · ▶ 하행 ◀ 상행 · 선 색 = 혼잡도</span>
+      <span class="ld-legend" id="ld-legend">● 정차 │ 통과, ▶ 하행 ◀ 상행, 선 색 = 혼잡도</span>
       <button class="small close" id="ld-close">닫기</button></div>
     <div class="ld-scroll" data-ld="line"><svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">${svg}</svg></div>
     <div class="ld-scroll" data-ld="dia" hidden>${diaSVG(d)}</div>`;
@@ -95,8 +95,8 @@ export function showLineDiagram(el, d, onClose) {
       el.querySelectorAll('[data-ld-view]').forEach((x) => x.classList.toggle('on', x === b));
       el.querySelectorAll('[data-ld]').forEach((v) => { v.hidden = v.dataset.ld !== b.dataset.ldView; });
       el.querySelector('#ld-legend').textContent = b.dataset.ldView === 'dia'
-        ? '가로 = 시각(0~24시), 세로 = 역 · 선 하나가 열차 하나 · 빨간 세로선 = 지금 시각'
-        : '● 정차 │ 통과 · ▶ 하행 ◀ 상행 · 선 색 = 혼잡도';
+        ? '가로 = 시각(0~24시), 세로 = 역, 선 하나가 열차 하나, 빨간 세로선 = 지금 시각'
+        : '● 정차 │ 통과, ▶ 하행 ◀ 상행, 선 색 = 혼잡도';
     };
   });
   el.hidden = false;

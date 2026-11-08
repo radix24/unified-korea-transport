@@ -106,7 +106,7 @@ export function airDeltaHTML(B, A) {
     if (Math.abs(a - b) > Math.max(200, 0.03 * b)) rows.push([a - b, id, b, a]);
   });
   rows.sort((x, y) => Math.abs(y[0]) - Math.abs(x[0]));
-  return rows.length ? `<div class="m">공항 이용 변화: ${rows.slice(0, 4).map(([, id, b, a]) => `${esc(airportName(id))} ${Math.round(b).toLocaleString()}→${Math.round(a).toLocaleString()}명/일`).join(' · ')}</div>` : '';
+  return rows.length ? `<div class="m">공항 이용 변화: ${rows.slice(0, 4).map(([, id, b, a]) => `${esc(airportName(id))} ${Math.round(b).toLocaleString()}→${Math.round(a).toLocaleString()}명/일`).join(', ')}</div>` : '';
 }
 
 /** 미리보기 결과로 예타식 평가 (B/C, AHP). 사업비·공기는 미리보기에서 만든 사업(clone.__built)이나 extra에서 */

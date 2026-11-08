@@ -153,7 +153,7 @@ export function nearestRailStation(lngLat, maxPx) {
 export function placeAirport(lngLat) {
   const p = namer.nearbyPlaces(lngLat.lng, lngLat.lat)[0];
   const name = `${p ? p[0].replace(/(특별시|광역시|직할시|시|군|구|읍|면|동|리)$/, '') : '신'}공항`;
-  if (!confirm(`${name}을(를) 신설할까요? ${formatWon(AIRPORT.build.cost)} · ${AIRPORT.build.years}년`)) return;
+  if (!confirm(`${name}을(를) 신설할까요? ${formatWon(AIRPORT.build.cost)}, ${AIRPORT.build.years}년`)) return;
   const r = startAirport(state, { lon: lngLat.lng, lat: lngLat.lat, name });
   if (!r.ok) { alert(r.reason); return; }
   cancelDraft();

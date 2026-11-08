@@ -188,7 +188,7 @@ export function housingTool() {
   el.id = 'housing-tool';
   el.className = 'map-tool';
   el.innerHTML = `<b>택지지구 개발</b>
-    <div class="m">초록 칸: 지을 수 있는 곳 (진할수록 입지가 좋아 분양 수익이 큼 · 철도역·고속도로 IC가 가깝고 둘레 인구가 많은 곳)</div>
+    <div class="m">초록 칸: 지을 수 있는 곳 (진할수록 입지가 좋아 분양 수익이 큼, 철도역·고속도로 IC가 가깝고 둘레 인구가 많은 곳)</div>
     <div class="btns"><button class="small ${housingDraw ? '' : 'primary'}" data-ht="click">누른 곳에 놓기</button>
       <button class="small ${housingDraw ? 'primary' : ''}" data-ht="draw">경계 그리기</button>
       ${housingDraw ? '<button class="small" data-ht="done">완료 (Enter)</button>' : ''}
@@ -854,24 +854,24 @@ export function openHousingDialog({ lon, lat, zi0 = -1, ring = null, km2 = null,
       return { key: k, label: sz.label, households: sz.households, R: HOUSING_SITE.r[k], ring: sh?.ring, lon: sh?.lon, lat: sh?.lat, why: sh ? null : '둘레에 넓힐 평지가 모자람' };
     })
     : Object.entries(HOUSING.sizes).map(([k, sz]) => ({ key: k, label: sz.label, households: sz.households, R: HOUSING_SITE.r[k], why: housingSiteProblem(lon, lat, k) }));
-  const scoreTxt = `입지 점수 ${Math.round(sc.score * 100)}점 · 철도역 ${sc.railKm >= 15 ? '15km 넘게' : `${sc.railKm.toFixed(1)}km`} · 고속도로 IC ${sc.icKm >= 15 ? '15km 넘게' : `${sc.icKm.toFixed(1)}km`} · 8km 안 인구 ${fmtPeople(sc.pop)}`;
+  const scoreTxt = `입지 점수 ${Math.round(sc.score * 100)}점, 철도역 ${sc.railKm >= 15 ? '15km 넘게' : `${sc.railKm.toFixed(1)}km`}, 고속도로 IC ${sc.icKm >= 15 ? '15km 넘게' : `${sc.icKm.toFixed(1)}km`}, 8km 안 인구 ${fmtPeople(sc.pop)}`;
   const rows = options.map((o) => {
-    if (o.why) return `<div class="item"><div class="t">${o.label} · ${o.households.toLocaleString()}세대</div><div class="m">이 자리에는 들어가지 않습니다 (${o.why}).</div></div>`;
+    if (o.why) return `<div class="item"><div class="t">${o.label}, ${o.households.toLocaleString()}세대</div><div class="m">이 자리에는 들어가지 않습니다 (${o.why}).</div></div>`;
     const pl = housingPlan({ households: o.households, zone: zp, lat: o.lat ?? lat, lon: o.lon ?? lon, score: sc.score });
     const rp = housingRoadPlan({ lon: o.lon ?? lon, lat: o.lat ?? lat, ring: o.ring ?? ring, R: o.R, name, levy: pl.levy > 0, households: o.households });
     const roadCost = 0;
     const phaseSel = o.households >= HOUSING.levyMin
       ? `<label class="m"><input type="checkbox" data-phase="${o.key}"> 2단계로 나눠 짓기 (절반은 ${HOUSING.phase2Lag}년 늦게 준공)</label>` : '';
-    return `<div class="item"><div class="t">${o.label} · ${o.households.toLocaleString()}세대 · 입주 ${fmtPeople(pl.persons)} (모두 순증)</div>
-      <div class="m">택지 조성 ${formatWon(pl.cost)}${pl.levy ? ` + 광역교통개선대책 분담금 ${formatWon(pl.levy)}` : ''}${roadCost ? ` + 연결도로 ${formatWon(roadCost)}` : ''} · ${pl.years}년 · 분양 수익 ${formatWon(pl.revenue)}</div>
+    return `<div class="item"><div class="t">${o.label}, ${o.households.toLocaleString()}세대, 입주 ${fmtPeople(pl.persons)} (모두 순증)</div>
+      <div class="m">택지 조성 ${formatWon(pl.cost)}${pl.levy ? ` + 광역교통개선대책 분담금 ${formatWon(pl.levy)}` : ''}${roadCost ? ` + 연결도로 ${formatWon(roadCost)}` : ''}, ${pl.years}년, 분양 수익 ${formatWon(pl.revenue)}</div>
       ${pl.levy ? `<div class="m">분담금 ${formatWon(pl.levy)}은 이 지구 ${HOUSING.levyKm}km 안에 놓는 철도·도시철도 사업비에 넣습니다 (사업비의 절반까지)</div>` : ''}
       ${phaseSel}
       <button class="small" data-housing-preview="${o.key}" title="창을 접고 지도에서 지구 경계를 미리 봅니다">미리보기</button> <button class="small primary" data-housing="${o.key}">착공</button></div>`;
   }).join('');
   const wrap = document.createElement('div');
   wrap.className = 'setup-wrap';
-  wrap.innerHTML = `<div class="setup" role="dialog" aria-modal="true"><h2>택지지구 개발 · <input type="text" id="h-name" value="${esc(name)}" style="font:inherit;width:10em" title="지구 이름 (고칠 수 있습니다)"></h2>
-    <p class="setup-intro hint">${esc(zoneName(zi))} · ${scoreTxt}${grow?.river === 'center' ? '<br>강이 지구 가운데로 흐릅니다 (강물은 넓이에서 뺍니다).' : grow?.river === 'bank' ? '<br>강을 경계로 강을 따라 길게 놓습니다.' : ''}<br>지은 세대만큼 인구가 늘고(다 지은 뒤 3년에 걸쳐 입주), 입지 점수가 높을수록 분양 수익이 큽니다.
+  wrap.innerHTML = `<div class="setup" role="dialog" aria-modal="true"><h2>택지지구 개발, <input type="text" id="h-name" value="${esc(name)}" style="font:inherit;width:10em" title="지구 이름 (고칠 수 있습니다)"></h2>
+    <p class="setup-intro hint">${esc(zoneName(zi))}, ${scoreTxt}${grow?.river === 'center' ? '<br>강이 지구 가운데로 흐릅니다 (강물은 넓이에서 뺍니다).' : grow?.river === 'bank' ? '<br>강을 경계로 강을 따라 길게 놓습니다.' : ''}<br>지은 세대만큼 인구가 늘고(다 지은 뒤 3년에 걸쳐 입주), 입지 점수가 높을수록 분양 수익이 큽니다.
       단지 도로는 따로 깔지 않습니다. ${HOUSING.levyMin.toLocaleString()}세대 넘는 지구는 광역교통개선대책 분담금을 내고, 그 돈은 지구 ${HOUSING.levyKm}km 안에 놓는 철도·도시철도 사업비에 들어갑니다.
       ${sc.railKm > HOUSING.complaintKm ? `<br><b>철도역이 ${sc.railKm.toFixed(1)}km 떨어져 있어 입주 뒤 교통 대책 민원이 생깁니다</b> (${HOUSING.complaintKm}km 안에 역을 놓으면 풀립니다).` : ''}</p>
     <div class="setup-body"><div class="list">${rows}</div></div>
@@ -943,7 +943,7 @@ function previewHousing(wrap, o, { lon, lat, ring, zp, sc, name }) {
   document.querySelector('.housing-preview-bar')?.remove();
   const bar = document.createElement('div');
   bar.className = 'unit-pick-bar housing-preview-bar';
-  bar.innerHTML = `<b>택지지구 미리보기</b><span class="m">${esc(name())} · ${esc(o.label)} · ${o.households.toLocaleString()}세대 · 주황: 지구 경계, 회색: 단지 간선도로, 빨강: 연결도로</span>
+  bar.innerHTML = `<b>택지지구 미리보기</b><span class="m">${esc(name())}, ${esc(o.label)}, ${o.households.toLocaleString()}세대, 주황: 지구 경계, 회색: 단지 간선도로, 빨강: 연결도로</span>
     <button class="small primary" data-hp="ok">착공</button><button class="small" data-hp="back">창으로 돌아가기</button>`;
   document.body.appendChild(bar);
   bar.querySelector('[data-hp="back"]').onclick = () => { clearHousingPreview(); wrap.style.display = ''; };
@@ -1048,7 +1048,7 @@ export function pointAddPanel() {
     return `${header(title)}
       <table class="kv"><tr><td>노선</td><td>${esc(pk.line)}</td></tr>
         <tr><td>이름</td><td><input type="text" id="padd-name" value="${esc(pk.name)}" style="width:9em"></td></tr>
-        <tr><td>사업비 · 공기</td><td>${formatWon(c.cost)} · ${c.years}년</td></tr></table>
+        <tr><td>사업비, 공기</td><td>${formatWon(c.cost)}, ${c.years}년</td></tr></table>
       <p class="hint">다른 곳을 누르면 자리를 옮깁니다. 휴게소는 지도에 표시되는 시설입니다 (통행 계산에는 영향이 없습니다).</p>
       <div class="row" style="display:flex;gap:6px;margin-top:8px"><button class="primary" id="padd-ok">착공</button><button id="padd-cancel">취소</button></div>`;
   }
@@ -1064,8 +1064,8 @@ export function pointAddPanel() {
       <tr><td>이름</td><td><input type="text" id="padd-name" value="${esc(pk.name)}" style="width:9em"></td></tr>
       ${pk.jct ? '<tr><td>연결</td><td>두 고속도로를 연결로(램프)로 잇습니다</td></tr>' : ''}
       ${isIC && !pk.jct ? `<tr><td>연결도로</td><td>${noRoad ? '<span class="neg">6km 안에 이을 일반도로가 없습니다</span>' : `${(pk.roadKm * 1.2).toFixed(1)}km (4차로)`}</td></tr>` : ''}
-      <tr><td>사업비 · 공기</td><td>${formatWon(c.cost)} · ${c.years}년</td></tr>
-      <tr><td>주변 인구 (반경 1·3km)</td><td>${Math.round(popWithin(pk.lon, pk.lat, 1)).toLocaleString()} · ${Math.round(popWithin(pk.lon, pk.lat, 3)).toLocaleString()}명</td></tr>
+      <tr><td>사업비, 공기</td><td>${formatWon(c.cost)}, ${c.years}년</td></tr>
+      <tr><td>주변 인구 (반경 1·3km)</td><td>${Math.round(popWithin(pk.lon, pk.lat, 1)).toLocaleString()}, ${Math.round(popWithin(pk.lon, pk.lat, 3)).toLocaleString()}명</td></tr>
     </table>
     <p class="hint">다른 곳을 누르면 자리를 옮깁니다.</p>
     <div class="row" style="display:flex;gap:6px;margin-top:8px">

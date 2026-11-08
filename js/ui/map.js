@@ -412,7 +412,7 @@ export async function createMap(container) {
     locale: { 'NavigationControl.ZoomIn': '확대', 'NavigationControl.ZoomOut': '축소', 'NavigationControl.ResetBearing': '북쪽을 위로 (방위 정렬)' },
     attributionControl: {
       compact: true,
-      customAttribution: '행정동 경계 © 통계청 SGIS(공공누리 1유형)·vuski/admdongkor (CC BY 4.0) · 도로·철도·북측 경계 © OpenStreetMap 기여자 (ODbL) · WorldPop (CC BY 4.0) · Natural Earth',
+      customAttribution: '행정동 경계 © 통계청 SGIS(공공누리 1유형)·vuski/admdongkor (CC BY 4.0), 도로·철도·북측 경계 © OpenStreetMap 기여자 (ODbL), WorldPop (CC BY 4.0), Natural Earth',
     },
   });
   // 출처 표기는 접어 둔 채(ⓘ) 시작한다: 넓은 화면에서 펼쳐진 채로 뜨면 지도 아래를 한 줄 가린다. 누르면 펼쳐진다
@@ -728,8 +728,13 @@ export function addLayers(map, zonesFC, linksFC, subsFC) {
     id: 'airroutes', type: 'line', source: 'airroutes',
     layout: { 'line-sort-key': ['get', 'pax'] },
     paint: {
-      'line-color': '#b04a9c', 'line-opacity': ['interpolate', ['linear'], ['get', 'pax'], 0, 0.25, 5000, 0.4, 50000, 0.6],
-      'line-width': ['interpolate', ['linear'], ['get', 'pax'], 0, 0.5, 1000, 0.9, 5000, 1.6, 20000, 3, 100000, 7],
+      'line-color': '#b04a9c', // 전국 화면(줌 6~7)에서는 국제선이 철도·운행 계통을 덮지 않게 옅고 가늘게, 가까이 갈수록 원래대로
+      'line-opacity': ['interpolate', ['linear'], ['zoom'],
+        6.5, ['interpolate', ['linear'], ['get', 'pax'], 0, 0.06, 5000, 0.1, 50000, 0.18],
+        8.5, ['interpolate', ['linear'], ['get', 'pax'], 0, 0.25, 5000, 0.4, 50000, 0.6]],
+      'line-width': ['interpolate', ['linear'], ['zoom'],
+        6.5, ['interpolate', ['linear'], ['get', 'pax'], 0, 0.4, 5000, 0.8, 20000, 1.4, 100000, 3],
+        8.5, ['interpolate', ['linear'], ['get', 'pax'], 0, 0.5, 1000, 0.9, 5000, 1.6, 20000, 3, 100000, 7]],
     },
   });
   map.addSource('airports', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -913,7 +918,7 @@ export function legendHTML(metric, view = 'all', basemap = 'plain', level = 'sgg
     <div class="ticks">${[0, 1, 2, 4, 7, 10].map((v) => `<span style="left:${v * 10}%">${v}</span>`).join('')}</div>`;
   const rows = [];
   if (road) rows.push(`${sw('#3f9e63', 'line motorway')} 고속도로 ${sw('#3f9e63')} 일반도로`);
-  if (view === 'rail') rows.push(`${sw('#6c3fa0', 'line thin')} 굵기 = 이용객 · 색 = 혼잡도`);
+  if (view === 'rail') rows.push(`${sw('#6c3fa0', 'line thin')} 굵기 = 이용객, 색 = 혼잡도`);
   else if (rail) rows.push(`${sw('#2453c9')} 고속철 ${sw('#6c3fa0')} 일반철도 ${sw('#e07b1a')} 협궤`, `${sw('#1a9a6c')} 도시철도 (노선색, 굵기 = 이용객)`);
   if (air) rows.push(`${sw('#b04a9c', 'dot')} 공항 ${sw('#b04a9c')} 항공 노선 (굵기 = 여객)`);
   if (road || rail) rows.push(`${sw(IDLE_COLOR)} 이용 없음 ${sw('#8a8f96', 'dash')} 미개통`);

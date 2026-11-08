@@ -154,16 +154,16 @@ export function appraisalHTML(a, fmt) {
       ${row('교통사고 감소 편익 (연)', fmt(a.acc))}
       ${row(`편익 현재가치 (${APPRAISAL.years}년)`, fmt(a.pvB))}
       ${row('비용 현재가치 (사업비 + 운영비)', `${fmt(a.pvC)} <span class="m">(${fmt(a.pvCap)} + ${fmt(a.pvOp)})</span>`)}
-      ${row('<b>B/C</b> · 순현재가치', `<b class="${a.bc >= 1 ? 'pos' : 'neg'}">${n2(a.bc)}</b> · ${fmt(a.npv)}`)}
+      ${row('<b>B/C</b>, 순현재가치', `<b class="${a.bc >= 1 ? 'pos' : 'neg'}">${n2(a.bc)}</b>, ${fmt(a.npv)}`)}
     </table>
     ${a.noBenefit ? '<p class="hint">이 사업은 다 지어도 통행 시간·운행비가 오히려 늘어 편익이 없습니다 (B/C 0). 경로가 돌아가거나 막히는 곳으로 교통이 몰리는지 보세요.</p>' : ''}
     <table class="kv" style="margin-top:4px">
-      <tr><td><b>AHP 항목</b></td><td><span class="m">가중치 · 점수</span></td></tr>
-      ${row(`경제성 (B/C ${n2(a.bc)})`, `${n2(a.w.econ)} · ${n2(a.econ)}`)}
-      ${row('정책성', `${n2(a.w.policy)} · ${n2(a.policy)}`)}
+      <tr><td><b>AHP 항목</b></td><td><span class="m">가중치, 점수</span></td></tr>
+      ${row(`경제성 (B/C ${n2(a.bc)})`, `${n2(a.w.econ)}, ${n2(a.econ)}`)}
+      ${row('정책성', `${n2(a.w.policy)}, ${n2(a.policy)}`)}
       ${a.items.map(([k, v]) => row(`<span class="m">　${k}</span>`, `<span class="m">${n2(v)}</span>`)).join('')}
-      ${row(`지역균형발전 <span class="m">(소득 남측 평균의 ${Math.round(a.rel * 100)}%)</span>`, a.w.balance ? `${n2(a.w.balance)} · ${n2(a.balance)}` : '<span class="m">수도권 사업 (보지 않음)</span>')}
-      ${row('<b>AHP 종합</b>', `<b class="${a.ok ? 'pos' : 'neg'}">${n2(a.ahp)} · ${a.ok ? '시행 타당' : '시행 부적절'}</b>`)}
+      ${row(`지역균형발전 <span class="m">(소득 남측 평균의 ${Math.round(a.rel * 100)}%)</span>`, a.w.balance ? `${n2(a.w.balance)}, ${n2(a.balance)}` : '<span class="m">수도권 사업 (보지 않음)</span>')}
+      ${row('<b>AHP 종합</b>', `<b class="${a.ok ? 'pos' : 'neg'}">${n2(a.ahp)}, ${a.ok ? '시행 타당' : '시행 부적절'}</b>`)}
     </table>
-    <p class="hint">할인율 ${(APPRAISAL.rate * 100).toFixed(1)}% · 운영 ${APPRAISAL.years}년 · 하루 편익 × ${APPRAISAL.daysPerYear}일. 편익은 지금 교통량을 그대로 두고 지금 망(대조)과 다 지은 망(처리)으로 수단·경로를 다시 구한 차이이며(바뀐 구간만 교통량을 다시 정함), 이용자 편익은 반분법(rule of half)으로 셉니다. 차량운행비·사고 편익은 기존 통행 기준이며, 사업으로 새로 생긴 통행이 달린 거리는 비용으로 치지 않습니다. 모형은 시군구 사이 통행만 다루므로 편익에 실제 통행 규모(×${APPRAISAL.demandScale})를 곱하고, 개통 뒤 교통량이 해마다 ${(APPRAISAL.growth * 100).toFixed(0)}% 는다고 보며, 도로 사업은 화물차 시간 편익(여객의 ${Math.round(APPRAISAL.freightTime * 100)}%)을 더합니다. 도시철도는 시군구 안 동 사이 짧은 통행을 따로 나눠 승용차·버스·도시철도 선택으로 다시 셉니다. 광역급행철도는 높은 운임·대심도 접근 시간 몫(×${APPRAISAL.typeFactor.gtx})을 반영합니다. AHP 0.5 이상이면 시행이 타당하다고 봅니다.</p>`;
+    <p class="hint">할인율 ${(APPRAISAL.rate * 100).toFixed(1)}%, 운영 ${APPRAISAL.years}년, 하루 편익 × ${APPRAISAL.daysPerYear}일. 편익은 지금 교통량을 그대로 두고 지금 망(대조)과 다 지은 망(처리)으로 수단·경로를 다시 구한 차이이며(바뀐 구간만 교통량을 다시 정함), 이용자 편익은 반분법(rule of half)으로 셉니다. 차량운행비·사고 편익은 기존 통행 기준이며, 사업으로 새로 생긴 통행이 달린 거리는 비용으로 치지 않습니다. 모형은 시군구 사이 통행만 다루므로 편익에 실제 통행 규모(×${APPRAISAL.demandScale})를 곱하고, 개통 뒤 교통량이 해마다 ${(APPRAISAL.growth * 100).toFixed(0)}% 는다고 보며, 도로 사업은 화물차 시간 편익(여객의 ${Math.round(APPRAISAL.freightTime * 100)}%)을 더합니다. 도시철도는 시군구 안 동 사이 짧은 통행을 따로 나눠 승용차·버스·도시철도 선택으로 다시 셉니다. 광역급행철도는 높은 운임·대심도 접근 시간 몫(×${APPRAISAL.typeFactor.gtx})을 반영합니다. AHP 0.5 이상이면 시행이 타당하다고 봅니다.</p>`;
 }

@@ -162,14 +162,14 @@ export function myeonDongDialog(k, then = null) {
   const cur = new Set(state.local.dongMyeon?.[k] ?? (kr ? [] : list.filter((e) => /읍$/.test(e.name)).map((e) => e.key ?? e.name)));
   const wrap = document.createElement('div');
   wrap.className = 'setup-wrap';
-  wrap.innerHTML = `<div class="setup" role="dialog" aria-modal="true"><h2>동으로 바꿀 읍면 · ${esc(k.split('|')[1].replace(/군$/, '시'))}</h2>
+  wrap.innerHTML = `<div class="setup" role="dialog" aria-modal="true"><h2>동으로 바꿀 읍면, ${esc(k.split('|')[1].replace(/군$/, '시'))}</h2>
     <p class="setup-intro hint">${kr
     ? '군에는 읍·면만 두지만 시에는 읍·면·동을 모두 둘 수 있습니다. 시가지가 된 읍면을 고르면 동이 됩니다(○○읍 → ○○동, 읍장·면장 대신 동장). 고르지 않은 읍면은 그대로 읍·면입니다. 나중에도 시를 눌러 바꿀 수 있습니다.'
     : '군에는 읍·면만 두지만 시에는 읍·면·동을 모두 둘 수 있습니다. 고른 읍면의 리는 동이 되어(○○리 → ○○동) 하나씩 보이고, 고르지 않은 읍면은 읍·면 하나로 보입니다. 읍면은 1945년(분단 직전) 면입니다. 나중에도 시를 눌러 바꿀 수 있습니다.'}</p>
     <div class="actions setup-quick"><button class="small" data-myeon-all>모두</button><button class="small" data-myeon-none>하나도 안 바꿈</button><button class="small" data-myeon-eup>읍만</button></div>
     <div class="setup-body"><div class="list">${list.map((e) => `<label class="item" style="display:flex;gap:8px;align-items:center">
       <input type="checkbox" data-myeon="${esc(e.key ?? e.name)}" data-eup="${/읍$/.test(e.name) ? 1 : ''}" ${cur.has(e.key ?? e.name) ? 'checked' : ''}>
-      <span class="t" style="flex:1">${esc(e.name)}</span><span class="m">리 ${e.subs}곳${result ? ` · ${fmtPop(e.pop)}` : ''}</span></label>`).join('')}</div></div>
+      <span class="t" style="flex:1">${esc(e.name)}</span><span class="m">리 ${e.subs}곳${result ? `, ${fmtPop(e.pop)}` : ''}</span></label>`).join('')}</div></div>
     <div class="setup-btns"><span style="flex:1"></span><button class="small primary" data-myeon-ok>정하기</button></div></div>`;
   document.body.appendChild(wrap);
   const boxes = () => [...wrap.querySelectorAll('[data-myeon]')];
@@ -420,7 +420,7 @@ export function startUnitPick() {
   bar.className = 'unit-pick-bar';
   bar.innerHTML = `<b>시군구 신설</b><select class="small" data-up-mode><option value="ri">동·리 하나씩</option><option value="emd">읍면동 통째</option></select><span class="m" data-up-info>지도에서 읍면동을 누르세요 (다시 누르면 뺌, Esc로 그만두기)</span>
     <input type="text" data-up-name placeholder="새 이름 (○○시·○○군·○○구)">
-    <button class="small primary" data-up-ok>세우기 · ${formatWon(EVENT_COST.cityUp)}</button><button class="small" data-up-cancel>그만두기</button>`;
+    <button class="small primary" data-up-ok>세우기, ${formatWon(EVENT_COST.cityUp)}</button><button class="small" data-up-cancel>그만두기</button>`;
   document.body.appendChild(bar);
   bar.querySelector('[data-up-cancel]').onclick = endUnitPick;
   bar.querySelector('[data-up-ok]').onclick = finishUnitPick;
@@ -509,7 +509,7 @@ export function drawUnitPick() {
   const one = unitPick.mode === 'ri';
   const names = [...new Set([...subs.map((i) => (one ? subName(i) : unitMyeon(i)?.name || subName(i))), ...pickRi().map((r) => r.name)])];
   bar.querySelector('[data-up-info]').textContent = names.length
-    ? `${names.length}곳${result ? ` · ${fmtPop(pop)}` : ''} (${names.slice(0, 4).join('·')}${names.length > 4 ? ' …' : ''})`
+    ? `${names.length}곳${result ? `, ${fmtPop(pop)}` : ''} (${names.slice(0, 4).join('·')}${names.length > 4 ? ' …' : ''})`
     : `지도에서 ${one ? '동·리' : '읍면동'}를 누르세요 (다시 누르면 뺌, Esc로 그만두기)`;
   const nm = bar.querySelector('[data-up-name]');
   if (!nm.value && names.length) nm.placeholder = `예: ${stem(names[0].replace(/[읍면동리]$/, '')) || names[0]}${regionsOfPick().every(isMetroCity) ? '구' : '시'}`;
@@ -784,8 +784,8 @@ export function hallPanel(name) {
       ${p ? `<tr><td>소재지</td><td>${esc(p.region)} ${esc(unitName(p.unit))}${p.gu ? ` ${esc(p.gu)}` : ''} ${esc(subName(p.i))}</td></tr>` : ''}
       ${moved ? `<tr><td>이전</td><td>${moved[2] || ''}${moved[2] ? '년 ' : ''}새 청사로 옮김</td></tr>` : ''}
     </table>
-    <div class="actions"><button class="small primary" data-hall-move="${esc(name)}">청사 이전 · ${formatWon(cost)}</button>
-      ${h.kind === 'do' && !h.extra ? `<button class="small" data-hall-new="${esc(name)}" title="본청은 두고 같은 광역 단체 안에 청사를 하나 더 짓습니다 (경기도청 북부청사처럼)">제${(state.local?.hallExtra || []).filter((e) => e.base === name).length + 2}청사 건설 · ${formatWon(cost)}</button>` : ''}</div>
+    <div class="actions"><button class="small primary" data-hall-move="${esc(name)}">청사 이전, ${formatWon(cost)}</button>
+      ${h.kind === 'do' && !h.extra ? `<button class="small" data-hall-new="${esc(name)}" title="본청은 두고 같은 광역 단체 안에 청사를 하나 더 짓습니다 (경기도청 북부청사처럼)">제${(state.local?.hallExtra || []).filter((e) => e.base === name).length + 2}청사 건설, ${formatWon(cost)}</button>` : ''}</div>
     <p class="hint">누른 뒤 지도에서 새 자리를 고릅니다. ${h.kind === 'do' || h.kind === 'gov' ? '같은 광역 단체' : h.kind === 'gu' ? '같은 구' : '같은 시군'} 안이어야 합니다.${h.kind === 'do' && !h.extra ? ' 제n청사는 본청과 떨어진 생활권 주민이 도청 일을 가까이서 보게 해 그 시군 행복도가 오릅니다.' : ''}</p>`;
 }
 

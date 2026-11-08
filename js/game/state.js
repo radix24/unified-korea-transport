@@ -543,7 +543,7 @@ export function startProject(state, p, { quiet = false } = {}) {
   p.fund ||= 'gov';
   payProject(state, p, p.annual);
   state.projects.push(p);
-  const by = p.fund === 'gov' ? '' : p.fund === 'ppp' ? ` · 민자 (정부 보조 ${Math.round((p.govShare || 0) * 100)}%)` : ` · ${opName(state, fundOp(state, p.fund))} 자체 재원`;
+  const by = p.fund === 'gov' ? '' : p.fund === 'ppp' ? `, 민자 (정부 보조 ${Math.round((p.govShare || 0) * 100)}%)` : `, ${opName(state, fundOp(state, p.fund))} 자체 재원`;
   if (!quiet) state.log.unshift(`${state.year}년 착공: ${p.label} (${formatWon(p.cost)}, ${p.years}년${by})`);
 }
 
@@ -950,7 +950,7 @@ export function startNewBuild(base, state, plan) {
   // 끝점 이름이 없으면(이름 없는 도로 노드) 길이만 적는다
   const e0 = endName(0), e1 = endName(nodeIds.length - 1);
   const span = `${e0 && e1 ? `${e0}–${e1} ` : ''}(${kmTotal.toFixed(0)}km)`;
-  const label = plan.title ? `${plan.title} ${span}` : plan.extendOf ? `${plan.extendOf} 연장 ${span}` : `${plan.lineName ? `${plan.lineName} · ` : ''}${spec.label} ${span}`;
+  const label = plan.title ? `${plan.title} ${span}` : plan.extendOf ? `${plan.extendOf} 연장 ${span}` : `${plan.lineName ? `${plan.lineName}, ` : ''}${spec.label} ${span}`;
   // 분담금 몫은 이미 낸 돈이라 사업비에서 뺀다 (지구에 남은 분담금을 줄인다)
   for (const [h, u] of levyUse) h.levyLeft -= u;
   if (levyPaid) state.log.unshift(`${state.year}년 광역교통개선대책 분담금 ${formatWon(levyPaid)} 투입: ${levyUse.map(([h, u]) => `${h.name} ${formatWon(u)}`).join(', ')} → ${label}`);

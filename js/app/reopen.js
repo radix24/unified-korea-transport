@@ -110,18 +110,18 @@ export function closedPanel(id) {
   const opt = (type) => {
     const spec = NEW_BUILDS[type], cost = closedCost(c, type), ok = canAfford(state, cost, spec.years);
     return `<div class="item opt"><div class="opt-row"><span>${spec.label.replace(/ (부설|건설) /, ' ')}</span>
-      <button class="small ${ok ? 'primary' : ''}" data-closed-go="${type}" ${ok && !taken ? '' : 'disabled'}>${formatWon(cost)} · ${spec.years}년</button></div></div>`;
+      <button class="small ${ok ? 'primary' : ''}" data-closed-go="${type}" ${ok && !taken ? '' : 'disabled'}>${formatWon(cost)}, ${spec.years}년</button></div></div>`;
   };
   return `${header(`${c.label} (폐선)`)}
-    <table class="kv"><tr><td>연장</td><td>${c.km.toFixed(1)} km · ${c.country === 'KP' ? '북' : '남'}</td></tr>
-      <tr><td>옛 역</td><td>${c.stations.length ? c.stations.map((s) => esc(s[0])).join(' · ') : '기록 없음'}</td></tr></table>
+    <table class="kv"><tr><td>연장</td><td>${c.km.toFixed(1)} km, ${c.country === 'KP' ? '북' : '남'}</td></tr>
+      <tr><td>옛 역</td><td>${c.stations.length ? c.stations.map((s) => esc(s[0])).join(', ') : '기록 없음'}</td></tr></table>
     <p class="hint">${c.retiredYear ? `${c.retiredYear}년에 폐선한 구간입니다.` : '문을 닫은 철도입니다.'} 옛 노선 자리를 따라 다시 놓고 옛 역 자리에 역을 엽니다. 노반 자리를 다시 써서 새로 놓는 것보다 30% 쌉니다.
       양 끝이 지금 ${c.mode === 2 ? '도시철도' : '철도'}역 가까이(1.5km 안)면 그 역에 잇습니다. 다 지은 뒤 구간을 눌러 복선화·전철화할 수 있습니다.</p>
     ${taken ? '<p class="hint">이미 재개통 사업을 벌였습니다.</p>' : `<h4>옛 선형 그대로</h4><div class="list">${types.map(opt).join('')}</div>
       <h4>직선화해 복원</h4>
       <p class="hint">옛 역(과 양 끝)만 잇고 선형은 새로 곧게 놓습니다. 굽은 옛 노반을 쓰지 않아 할인은 없지만 짧고 빨라집니다. 그리기로 열려 역과 경로를 고친 뒤 착공합니다.</p>
       <div class="list">${types.map((type) => `<div class="item opt"><div class="opt-row"><span>${NEW_BUILDS[type].label.replace(/ (부설|건설) /, ' ')}</span>
-        <button class="small" data-closed-straight="${type}">그리기로 열기 · 약 ${straightKm.toFixed(0)}km</button></div></div>`).join('')}</div>`}`;
+        <button class="small" data-closed-straight="${type}">그리기로 열기, 약 ${straightKm.toFixed(0)}km</button></div></div>`).join('')}</div>`}`;
 }
 
 /** 폐선 도형을 따라 선형 점(via)을, 옛 역 자리에 역을 둔 그리기 점 목록 */
@@ -299,7 +299,7 @@ export function reopenHTML(id, l) {
   return `<h4>여객 재개통</h4>
     <p class="hint">${esc(l.name || '이 선로')}: 여객역이 거의 없어 이용객이 없습니다. 선로를 손보고(시속 ${REOPEN_SPEED}km까지) 인구가 많은 ${r.pick.length}곳에 역을 열면 여객 열차가 다닙니다.
       (역 반경 2km 인구 합계 ${fmtPeople(r.pop)}, 노선 ${r.km.toFixed(0)}km)</p>
-    <div class="actions"><button class="small ${ok ? 'primary' : ''}" id="reopen-go" ${ok ? '' : 'disabled'}>재개통 ${formatWon(r.cost)} · ${REOPEN.years}년</button></div>`;
+    <div class="actions"><button class="small ${ok ? 'primary' : ''}" id="reopen-go" ${ok ? '' : 'disabled'}>재개통 ${formatWon(r.cost)}, ${REOPEN.years}년</button></div>`;
 }
 
 /** 갈라진(splitLink) 구간이면 그 조각들 가운데 이 점에 가장 가까운 것 */

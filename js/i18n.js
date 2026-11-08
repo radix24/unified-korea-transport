@@ -20,7 +20,7 @@ const EXACT = {
   // 불러오기 화면
   '통일 한반도 교통망': 'Unified Korea Transport',
   '2026년, 남북이 오늘 통일되었습니다. 한정된 SOC 예산으로 고속도로·철도·도시철도를 놓고 국토를 다시 짜 보세요.': 'It is 2026 and the two Koreas have just reunified. Rebuild the peninsula with a limited infrastructure budget: motorways, railways and subways.',
-  '데이터 내려받기': 'Downloading data', '도로·철도·인구 격자': 'roads · rail · population grid',
+  '데이터 내려받기': 'Downloading data', '도로·철도·인구 격자': 'roads, rail, population grid',
   '시뮬레이션 준비': 'Preparing simulation', '기준 연도 교통 흐름': 'base-year traffic',
   '지도 그리기': 'Drawing the map', '배경 지도와 노선': 'basemap and network',
   '팁: 지도의 도로·철도 구간을 누르면 개량할 수 있고, 건설 탭에서 새 노선을 그릴 수 있습니다.': 'Tip: click a road or rail section to upgrade it, or draw new lines in the Build tab.',
@@ -49,8 +49,8 @@ const EXACT = {
   '결산 보기': 'Summary', '지역 간 통행': 'Inter-regional trips', '철도·대중교통 분담': 'Rail & transit share', '정체 도로': 'Congested roads', '남북 소득 격차': 'North–South income gap',
   '인구·소득': 'Population & income', '교통': 'Transport', '인구 이동 (지난 1년)': 'Migration (last year)', '기록': 'Log', '추이': 'Trends',
   '남': 'South', '북': 'North', '전체': 'Total', '인구': 'Population', '1인당 소득': 'Income per capita', '소득 격차': 'Income gap',
-  '지역 간 통행 (일)': 'Inter-regional trips (daily)', '수단 분담 (승용차·철도·대중교통)': 'Mode share (car · rail · transit)', '남북 간 통행 (일)': 'North–South trips (daily)',
-  '항공 · 국제 통행 (일)': 'Air · international (daily)', '관광 통행 (일)': 'Tourism trips (daily)', '정체 도로 (V/C>1)': 'Congested roads (V/C>1)',
+  '지역 간 통행 (일)': 'Inter-regional trips (daily)', '수단 분담 (승용차·철도·대중교통)': 'Mode share (car, rail, transit)', '남북 간 통행 (일)': 'North–South trips (daily)',
+  '항공, 국제 통행 (일)': 'Air, international (daily)', '관광 통행 (일)': 'Tourism trips (daily)', '정체 도로 (V/C>1)': 'Congested roads (V/C>1)',
   '북 → 남': 'North → South', '남 → 북': 'South → North',
   '지지율은 해마다 목표치 쪽으로 35%씩 움직입니다. 정체를 줄이고, 오래된 민원을 풀고, 예산을 남기지 않고 사업을 마치면 오릅니다.': 'Approval moves 35% of the way toward its target each year. Cut congestion, resolve old requests, spend the budget and finish projects to raise it.',
   '기본': 'Base', '도로 정체 (시작 대비)': 'Road congestion (vs. start)', '예산 불용': 'Unspent budget', '남북 HDI 개선': 'North–South HDI gains', '읍면동 체감 교통 개선': 'Felt transport improvement',
@@ -61,7 +61,7 @@ const EXACT = {
   '고속선로 부설 (350km/h)': 'Lay high-speed track (350 km/h)', '고속선로 부설 (300km/h)': 'Lay high-speed track (300 km/h)', '고속선로 부설 (해저)': 'Lay high-speed track (undersea)',
   '일반선로 부설 (250km/h)': 'Lay rail track (250 km/h)', '일반선로 부설 (200km/h)': 'Lay rail track (200 km/h)', '일반선로 부설 (복선)': 'Lay rail track (double)', '일반선로 부설 (단선)': 'Lay rail track (single)',
   '광역급행철도선로 부설 (대심도)': 'Lay GTX express track (deep tunnel)', '도시철도 선로 부설 (지하)': 'Lay metro track (underground)', '경전철·트램 선로 부설 (지상)': 'Lay light rail / tram track (surface)', '경전철 선로 부설 (지하)': 'Lay light rail track (underground)', '공항 신설': 'New airport',
-  '철도역 신설 (일반·광역·도시철도)': 'New station (rail · commuter · metro)', 'IC·JCT 신설': 'New interchange / junction', '고속도로 휴게소 설치': 'New motorway rest area', '대학 건설': 'Build a university', '신공항 건설': 'Build a new airport',
+  '철도역 신설 (일반·광역·도시철도)': 'New station (rail, commuter, metro)', 'IC·JCT 신설': 'New interchange / junction', '고속도로 휴게소 설치': 'New motorway rest area', '대학 건설': 'Build a university', '신공항 건설': 'Build a new airport',
   '효과 미리보기': 'Preview effect', '비교에 담기 (A·B·C안)': 'Add to comparison (A/B/C)', '모두 지우기': 'Clear all', '계획 사업': 'Planned projects',
   // 설정
   '도움말': 'Help', '처음 안내 다시 보기': 'Show the tutorial again', '오류 제보하기': 'Report a bug', '저장 슬롯': 'Save slots', '새 게임': 'New game', '난이도': 'Difficulty', '데이터': 'Data',
@@ -101,7 +101,7 @@ const TOKENS = [
   [/(\d{4})년 현황/g, '$1 overview'], [/(\d{4})년/g, '$1'], [/(\d+)년/g, '$1 yr'],
   [/([\d.]+)조/g, (m, a) => `₩${a}T`], [/([\d,.]+)억(원)?/g, (m, a) => won(a)],
   [/([\d.,]+)백만/g, '$1M'], [/([\d,.]+)천/g, '$1K'], [/([\d.]+)배/g, '$1×'], [/([\d,]+)명/g, '$1'], [/([\d,]+)곳/g, '$1'],
-  [/(\d+)분/g, '$1 min'], [/(\d+)시간/g, '$1 h'], [/ · /g, ' · '],
+  [/(\d+)분/g, '$1 min'], [/(\d+)시간/g, '$1 h'], [/, /g, ', '],
   [/ 통행/g, ' trips'], [/× 격차/g, '× gap'], [/입국 /g, 'inbound '], [/출국 /g, 'outbound '],
 ];
 const HANGUL = /[가-힣]/;

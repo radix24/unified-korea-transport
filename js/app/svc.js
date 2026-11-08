@@ -309,7 +309,7 @@ export function servicePanel() {
     <ol id="svc-stops" class="stop-strip" style="--line-color:${esc(e.color)}">${rows}</ol>
     ${ext.length ? `<div class="name-row"><label class="kind" for="svc-ext">노선 더 잇기</label>
       <select id="svc-ext"><option value="">끝 역에서 이어 갈 노선…</option>${ext.map((x, i) => `<option value="${i}">${lab[x.end]} ${esc(nn.get(e.nodes[x.end ? last : 0])?.name || '')}에서 → ${esc(x.name)} (${esc(nn.get(x.far)?.name || '')}까지)</option>`).join('')}</select><button class="small" id="svc-ext-ok">잇기</button></div>` : ''}`);
-  const trainSec = sec('train', `열차·편성 <span class="m">${esc(SERVICE_KINDS[e.kind].label)} · ${esc(TRAIN_TYPES[e.type].label.split(' ')[0])} ${e.sets}편성</span>`, `
+  const trainSec = sec('train', `열차·편성 <span class="m">${esc(SERVICE_KINDS[e.kind].label)}, ${esc(TRAIN_TYPES[e.type].label.split(' ')[0])} ${e.sets}편성</span>`, `
     <div class="name-row"><label class="kind" for="svc-kind">등급</label><select id="svc-kind" title="특급·급행은 고른 역에만 서서 통과역마다 정차 시간을 줄이고, 정차역의 배차 간격이 짧아집니다. 열차는 같은 선로 용량을 나눠 씁니다">${Object.entries(SERVICE_KINDS)
       .map(([k, v]) => `<option value="${k}" ${k === e.kind ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
       <span class="m">정차 방식·요금</span></div>
@@ -319,17 +319,17 @@ export function servicePanel() {
       <input type="number" id="svc-sets-n" min="1" max="60" value="${e.sets}" class="num" aria-label="편성 수 직접 입력"></div>
     <p class="hint">${TRAIN_TYPES[e.type].label}: 정원 ${TRAIN_TYPES[e.type].cap.toLocaleString()}명, 편성당 ${formatWon(TRAIN_TYPES[e.type].setCost)}. 편성을 늘리면 운행 횟수가 저절로 늘어납니다.</p>
     ${upg && upg.ids.length ? `<div class="name-row"><label><input type="checkbox" id="svc-upgrade" ${e.upgrade ? 'checked' : ''}> 밑 선로 복선 전철화 함께 착공</label></div>
-    <p class="hint">남측 규격 일괄 개량(복선·교류 25kV·120km/h·표준궤) ${upg.km.toFixed(0)}km · ${formatWon(upg.cost)} · 5년. 공사 동안은 지금 선로(단선·저속)로 다닙니다.</p>` : ''}
+    <p class="hint">남측 규격 일괄 개량(복선·교류 25kV·120km/h·표준궤) ${upg.km.toFixed(0)}km, ${formatWon(upg.cost)}, 5년. 공사 동안은 지금 선로(단선·저속)로 다닙니다.</p>` : ''}
     ${e.upgrade && upg?.ids.length ? '' : powerHint}`);
   const statsSec = sec('stats', '운행 지표', `<table class="kv">
       ${plan ? `<tr><td>표정 속도</td><td>${(plan.km / (plan.runMin / 60)).toFixed(0)} km/h</td></tr>
-      <tr><td>하루 운행 (24시간)</td><td>${trains}회 · 한 방향 약 ${Math.max(1, Math.round(SERVICE_DAY_MIN / Math.max(1, trains / 2)))}분 간격</td></tr>
+      <tr><td>하루 운행 (24시간)</td><td>${trains}회, 한 방향 약 ${Math.max(1, Math.round(SERVICE_DAY_MIN / Math.max(1, trains / 2)))}분 간격</td></tr>
       <tr><td>하루 수송력</td><td>${(trains * TRAIN_TYPES[e.type].cap).toLocaleString()}명</td></tr>
       ${(() => {
         const st = e.id && svcStats().find((x) => x.s.id === e.id);
         if (!st) return `<tr><td>하루 이용객</td><td class="m">${e.id ? '다음 해 계산부터 나옵니다' : '운행을 시작하면 다음 해부터 나옵니다'}</td></tr>`;
         return `<tr><td>하루 이용객 (어림)</td><td>${Math.round(st.riders).toLocaleString()}명 <span class="m">평균 ${st.avgKm.toFixed(0)}km 탐</span></td></tr>
-          <tr><td>가장 붐비는 구간 · 승차율</td><td>${Math.round(st.peak).toLocaleString()}명 · ${Math.round(st.load * 100)}%</td></tr>`;
+          <tr><td>가장 붐비는 구간, 승차율</td><td>${Math.round(st.peak).toLocaleString()}명, ${Math.round(st.load * 100)}%</td></tr>`;
       })()}` : '<tr><td colspan="2">정차역을 둘 이상 고르세요.</td></tr>'}
     </table>`);
   const nameSec = sec('name', `이름·색${e.id ? '' : '·재원'} <span class="m">${esc(e.name)}</span>`, `
@@ -338,14 +338,14 @@ export function servicePanel() {
   // 아래에 붙은 영수증: 무엇을 만드는지, 얼마가 들고 예산이 얼마 남는지 (예전에는 스크롤 끝의 단추만 있었다)
   const nm = (n) => esc(nn.get(n)?.name || '');
   const foot = `<div class="sel-foot">
-    ${plan ? `<div class="receipt"><b>${nm(stops[0])} → ${nm(stops[stops.length - 1])}</b> · ${plan.km.toFixed(0)}km · ${fmtMin(plan.runMin)} · 하루 ${trains}회</div>
-    <div class="receipt m">차량 ${cost ? formatWon(cost) : '추가 없음'}${cur ? ` (보유 ${cur.sets}편성)` : ''} · 가용 예산 ${formatWon(state.budget)}${cost ? ` → ${formatWon(state.budget - cost)}` : ''} · 다음 해부터 반영</div>` : '<div class="receipt warn-text">정차역을 둘 이상 고르세요.</div>'}
+    ${plan ? `<div class="receipt"><b>${nm(stops[0])} → ${nm(stops[stops.length - 1])}</b>, ${plan.km.toFixed(0)}km, ${fmtMin(plan.runMin)}, 하루 ${trains}회</div>
+    <div class="receipt m">차량 ${cost ? formatWon(cost) : '추가 없음'}${cur ? ` (보유 ${cur.sets}편성)` : ''}, 가용 예산 ${formatWon(state.budget)}${cost ? ` → ${formatWon(state.budget - cost)}` : ''}, 다음 해부터 반영</div>` : '<div class="receipt warn-text">정차역을 둘 이상 고르세요.</div>'}
     ${plan && !typeOk ? `<p class="hint warn-text">${esc(TRAIN_TYPES[e.type].label)}은(는) 비전철 구간을 달릴 수 없습니다. 열차를 디젤 객차로 바꾸거나 전철화를 마친 뒤 저장하세요.</p>` : ''}
     <div class="actions">
       <button class="primary" id="svc-ok" ${plan && typeOk ? '' : 'disabled'}>${e.id ? '저장' : '운행 시작'}</button>
       ${e.id ? '<button id="svc-del" class="danger">운행 중단</button>' : ''}
     </div></div>`;
-  return `${header(e.id ? `운행 계통 고치기: ${e.name}` : `운행 계통 신설${e.modeLabel ? ` · ${e.modeLabel}` : ''}`)}
+  return `${header(e.id ? `운행 계통 고치기: ${e.name}` : `운행 계통 신설${e.modeLabel ? ` (${e.modeLabel})` : ''}`)}
     ${routeSec}${trainSec}${statsSec}${nameSec}${foot}`;
 }
 
@@ -474,21 +474,21 @@ export function passingServicesHTML(ids) {
 /** 링크 패널의 운행 계통·수익성 (도시철도는 수익성만) */
 export function serviceSection(l, ids = []) {
   const ec = lineEconomics().find((x) => x.name === l.name);
-  const econ = ec ? `<p class="hint">이 노선: 연 수입 ${formatWon(ec.rev / 1e8)} · 비용 ${formatWon(ec.cost / 1e8)} · 영업계수 <b class="${ec.ratio > 100 ? 'neg' : ''}">${fmtRatio(ec.ratio)}</b></p>` : '';
+  const econ = ec ? `<p class="hint">이 노선: 연 수입 ${formatWon(ec.rev / 1e8)}, 비용 ${formatWon(ec.cost / 1e8)}, 영업계수 <b class="${ec.ratio > 100 ? 'neg' : ''}">${fmtRatio(ec.ratio)}</b></p>` : '';
   const diagram = '<button class="small" id="line-diagram">노선도 보기 (열차 위치·정차역·혼잡도)</button>';
-  if (l.mode === 2) return `<h4>노선도 · 수익성</h4><div class="actions">${diagram}</div>${econ}<p class="hint">도시철도 이용객에는 같은 구 안의 짧은 이용(역세권 인구로 어림)이 들어 있습니다.</p>`;
+  if (l.mode === 2) return `<h4>노선도, 수익성</h4><div class="actions">${diagram}</div>${econ}<p class="hint">도시철도 이용객에는 같은 구 안의 짧은 이용(역세권 인구로 어림)이 들어 있습니다.</p>`;
   const here = new Set(servicesOn(ids));   // 이 구간을 지나는 계통은 패널 맨 위에
   const list = (state.services || []).filter((s) => !here.has(s) && (s.line === l.name || s.lines?.includes(l.name)));
   // 보통(자동) 열차: 모든 노선에 저절로 다니는 모든 역 정차 열차. 운행 비율(감편)은 여기서도 바꾼다
   const t = autoLocalTrains(l.name, l.cls), f = state.lineFreq?.[l.name] || 1;
   // 연결선은 다른 노선 열차가 지나기만 한다: 보통 열차 줄 대신 그렇다고 알린다
   const autoRow = isConnectorLine(l.name) ? '<p class="hint">다른 노선 열차가 지나는 연결선입니다. 보통 열차는 따로 다니지 않습니다.</p>' : `<div class="item opt"><div class="opt-row">
-      <span>${esc(autoBrand(l.cls === 'hsr' ? 'hsr' : 'conv', operatorOf(state, l)))} (자동) <span class="m">모든 역 정차 · 하루 ${t}회 · 약 ${Math.max(1, Math.round(SERVICE_DAY_MIN / Math.max(1, t / 2)))}분 간격 · 노선 최대 이용객에 맞춰 저절로 정함${l.cls === 'hsr' ? '' : ' (광역 전철이 같이 다니는 구간은 전철 운행까지 센 횟수)'}</span></span>
+      <span>${esc(autoBrand(l.cls === 'hsr' ? 'hsr' : 'conv', operatorOf(state, l)))} (자동) <span class="m">모든 역 정차, 하루 ${t}회, 약 ${Math.max(1, Math.round(SERVICE_DAY_MIN / Math.max(1, t / 2)))}분 간격, 노선 최대 이용객에 맞춰 저절로 정함${l.cls === 'hsr' ? '' : ' (광역 전철이 같이 다니는 구간은 전철 운행까지 센 횟수)'}</span></span>
       <select data-freq="${esc(l.name)}" title="보통 열차 운행 비율 (감편)">${FREQ_STEPS.map((x) => `<option value="${x}" ${x === f ? 'selected' : ''}>운행 ${Math.round(x * 100)}%</option>`).join('')}</select></div></div>`;
-  return `<h4>노선도 · 운행 계통 · 수익성</h4><div class="actions">${diagram}
+  return `<h4>노선도, 운행 계통, 수익성</h4><div class="actions">${diagram}
     <button class="small" id="st-start" title="두 역 사이를 단순한 곡선으로 새로 놓고 옛 구간은 폐선">구간 직선화 (두 역 고르기)</button></div>${econ}
     <div class="list">${autoRow}${list.map((s) => `<div class="item opt"><div class="opt-row">
-      <span>${esc(s.name)} <span class="m">${s.name.includes(serviceBrand(s)) ? '' : `${esc(serviceBrand(s))} · `}${s.name.includes(SERVICE_KINDS[s.kind].label) ? "" : `${SERVICE_KINDS[s.kind].label} · `}${s.stops.length}개 역 · ${TRAIN_TYPES[s.type]?.label.split(' ')[0] || ''} ${s.sets}편성 · 하루 ${s.trains}회${s.built ? '' : ' · 차량 제작 중'}</span></span>
+      <span>${esc(s.name)} <span class="m">${s.name.includes(serviceBrand(s)) ? '' : `${esc(serviceBrand(s))}, `}${s.name.includes(SERVICE_KINDS[s.kind].label) ? "" : `${SERVICE_KINDS[s.kind].label}, `}${s.stops.length}개 역, ${TRAIN_TYPES[s.type]?.label.split(' ')[0] || ''} ${s.sets}편성, 하루 ${s.trains}회${s.built ? '' : ', 차량 제작 중'}</span></span>
       ${opBadge(state, serviceOperator(s))} <button class="small" data-svc-edit="${s.id}">고치기</button></div></div>`).join('')}</div>
     <div class="actions"><button class="small primary svc-pick" title="시점과 종점을 골라 새 계통을 짭니다 (여러 노선을 지나도 됩니다)">운행 계통 신설</button></div>`;
 }

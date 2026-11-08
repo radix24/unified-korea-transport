@@ -34,7 +34,7 @@ export function debtHTML(annual) {
   // 다음 해로 넘어갈 때 연 예산을 넘는 몫은 불용된다: 그 몫은 갚는 편이 낫다
   const lapse = Math.max(0, state.budget - annual - d.annualBudget);
   return `<h3>부채 상환</h3>
-    <p class="hint">부채 ${formatWon(state.debt)} · 연 이자 ${formatWon(Math.round(state.debt * d.interest))} (${(d.interest * 100).toFixed(1)}%) · 차입 한도 ${formatWon(d.borrowLimit)} · 가용 예산 ${formatWon(Math.max(0, state.budget))}.
+    <p class="hint">부채 ${formatWon(state.debt)}, 연 이자 ${formatWon(Math.round(state.debt * d.interest))} (${(d.interest * 100).toFixed(1)}%), 차입 한도 ${formatWon(d.borrowLimit)}, 가용 예산 ${formatWon(Math.max(0, state.budget))}.
       부채가 많을수록 지지율이 깎입니다.${lapse > 0 ? ` <b>내년으로 넘어갈 때 약 ${formatWon(lapse)}이 불용될 예정이니 상환에 쓰는 편이 낫습니다.</b>` : ''}</p>
     <div class="actions" style="flex-wrap:wrap;gap:6px">
       <button class="small primary" data-repay="${can}" ${can ? '' : 'disabled'}>${can >= state.debt ? '전액' : '가용 예산 모두'} 상환 ${formatWon(can)}</button>
@@ -65,11 +65,11 @@ export function renderProjects() {
   const row = (p) => {
     const prog = Math.min(1, p.paid / Math.max(1, p.cost));
     const pace = p.pace || 1;
-    const by = p.fund === 'ppp' ? ` · 민자 (정부 보조 ${Math.round((p.govShare || 0) * 100)}%)`
-      : p.fund && p.fund !== 'gov' ? ` · ${opBadge(state, state.rail.merged ? 'merged' : p.fund)} 자체 재원` : '';
+    const by = p.fund === 'ppp' ? `, 민자 (정부 보조 ${Math.round((p.govShare || 0) * 100)}%)`
+      : p.fund && p.fund !== 'gov' ? `, ${opBadge(state, state.rail.merged ? 'merged' : p.fund)} 자체 재원` : '';
     const name = projectBounds(p) ? `<button class="t link" data-locate="${p.id}" title="지도에서 보기">${esc(p.label)}</button>` : `<div class="t">${esc(p.label)}</div>`;
     return `<div class="item">${name}
-      <div class="m">${formatWon(p.cost)} · 연 ${formatWon(Math.min(p.annual, p.cost - p.paid))} · ${p.doneYear}년 ${p.kind === 'osm' ? '개통' : '완공'} 예정${by}</div>
+      <div class="m">${formatWon(p.cost)}, 연 ${formatWon(Math.min(p.annual, p.cost - p.paid))}, ${p.doneYear}년 ${p.kind === 'osm' ? '개통' : '완공'} 예정${by}</div>
       <div class="progress"><div style="width:${Math.round(prog * 100)}%"></div></div>
       ${['service', 'vehicles', 'airRoute', 'rename'].includes(p.kind) ? '' : `<div class="pace">투입 속도 ${PACES.map((x) =>
         `<button class="small ${x === pace ? 'on' : ''}" data-pace="${p.id}" data-v="${x}">${Math.round(x * 100)}%</button>`).join('')}</div>`}
@@ -88,7 +88,7 @@ export function renderProjects() {
     ${pppTableHTML()}
     ${housingStatusHTML()}
     <h3 style="margin-top:16px">완공 (${state.projects.filter((p) => p.status === 'done').length})</h3>
-    <div class="list">${done.map((p) => `<div class="item">${projectBounds(p) ? `<button class="t link" data-locate="${p.id}" title="지도에서 보기">${esc(p.label)}</button>` : `<div class="t">${esc(p.label)}</div>`}<div class="m">${p.doneYear}년 완공 · ${formatWon(p.cost)}${p.kind === 'new' || p.kind === 'upgrade' ? ` · <button class="t link" data-gazette="${p.id}">고시문</button>` : ''}</div></div>`).join('') || '<p class="hint">아직 없습니다.</p>'}</div>`;
+    <div class="list">${done.map((p) => `<div class="item">${projectBounds(p) ? `<button class="t link" data-locate="${p.id}" title="지도에서 보기">${esc(p.label)}</button>` : `<div class="t">${esc(p.label)}</div>`}<div class="m">${p.doneYear}년 완공, ${formatWon(p.cost)}${p.kind === 'new' || p.kind === 'upgrade' ? `, <button class="t link" data-gazette="${p.id}">고시문</button>` : ''}</div></div>`).join('') || '<p class="hint">아직 없습니다.</p>'}</div>`;
   bindDebt(el);
   el.querySelectorAll('[data-locate]').forEach((b) => { b.onclick = () => locateProject(state.projects.find((x) => x.id === b.dataset.locate)); });
   el.querySelectorAll('[data-gazette]').forEach((b) => { b.onclick = () => showGazette(state.projects.find((x) => x.id === b.dataset.gazette)); });
@@ -147,8 +147,8 @@ export function housingRowHTML(h, { panel = false } = {}) {
     }).join('');
     const occ = h.done ? 1 : (h.occupied || 0) / Math.max(1, h.persons);
     return `<div class="item"><button class="t link" data-house-go="${h.id}" title="지도에서 보기">${esc(h.name)}</button> <button class="small" data-house-rename="${h.id}" title="지구 이름 바꾸기">이름 바꾸기</button>
-      <div class="m">${esc(housingPlace(h, true))} · ${sizeLabel(h)} · ${(h.households || 0).toLocaleString()}세대${h.score != null ? ` · 입지 ${Math.round(h.score * 100)}점` : ''}${h.levy ? ' · 광역교통개선대책' : ''}</div>
-      <div class="m">입주 ${fmtPeople(h.done ? h.persons : h.occupied || 0)} / ${fmtPeople(h.persons)} (${Math.round(occ * 100)}%) · 분양 수익 ${formatWon(h.revenue)}${h.complaint ? ` · <span class="neg">교통 대책 민원 (철도역 ${(h.railKm || 0).toFixed(1)}km)</span>` : ''}</div>
+      <div class="m">${esc(housingPlace(h, true))}, ${sizeLabel(h)}, ${(h.households || 0).toLocaleString()}세대${h.score != null ? `, 입지 ${Math.round(h.score * 100)}점` : ''}${h.levy ? ', 광역교통개선대책' : ''}</div>
+      <div class="m">입주 ${fmtPeople(h.done ? h.persons : h.occupied || 0)} / ${fmtPeople(h.persons)} (${Math.round(occ * 100)}%), 분양 수익 ${formatWon(h.revenue)}${h.complaint ? `, <span class="neg">교통 대책 민원 (철도역 ${(h.railKm || 0).toFixed(1)}km)</span>` : ''}</div>
       ${h.done ? '' : ph}</div>`;
   };
   if (!panel) return row(h);
@@ -159,7 +159,7 @@ export function housingRowHTML(h, { panel = false } = {}) {
     <table class="kv">
       <tr><td>상태</td><td>${h.done ? '입주 완료' : h.built ? '입주 중' : '공사 중'}</td></tr>
       <tr><td>자리</td><td>${esc(housingPlace(h))}</td></tr>
-      <tr><td>크기</td><td>${sizeLabel(h)} · ${(h.households || 0).toLocaleString()}세대</td></tr>
+      <tr><td>크기</td><td>${sizeLabel(h)}, ${(h.households || 0).toLocaleString()}세대</td></tr>
       ${h.score != null ? `<tr><td>입지 점수</td><td>${Math.round(h.score * 100)}점</td></tr>` : ''}
       <tr><td>입주</td><td>${fmtPeople(h.done ? h.persons : h.occupied || 0)} / ${fmtPeople(h.persons)} (${Math.round(occ * 100)}%)</td></tr>
       <tr><td>분양 수익</td><td>${formatWon(h.revenue)}</td></tr>
@@ -169,7 +169,7 @@ export function housingRowHTML(h, { panel = false } = {}) {
     ${h.done ? '' : `<h4>공정</h4>${phases.map((q, k) => {
       const pr = projOf.get(q.id);
       const prog = q.done ? 1 : pr ? Math.min(1, pr.paid / Math.max(1, pr.cost)) : 0;
-      return `<div class="m">${phases.length > 1 ? `${k + 1}단계 ` : ''}${q.done ? '준공' : `${pr?.doneYear ?? ''}년 준공 예정`} · ${Math.round(prog * 100)}%</div><div class="progress"><div style="width:${Math.round(prog * 100)}%"></div></div>`;
+      return `<div class="m">${phases.length > 1 ? `${k + 1}단계 ` : ''}${q.done ? '준공' : `${pr?.doneYear ?? ''}년 준공 예정`}, ${Math.round(prog * 100)}%</div><div class="progress"><div style="width:${Math.round(prog * 100)}%"></div></div>`;
     }).join('')}`}
     <div class="actions" style="margin-top:8px"><button class="small" data-house-rename="${h.id}">이름 바꾸기</button></div>`;
 }
@@ -181,7 +181,7 @@ export function housingStatusHTML() {
   const people = list.reduce((s, h) => s + (h.done ? h.persons : h.occupied || 0), 0);
   const row = (h) => housingRowHTML(h);
   return `<h3 style="margin-top:16px">택지지구 (${list.length})</h3>
-    <p class="hint">입주 완료 ${done.length}곳 · 입주민 ${fmtPeople(people)}${going.length ? ` · 공사·입주 중 ${going.length}곳` : ''} · 민원 ${list.filter((h) => h.complaint).length}곳</p>
+    <p class="hint">입주 완료 ${done.length}곳, 입주민 ${fmtPeople(people)}${going.length ? `, 공사·입주 중 ${going.length}곳` : ''}, 민원 ${list.filter((h) => h.complaint).length}곳</p>
     <div class="list">${[...going, ...done].map(row).join('')}</div>`;
 }
 
@@ -217,6 +217,7 @@ export function locateProject(p) {
 }
 
 export let reqSide = 'all';   // 확장 요구 목록: 전체·남·북
+const reqMore = { KR: 20, KP: 20 };   // 남·북 묶음마다 보여 줄 줄 수 ('더 보기'로 늘린다)
 
 /** 패널을 다시 그려도 스크롤 자리를 지킨다 (확장 요구를 들어준 뒤 목록 맨 위로 튀지 않게) */
 export function keepScroll(el, fn) {
@@ -238,19 +239,25 @@ export function renderRequests() {
   el.innerHTML = `${proposalsHTML()}<h3>확장 요구 (${requests.length})</h3>
     <p class="hint">혼잡도(V/C)가 1.0을 넘는 상태가 2년 이상 이어진 노선입니다(남은 고속도로·간선국도, 북은 모든 도로, 그리고 철도). 방치하면 지지율이 떨어집니다. 넓혀도 통행비용이 줄면 수요가 다시 늘 수 있습니다.</p>
     <div class="pace">${sideBtn('all', `전체 ${requests.length}`)}${sideBtn('KR', `남 ${nKR}`)}${sideBtn('KP', `북 ${nKP}`)}</div>
-    <div class="list">${shown.map(([r, i]) => {
-      const l = linkAt(base, state, r.links[0]);
-      const fix = defaultFix(l);
-      const cost = fix ? r.links.reduce((sum, id) => sum + upgradeCost(fix, linkAt(base, state, id)), 0) : 0;
-      return `<div class="item"><div class="t">${esc(r.name || CLASS_LABEL[r.cls])} · ${r.km.toFixed(0)}km</div>
-        <div class="m">${esc(spanText(r.links, nn))}</div>
-        <div class="m">${CLASS_LABEL[r.cls]} · ${r.kp ? '북' : '남'} · 최대 V/C ${r.vc.toFixed(2)} · ${r.years}년째 · ${r.links.length}개 구간</div>
-        <div class="row">
-          ${fix ? `<button class="small primary" data-fix="${i}">${resolve(fix.label, l)} ${formatWon(cost)}</button>` : ''}
-          <button class="small" data-goto="${i}">보기</button>
-          <button class="small" data-dismiss="${i}">올해 보류</button>
-        </div></div>`;
-    }).join('') || '<p class="hint">요구가 없습니다.</p>'}</div>
+    ${(() => {
+      // 남·북으로 묶어 표로: 이름을 누르면 지도에서 보기, 오른쪽에 V/C, 아래 줄에 개량·보류
+      const row = ([r, i]) => {
+        const l = linkAt(base, state, r.links[0]);
+        const fix = defaultFix(l);
+        const cost = fix ? r.links.reduce((sum, id) => sum + upgradeCost(fix, linkAt(base, state, id)), 0) : 0;
+        return `<tr><td><a href="#" data-goto="${i}" title="지도에서 보기"><b>${esc(r.name || CLASS_LABEL[r.cls])}</b></a> <span class="m">${esc(spanText(r.links, nn))}, ${CLASS_LABEL[r.cls]}, ${r.years}년째, ${r.links.length}개 구간</span>
+          <span class="req-act">${fix ? `<button class="small primary" data-fix="${i}">${resolve(fix.label, l)} ${formatWon(cost)}</button>` : ''}<button class="small" data-dismiss="${i}">올해 보류</button></span></td>
+          <td class="${r.vc > 2 ? 'neg' : ''}">${r.vc.toFixed(2)}</td></tr>`;
+      };
+      const group = (side, title) => {
+        const rows = shown.filter(([r]) => !!r.kp === (side === 'KP'));
+        if (!rows.length) return '';
+        const more = rows.length - reqMore[side];
+        return `${reqSide === 'all' ? `<h4>${title} ${rows.length}</h4>` : ''}<table class="cmp req-t"><tr><th>노선 (누르면 지도에서 보기)</th><th>최대 V/C</th></tr>${rows.slice(0, reqMore[side]).map(row).join('')}</table>
+          ${more > 0 ? `<button class="small" data-req-more="${side}">${Math.min(more, 20)}개 더 보기 (남은 ${more}개)</button>` : ''}`;
+      };
+      return group('KR', '남측') + group('KP', '북측') || '<p class="hint">요구가 없습니다.</p>';
+    })()}
     ${policyHTML()}`;
   bindPolicy(el);
   el.querySelectorAll('[data-req-side]').forEach((b) => { b.onclick = () => { reqSide = b.dataset.reqSide; keepScroll(el, renderRequests); }; });
@@ -266,7 +273,8 @@ export function renderRequests() {
       keepScroll(el, () => { renderTop(); renderProjects(); renderRequests(); });
     };
   });
-  el.querySelectorAll('[data-goto]').forEach((b) => { b.onclick = () => gotoLinks(requests[+b.dataset.goto].links); });
+  el.querySelectorAll('[data-goto]').forEach((b) => { b.onclick = (ev) => { ev.preventDefault(); gotoLinks(requests[+b.dataset.goto].links); }; });
+  el.querySelectorAll('[data-req-more]').forEach((b) => { b.onclick = () => { reqMore[b.dataset.reqMore] += 20; keepScroll(el, renderRequests); }; });
   bindProposals(el);
   el.querySelectorAll('[data-dismiss]').forEach((b) => {
     b.onclick = () => {
@@ -311,7 +319,7 @@ export function spanText(ids, names = nodeNames()) {
   }
   const nm = (n) => { const v = names.get(n); if (v) return v.name; const c = nodeCoord(n); return c ? urbanName(c[0], c[1]) : ''; };
   const [a, b] = best.map(nm);
-  return `${a && b && a !== b ? `${a}–${b}` : a || b || ''}${km ? ` · ${km.toFixed(km < 10 ? 1 : 0)}km` : ''}`;
+  return `${a && b && a !== b ? `${a}–${b}` : a || b || ''}${km ? `, ${km.toFixed(km < 10 ? 1 : 0)}km` : ''}`;
 }
 
 /** 통계 탭: 항공·철도·도로 순위와 연도별 추이 */

@@ -63,18 +63,18 @@ export function econPanelHTML() {
   const closed = Object.entries(state.closedLines || {});
   const chip = (k, v, label) => `<button class="small ${econView[k] === v ? 'on' : ''}" data-econ="${k}:${v}">${label}</button>`;
   const ratioCls = (r) => (r >= 200 ? 'neg' : r > 100 ? 'warn' : 'pos');
-  return `<h3 style="margin-top:16px">영업계수 · 노선 정리</h3>
+  return `<h3 style="margin-top:16px">영업계수, 노선 정리</h3>
     <div class="kpis">
       <div><span class="k">흑자 노선</span><span class="v">${all.length - deficit.length}</span></div>
       <div><span class="k">적자 노선 (200 이상)</span><span class="v">${deficit.length} <small class="neg">(${all.filter((e) => e.ratio >= 200).length})</small></span></div>
       <div><span class="k">적자 합계 (연)</span><span class="v neg">${formatWon(deficit.reduce((a, e) => a + loss(e), 0) / 1e8)}</span></div>
-      <div><span class="k">폐선·감편</span><span class="v">${closed.length} · ${Object.keys(state.lineFreq || {}).length}</span></div>
+      <div><span class="k">폐선·감편</span><span class="v">${closed.length}, ${Object.keys(state.lineFreq || {}).length}</span></div>
     </div>
     <div class="econ-bar">${chip('filter', 'all', '전체')}${chip('filter', 'rail', '철도')}${chip('filter', 'metro', '도시철도')}
       <span style="flex:1"></span>${chip('sort', 'ratio', '영업계수순')}${chip('sort', 'loss', '적자액순')}</div>
     <div class="econ-list">${shown.map((e) => {
       const f = state.lineFreq?.[e.name] || 1;
-      return `<div class="econ-row"><div class="n"><b>${esc(e.name)}</b><span class="m">${Math.round(e.km)}km · 최대 ${Math.round(e.peak).toLocaleString()}명/일 · 수입 ${formatWon(e.rev / 1e8)} · 비용 ${formatWon(e.cost / 1e8)}</span></div>
+      return `<div class="econ-row"><div class="n"><b>${esc(e.name)}</b><span class="m">${Math.round(e.km)}km, 최대 ${Math.round(e.peak).toLocaleString()}명/일, 수입 ${formatWon(e.rev / 1e8)}, 비용 ${formatWon(e.cost / 1e8)}</span></div>
         <span class="r ${ratioCls(e.ratio)}">${fmtRatio(e.ratio)}</span>
         <select data-freq="${esc(e.name)}" title="기본 열차 운행 비율">${FREQ_STEPS.map((x) => `<option value="${x}" ${x === f ? 'selected' : ''}>운행 ${Math.round(x * 100)}%</option>`).join('')}</select>
         <button class="small" data-close-line="${esc(e.name)}" title="폐선">폐선</button></div>`;
@@ -82,7 +82,7 @@ export function econPanelHTML() {
     ${rows.length > 20 ? `<button class="small" data-econ="all:${!econView.all}" style="margin-top:6px">${econView.all ? '20개만 보기' : `모두 보기 (${rows.length})`}</button>` : ''}
     ${idle.length ? `<p class="hint">여객 이용이 없는 노선 ${idle.length}개(화물선, 역이 없는 선로: ${idle.slice(0, 6).map((e) => esc(e.name)).join(', ')}${idle.length > 6 ? ' 등' : ''})는 순위에서 뺐습니다. 여객 열차 없이 선로 유지비 연 ${formatWon(idle.reduce((a, e) => a + e.cost, 0) / 1e8)}만 셉니다.</p>` : ''}
     ${closed.length ? `<h4>폐선한 노선</h4><div class="list">${closed.map(([n, y]) => `<div class="item opt"><div class="opt-row">
-      <span>${esc(n)} <span class="m">${y}년 폐선 · ${Math.round(lineKmOf(n))}km</span></span>
+      <span>${esc(n)} <span class="m">${y}년 폐선, ${Math.round(lineKmOf(n))}km</span></span>
       <button class="small" data-reopen="${esc(n)}">재개통 ${formatWon(lineKmOf(n) * REOPEN_PER_KM)}</button></div></div>`).join('')}</div>` : ''}
     <p class="hint">영업계수 = 영업비용 ÷ 영업수입 × 100 (100 미만이면 흑자, 200 이상이면 수입의 두 배를 씁니다). 수입은 구간 이용객 × 거리 × km당 운임, 비용은 운행 열차-km와 선로 유지비로 셈한 추정입니다. 도시철도는 같은 구 안 이용을 역세권 인구로 어림해 더했습니다.<br>
     운행 비율을 줄이면(감편) 기본 열차의 최소 운행과 비용이 줄지만, 배차가 길어져 기다림이 늘고(절반이면 노선 전체 약 20분) 수송력이 줄어 이용객도 빠집니다. 폐선하면 그 노선의 열차·선로 비용이 없어지고 지나던 계통은 멈추며, 2년 동안 지지율이 노선당 ${CLOSE_APPROVAL}점 깎입니다. 결과는 다음 해부터 반영됩니다.</p>`;
@@ -100,7 +100,7 @@ export function bindEcon(el) {
       const name = b.dataset.closeLine, e = lineEconomics().find((x) => x.name === name);
       const svcs = (state.services || []).filter((x) => (x.lines || [x.line]).includes(name));
       const msg = `${name}을(를) 폐선할까요?
-연 수입 ${formatWon(e.rev / 1e8)} · 비용 ${formatWon(e.cost / 1e8)} → 수지 ${e.cost > e.rev ? '개선' : '악화'} ${formatWon(Math.abs(e.cost - e.rev) / 1e8)}/년`
+연 수입 ${formatWon(e.rev / 1e8)}, 비용 ${formatWon(e.cost / 1e8)} → 수지 ${e.cost > e.rev ? '개선' : '악화'} ${formatWon(Math.abs(e.cost - e.rev) / 1e8)}/년`
         + `${svcs.length ? `
 지나는 운행 계통 ${svcs.length}개가 멈춥니다.` : ''}
 지지율 -${CLOSE_APPROVAL} (2년). 재개통에는 ${formatWon(e.km * REOPEN_PER_KM)}이 듭니다.`;
@@ -136,7 +136,7 @@ export function chart(title, pts) {
 export function renderSettings() {
   const el = $('[data-panel=settings]');
   el.innerHTML = `
-    <div class="name-row"><span style="flex:1">언어 · Language</span>
+    <div class="name-row"><span style="flex:1">언어, Language</span>
       <select id="lang"><option value="ko" ${LANG === 'ko' ? 'selected' : ''}>한국어</option><option value="en" ${LANG === 'en' ? 'selected' : ''}>English (beta)</option></select></div>
     ${LANG === 'en' ? '<p class="hint">English is in beta: the main screens, tutorial, setup and summary are translated; detailed panels and place names are still in Korean.</p>' : ''}
     <div class="name-row"><span style="flex:1">버전 <b>${APP_VERSION}</b></span><button class="small" id="app-refresh">최신 판 다시 받기</button></div>
@@ -194,7 +194,7 @@ export function renderSettings() {
 
 /** 민원·정책 탭 아래쪽: 이주 정책, 지방자치·행정구역 이벤트, 국가 대형 사업, 옛 이름 되찾기 (정책·이벤트 성격은 이 탭에 모은다) */
 export function policyHTML() {
-  const fx = (o) => `${o.integ ? `통합도 ${o.integ > 0 ? '+' : ''}${(o.integ * 100).toFixed(1)}%p/년` : ''}${o.appr ? ` · 지지율 ${o.appr > 0 ? '+' : ''}${o.appr}` : ''}`;
+  const fx = (o) => `${o.integ ? `통합도 ${o.integ > 0 ? '+' : ''}${(o.integ * 100).toFixed(1)}%p/년` : ''}${o.appr ? `, 지지율 ${o.appr > 0 ? '+' : ''}${o.appr}` : ''}`;
   return `<h3 style="margin-top:16px">이주 정책</h3>
     ${Object.entries(MIG_POLICY).map(([a, A]) => {
     const cur = state[A.key] || A.def;
@@ -221,7 +221,7 @@ export function bindPolicy(el) {
       save(state); renderStatus();
       // 고른 정책의 설명과 효과를 바로 바꾼다
       const o = A.opts[e.target.value], hint = sel.closest('.name-row')?.nextElementSibling;
-      if (hint) hint.textContent = `${o.hint} (통합도 ${o.integ > 0 ? '+' : ''}${(o.integ * 100).toFixed(1)}%p/년 · 지지율 ${o.appr > 0 ? '+' : ''}${o.appr})`;
+      if (hint) hint.textContent = `${o.hint} (통합도 ${o.integ > 0 ? '+' : ''}${(o.integ * 100).toFixed(1)}%p/년, 지지율 ${o.appr > 0 ? '+' : ''}${o.appr})`;
     };
   });
 }
@@ -233,13 +233,13 @@ function serviceListHTML() {
   const rows = (state.services || []).map((s, k) => {
     const x = stats.get(s.id), kind = SERVICE_KINDS[s.kind].label;
     const key = [s.name, kind, ...(s.lines || [s.line]), ...s.stops.map((n) => nn.get(n)?.name || '')].join(' ').toLowerCase();
-    return `<tr data-svc-go="${s.id}" data-svc-key="${esc(key)}" style="cursor:pointer" title="눌러서 고르기"><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${esc(svcColor(s, k))}"></span> <a href="#">${esc(s.name)}</a> <span class="m">${s.name.includes(kind) ? '' : `${kind} · `}${s.stops.length}역${s.built ? '' : ' · 차량 제작 중'}</span></td>
-    ${x ? `<td>${s.trains}</td><td>${Math.round(x.riders).toLocaleString()}</td><td>${Math.round(x.peak).toLocaleString()}</td><td>${Math.round(x.load * 100)}%</td><td class="${x.ratio > 100 ? 'neg' : ''}">${fmtRatio(x.ratio)}</td>` : `<td>${s.trains || '–'}</td><td>–</td><td>–</td><td>–</td><td>–</td>`}</tr>`;
+    return `<tr data-svc-go="${s.id}" data-svc-key="${esc(key)}" style="cursor:pointer" title="눌러서 고르기"><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${esc(svcColor(s, k))}"></span> <a href="#">${esc(s.name)}</a> <span class="m">${[s.name.includes(kind) ? '' : kind, `${s.stops.length}역`, x ? `승차율 ${Math.round(x.load * 100)}%` : '', s.built ? '' : '차량 제작 중'].filter(Boolean).join(', ')}</span></td>
+    ${x ? `<td>${s.trains}</td><td title="가장 붐비는 구간 ${Math.round(x.peak).toLocaleString()}명">${Math.round(x.riders).toLocaleString()}</td><td class="${x.ratio > 100 ? 'neg' : ''}">${fmtRatio(x.ratio)}</td>` : `<td>${s.trains || '–'}</td><td>–</td><td>–</td>`}</tr>`;
   }).join('');
   if (!rows) return '<p class="hint">아직 짠 계통이 없습니다.</p>';
   return `<div class="name-row"><span class="kind">찾기</span><input type="text" id="svc-q" value="${esc(svcQuery)}" placeholder="이름·노선·역·등급 (예: 전라선, 여수, 특급)" style="flex:1"><span class="m" id="svc-q-n"></span></div>
     <p class="hint">줄을 누르면 그 계통을 지도에 보여 주고 고칠 수 있습니다. 마우스를 올리면 지도에서 그 계통만 진하게 보입니다.</p>
-    <div style="max-height:360px;overflow:auto"><table class="cmp" id="svc-list"><tr><th>계통</th><th>회/일</th><th title="하루 이용객 (어림: 구간 이용객이 늘어난 만큼 탄 것으로 셈)">이용객/일</th><th title="가장 붐비는 구간의 하루 이용객">최대 구간</th><th>승차율</th><th>영업계수</th></tr>${rows}</table></div>`;
+    <table class="cmp svc-list" id="svc-list"><tr><th>계통</th><th>회/일</th><th title="하루 이용객 (어림: 구간 이용객이 늘어난 만큼 탄 것으로 셈). 숫자에 마우스를 올리면 가장 붐비는 구간 이용객">이용객/일</th><th>영업계수</th></tr>${rows}</table>`;
 }
 
 function bindServiceList(el) {
@@ -387,7 +387,7 @@ export function renderSelection() {
     if (b0) previewUpgrade(JSON.parse(b0.dataset.ids), b0.dataset.mup);
     else alert(`${sc.line || '이 구간'}에 적용할 개량이 없습니다.`);
   });
-  el.querySelectorAll('[data-st-diagram]').forEach((b) => { b.onclick = () => openLineDiagram(+b.dataset.stDiagram); });
+  el.querySelectorAll('[data-st-diagram]').forEach((b) => { b.onclick = (ev) => { ev.preventDefault(); openLineDiagram(+b.dataset.stDiagram); }; });
   el.querySelectorAll('[data-padd]').forEach((b) => { b.onclick = () => { switchTab('build'); startPointAdd(b.dataset.padd); toast({ ic: '고속도로 위 IC 자리(두 고속도로가 엇갈리는 곳이면 JCT)를 누르세요.', rest: '휴게소를 놓을 고속도로 위 자리를 누르세요.' }[b.dataset.padd] || '노선 위 역 자리를 누르세요.'); }; });
   el.querySelectorAll('[data-closed-go]').forEach((b) => { b.onclick = () => startClosedReopen(selection.id, b.dataset.closedGo); });
   el.querySelectorAll('[data-closed-straight]').forEach((b) => { b.onclick = () => openClosedStraight(selection.id, b.dataset.closedStraight); });
@@ -400,7 +400,8 @@ export function renderSelection() {
   el.querySelectorAll('.svc-pick').forEach((b) => { b.onclick = () => startServicePick(); });
   el.querySelectorAll('[data-svc-from]').forEach((b) => { b.onclick = () => startServicePick([+b.dataset.svcFrom]); });
   el.querySelectorAll('[data-svc-edit]').forEach((b) => {
-    b.onclick = () => {
+    b.onclick = (ev) => {
+      ev.preventDefault();
       const s = state.services.find((x) => x.id === b.dataset.svcEdit);
       openServiceEditor(s.line, s.cls, s.id);
     };

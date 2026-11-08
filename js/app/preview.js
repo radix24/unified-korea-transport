@@ -101,7 +101,7 @@ export function onPreview(m) {
       ${row('지역 간 통행 (유발 수요)', `${sign(res.dTrips, (v) => `${Math.round(v).toLocaleString()}통행/일`)}`)}
       ${row('정체 도로 (V/C>1)', `${res.congB.toFixed(0)} → ${res.congA.toFixed(0)} km`)}
     </table>
-    ${top.length ? `<div class="m">혼잡이 줄어드는 곳: ${top.map(([, n, b, a]) => `${esc(n)} (V/C ${b.toFixed(2)}→${a.toFixed(2)})`).join(' · ')}</div>` : ''}
+    ${top.length ? `<div class="m">혼잡이 줄어드는 곳: ${top.map(([, n, b, a]) => `${esc(n)} (V/C ${b.toFixed(2)}→${a.toFixed(2)})`).join(', ')}</div>` : ''}
     ${airDeltaHTML(B, A)}
     ${extra.html ? extra.html({ ...res, touched }, A, clone) : ''}
     ${m.benefit ? previewAppraisal(m.benefit, res, touched, extra, clone) : ''}

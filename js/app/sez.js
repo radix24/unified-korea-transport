@@ -20,10 +20,10 @@ export function sezHTML(i) {
   const z = zoneProps[i];
   if (z.ext || z.country !== 'KP') return '';
   const cur = (state.sez || []).find((s) => s.zone === i);
-  if (cur) return `<h4>경제특구</h4><p class="hint">${cur.done ? `${cur.year}년 지정 · 소득이 빨리 오르고 일자리를 찾아 사람이 모입니다.` : `조성 중 (${cur.year + SEZ.years}년 지정)`}</p>`;
+  if (cur) return `<h4>경제특구</h4><p class="hint">${cur.done ? `${cur.year}년 지정, 소득이 빨리 오르고 일자리를 찾아 사람이 모입니다.` : `조성 중 (${cur.year + SEZ.years}년 지정)`}</p>`;
   const n = (state.sez || []).length;
   return `<h4>경제특구</h4><p class="hint">외국인·남측 기업 투자를 받는 특구로 지정합니다. 소득 수렴이 빨라지고(×1.8, 목표 +15%) 사람이 모여듭니다. 교통이 좋은 곳일수록 효과가 큽니다.</p>
-    <button class="small primary" data-sez="${i}" ${n >= SEZ.max ? 'disabled' : ''}>경제특구 지정 · ${formatWon(SEZ.cost)} · ${SEZ.years}년${n >= SEZ.max ? ` (최대 ${SEZ.max}곳)` : ''}</button>`;
+    <button class="small primary" data-sez="${i}" ${n >= SEZ.max ? 'disabled' : ''}>경제특구 지정, ${formatWon(SEZ.cost)}, ${SEZ.years}년${n >= SEZ.max ? ` (최대 ${SEZ.max}곳)` : ''}</button>`;
 }
 export function startSEZ(i) {
   if (!canAfford(state, SEZ.cost, SEZ.years)) { alert('예산과 차입 한도가 부족합니다.'); return; }

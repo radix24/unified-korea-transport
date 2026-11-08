@@ -177,7 +177,7 @@ export function localZoneHTML(i) {
   const z = zoneProps[i];
   if (z.ext) return '';
   const L = state.local, r = regionOf(state, z);
-  return `<h4>지방자치 · ${esc(r)}</h4>
+  return `<h4>지방자치, ${esc(r)}</h4>
     <div class="m" style="margin:2px 0">${officeLine(L.offices[`g:${r}`])}</div>
     <div class="m" style="margin:2px 0">${officeLine(L.offices[mayorKey(i)])}</div>
     ${supportHTML(i)}`;

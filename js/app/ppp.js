@@ -49,7 +49,7 @@ export function pppSection() {
     <button class="small" id="ppp-eval" ${draft.points.length < 2 ? 'disabled' : ''}>수요 예측·민간 수익성 검토 (약 40초)</button>
     ${ev ? `<table class="kv" style="margin-top:6px">
       <tr><td>예측 이용 (개통 첫해)</td><td>${Math.round(ev.useKm).toLocaleString()} ${ev.kind === 'road' ? '대·km' : '인·km'}/일</td></tr>
-      <tr><td>민간 투자비 · 연 운영비</td><td>${formatWon(ev.ev.privateCapex)} · ${formatWon(ev.ev.opex)}</td></tr>
+      <tr><td>민간 투자비, 연 운영비</td><td>${formatWon(ev.ev.privateCapex)}, ${formatWon(ev.ev.opex)}</td></tr>
       ${p.type === 'bto' ? `<tr><td>첫해 통행료·운임 수입</td><td>${formatWon(ev.ev.rev1)}</td></tr>
         ${p.mrg ? `<tr><td>최소운영수입보장 기준</td><td>연 ${formatWon(ev.ev.mrgFloor)}</td></tr>` : ''}`
         : `<tr><td>정부 연 임대료 (${p.years}년)</td><td>${formatWon(ev.ev.lease)}</td></tr>`}

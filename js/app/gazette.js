@@ -280,8 +280,8 @@ export function gazetteData(p) {
       : motorwayWork ? '한국도로공사' : '지방국토관리청')],
   ];
   const offices = [...new Set(stations.map((s) => s.place.split(' ').slice(-1)[0]).filter(Boolean))].slice(0, 6).join('·');
-  const deptRail = up || straightened ? '철도국 · 철도시설과' : '철도국 · 철도건설과';
-  const deptRoad = up ? '도로국 · 도로관리과' : '도로국 · 도로건설과';
+  const deptRail = up || straightened ? '철도국, 철도시설과' : '철도국, 철도건설과';
+  const deptRoad = up ? '도로국, 도로관리과' : '도로국, 도로건설과';
   return {
     org, orgSub: rail ? deptRail : deptRoad, docNo: `국토교통부 고시 제${p.startYear}-${seq}호`, title, lead, date,
     signer: '국토교통부장관', sealText: '국토교통부|장관인', lineName, color, stations, path: paths[0], paths, bbox: [[x0, y0], [x1, y1]],
@@ -402,24 +402,23 @@ export function stationPanel(id, n) {
   }
   const modeLabel = (l) => (isConnectorLine(l.name) ? '연결선' : l.mode === 2 ? '도시철도' : l.cls === 'conv' && isCommuterLine(l.name) ? '광역철도' : CLASS_LABEL[l.cls]);
   const svcRow = (s, stop) => `<tr><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${esc(svcColor(s, state.services.indexOf(s)))}"></span>
-    ${esc(s.name)} <span class="m">${SERVICE_KINDS[s.kind].label}${s.built ? '' : ' · 차량 제작 중'}</span> <button class="small" data-svc-edit="${s.id}">고치기</button></td>
-    <td>${stop ? `하루 ${s.trains}회 · 약 ${Math.round(SERVICE_DAY_MIN / Math.max(1, s.trains / 2))}분 간격` : '통과'}</td></tr>`;
+    <a href="#" data-svc-edit="${s.id}" title="이 계통 고치기">${esc(s.name)}</a> <span class="m">${SERVICE_KINDS[s.kind].label}${s.built ? '' : ', 차량 제작 중'}</span></td>
+    <td>${stop ? `하루 ${s.trains}회, 약 ${Math.round(SERVICE_DAY_MIN / Math.max(1, s.trains / 2))}분 간격` : '통과'}</td></tr>`;
   return `
     <h4>노선</h4>
-    <table class="kv">${lines.map((l) => `<tr><td>${opBadge(state, operatorOf(state, { mode: l.mode, kp: linkAt(base, state, l.link).kp }))} ${esc(l.name)} <span class="m">${modeLabel(l)}</span>
-      ${l.named ? `<button class="small" data-st-diagram="${l.link}">노선도</button>` : ''}</td>
+    <table class="kv">${lines.map((l) => `<tr><td>${opBadge(state, operatorOf(state, { mode: l.mode, kp: linkAt(base, state, l.link).kp }))} ${l.named ? `<a href="#" data-st-diagram="${l.link}" title="노선도 보기">${esc(l.name)}</a>` : esc(l.name)} <span class="m">${modeLabel(l)}</span></td>
       <td>${Math.round(l.vol).toLocaleString()}명/일 통과</td></tr>`).join('') || '<tr><td colspan="2">운행 중인 노선이 없습니다.</td></tr>'}</table>
     <h4>승하차</h4>
     <table class="kv">
       ${riders != null ? `<tr><td>지역 간 승하차</td><td>${Math.round(riders).toLocaleString()}명/일</td></tr>` : ''}
       ${lines.some((l) => l.mode === 2) ? `<tr><td>도시철도 승하차 (추정, 구 안 이용 포함)</td><td>${Math.round(metroStationEst(id)).toLocaleString()}명/일</td></tr>` : ''}
-      <tr><td>역세권 인구 (반경 1km · 3km)</td><td>${fmtPop(popWithin(c[0], c[1], 1))} · ${fmtPop(popWithin(c[0], c[1], 3))}</td></tr>
+      <tr><td>역세권 인구 (반경 1km, 3km)</td><td>${fmtPop(popWithin(c[0], c[1], 1))}, ${fmtPop(popWithin(c[0], c[1], 3))}</td></tr>
     </table>
     ${riders == null && !lines.some((l) => l.mode === 2) ? '<p class="hint">아직 운행하지 않는 역입니다.</p>' : ''}
     ${lines.some((l) => l.mode === 2) ? '<p class="hint">도시철도 승하차는 역 반경 800m 인구로 어림한 값입니다 (모형의 시군구 사이 통행에 빠진 구 안 이용 포함).</p>' : ''}
     <h4>운행 계통</h4>
     <table class="kv">${lines.filter((l) => l.named && !isConnectorLine(l.name)).map((l) => { const t = autoLocalTrains(l.name, l.mode === 2 ? 'metro' : l.cls);
-      return `<tr><td>${esc(l.name)} ${l.cls === 'hsr' ? '고속' : '보통'} <span class="m">자동 · 24시간</span></td><td>하루 ${t}회 · 약 ${Math.max(1, Math.round(SERVICE_DAY_MIN / Math.max(1, t / 2)))}분 간격</td></tr>`; }).join('')}
+      return `<tr><td>${esc(l.name)} ${l.cls === 'hsr' ? '고속' : '보통'} <span class="m">자동, 24시간</span></td><td>하루 ${t}회, 약 ${Math.max(1, Math.round(SERVICE_DAY_MIN / Math.max(1, t / 2)))}분 간격</td></tr>`; }).join('')}
       ${stopping.map((s) => svcRow(s, true)).join('')}${passing.map((s) => svcRow(s, false)).join('')}</table>
     ${svcTrains ? `<p class="hint">이 역에 서는 특급·급행 등 계통 열차 하루 ${svcTrains}회</p>` : '<p class="hint">보통 열차는 모든 노선에 저절로 다닙니다. 특급·급행은 계통을 짜야 다닙니다.</p>'}
     ${lines.some((l) => l.mode === 1) ? `<div class="actions"><button class="small primary" data-svc-from="${id}" title="이 역을 시점으로 새 계통을 짭니다">이 역에서 운행 계통 신설</button></div>` : ''}

@@ -14,9 +14,9 @@ import { renderAll } from './panels.js';
 export function reportBug() {
   const c = map?.getCenter();
   const lines = ['무엇이 이상했는지 적어 주세요 (어디서, 무엇을 눌렀을 때):', '', '', '---- 아래는 자동으로 채운 정보입니다 ----',
-    `버전: ${APP_VERSION} · 데이터 ${dataStamp || '-'}`,
-    `게임: ${state?.year}년 · 난이도 ${state?.difficulty} · 사업 ${state?.projects?.length ?? 0}건`,
-    `지도: ${c ? `${c.lng.toFixed(4)}, ${c.lat.toFixed(4)} · 확대 ${map.getZoom().toFixed(1)}` : '-'}`,
+    `버전: ${APP_VERSION}, 데이터 ${dataStamp || '-'}`,
+    `게임: ${state?.year}년, 난이도 ${state?.difficulty}, 사업 ${state?.projects?.length ?? 0}건`,
+    `지도: ${c ? `${c.lng.toFixed(4)}, ${c.lat.toFixed(4)}, 확대 ${map.getZoom().toFixed(1)}` : '-'}`,
     `선택: ${selection ? `${selection.type} ${selection.id ?? ''}` : '-'}`,
     `화면: ${innerWidth}×${innerHeight} @${devicePixelRatio}`,
     `브라우저: ${navigator.userAgent}`,
@@ -81,7 +81,7 @@ export async function importSave(file) {
   try { v = JSON.parse(await file.text()); } catch { alert('저장 파일을 읽지 못했습니다.'); return; }
   const st = v?.state;
   if (v?.app !== 'unified-korea-transport' || !st?.year) { alert('이 게임의 저장 파일이 아닙니다.'); return; }
-  if (dataStamp && st.dataStamp && st.dataStamp !== dataStamp) { alert(`지도 자료가 바뀌기 전에 만든 파일이라 불러올 수 없습니다 (파일 ${st.dataStamp} · 지금 ${dataStamp}).`); return; }
+  if (dataStamp && st.dataStamp && st.dataStamp !== dataStamp) { alert(`지도 자료가 바뀌기 전에 만든 파일이라 불러올 수 없습니다 (파일 ${st.dataStamp}, 지금 ${dataStamp}).`); return; }
   if (!confirm(`${st.year}년 저장 파일을 불러올까요? 지금 진행은 슬롯이나 파일로 저장하지 않았다면 사라집니다.`)) return;
   save(st);
   await flushSave();
@@ -113,8 +113,8 @@ export function goalHTML() {
   const G = GOALS[state.goal];
   if (!G?.check || !state.history.length) return '';
   const st = G.check({ h0: state.history[0], h1: state.history[state.history.length - 1], state, times1: goalTimes });
-  if (!st) return `<p class="report-goal">${t('목표', 'Goal')} · ${G.label} <span class="m">(${t('재는 중', 'measuring')})</span></p>`;
-  return `<p class="report-goal ${st.done ? 'good' : ''}">${t('목표', 'Goal')} · ${G.label}: ${t('지금', 'now')} <b>${st.now}</b> / ${t('목표', 'target')} ${st.target}${st.done ? t(' · 달성', ' · achieved') : ''}
+  if (!st) return `<p class="report-goal">${t('목표', 'Goal')}, ${G.label} <span class="m">(${t('재는 중', 'measuring')})</span></p>`;
+  return `<p class="report-goal ${st.done ? 'good' : ''}">${t('목표', 'Goal')}, ${G.label}: ${t('지금', 'now')} <b>${st.now}</b> / ${t('목표', 'target')} ${st.target}${st.done ? t(', 달성', ', achieved') : ''}
     <span class="m">(${t(`${START_YEAR + 10}년 결산에서 판정`, `judged in the ${START_YEAR + 10} summary`)})</span></p>`;
 }
 
@@ -164,7 +164,7 @@ export function slotsHTML() {
   return `<div class="list">${Array.from({ length: SLOTS }, (_, k) => {
     const v = meta[k + 1];
     return `<div class="item opt"><div class="opt-row">
-      <span>슬롯 ${k + 1} <span class="m">${v ? `${v.year}년 · ${new Date(v.savedAt).toLocaleString('ko-KR')}` : '비어 있음'}</span></span>
+      <span>슬롯 ${k + 1} <span class="m">${v ? `${v.year}년, ${new Date(v.savedAt).toLocaleString('ko-KR')}` : '비어 있음'}</span></span>
       <span><button class="small" data-slot-save="${k + 1}">저장</button> <button class="small" data-slot-load="${k + 1}" ${v ? '' : 'disabled'}>불러오기</button></span></div></div>`;
   }).join('')}${backup}</div>`;
 }

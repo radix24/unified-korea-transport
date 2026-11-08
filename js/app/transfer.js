@@ -52,8 +52,8 @@ export function transferHTML(id, lines) {
     ${rows ? `<table class="kv">${rows}</table>` : ''}
     <div class="list">${cand.slice(0, 5).map((x) => {
       const k = cost(x.d), ok = canAfford(state, k, TRANSFER.years);
-      return `<div class="item opt"><div class="opt-row"><span>${esc(x.name)} <span class="m">${x.ls.filter((l) => l.named).map((l) => esc(l.name)).slice(0, 3).join(', ')} · ${Math.round(x.d * 1000)}m</span></span>
-        <button class="small ${ok ? 'primary' : ''}" data-xfer="${x.node}" ${ok ? '' : 'disabled'}>${formatWon(k)} · ${TRANSFER.years}년</button></div></div>`;
+      return `<div class="item opt"><div class="opt-row"><span>${esc(x.name)} <span class="m">${x.ls.filter((l) => l.named).map((l) => esc(l.name)).slice(0, 3).join(', ')}, ${Math.round(x.d * 1000)}m</span></span>
+        <button class="small ${ok ? 'primary' : ''}" data-xfer="${x.node}" ${ok ? '' : 'disabled'}>${formatWon(k)}, ${TRANSFER.years}년</button></div></div>`;
     }).join('') || (rows ? '' : `<p class="hint">${TRANSFER.maxKm}km 안에 이을 ${isRail ? '도시철도' : '일반철도'}역이 없습니다.</p>`)}</div>`;
 }
 
@@ -91,7 +91,7 @@ export function trainsData() {
     if (vol[i] < 1 && l.mode === 1) return;   // 여객이 없는 선로 (화물선 등)
     const parts = smoothParts(l0, i);
     const coords = parts.reduce((a, p) => (p.length > a.length ? p : a), []);
-    links.push({ coords, trains, speed: l.speed, cls, label: `${autoBrand(cls, operatorOf(state, l))} · ${l.name || CLASS_LABEL[l.cls]}` });
+    links.push({ coords, trains, speed: l.speed, cls, label: `${autoBrand(cls, operatorOf(state, l))}, ${l.name || CLASS_LABEL[l.cls]}` });
   });
   const net = effectiveNetwork(base, state);
   const services = (state.services || []).filter((s) => s.built).map((s) => {
@@ -128,14 +128,14 @@ export function develHTML(id, n) {
   const d = (state.devels || []).find((x) => x.node === id);
   if (d) {
     const p = state.projects.find((x) => x.id === d.id);
-    return `<h4>역세권 개발</h4><p class="hint">${d.done ? `완공 · 인구 ${d.persons.toLocaleString()}명 입주 · 분양 수익 ${formatWon(d.revenue)}` : `공사 중 · ${p?.doneYear ?? ''}년 완공 예정 (순유입 ${d.persons.toLocaleString()}명, 분양 수익 ${formatWon(d.revenue)} 예상)`}</p>`;
+    return `<h4>역세권 개발</h4><p class="hint">${d.done ? `완공, 인구 ${d.persons.toLocaleString()}명 입주, 분양 수익 ${formatWon(d.revenue)}` : `공사 중, ${p?.doneYear ?? ''}년 완공 예정 (순유입 ${d.persons.toLocaleString()}명, 분양 수익 ${formatWon(d.revenue)} 예상)`}</p>`;
   }
   const { zone, plan } = develPlanAt(id);
   const label = { capital: '수도권', metro: '광역시', other: '지방', kp: '북측' }[plan.cls];
   return `<h4>역세권 개발</h4>
     <p class="hint">역 주변에 주거·업무 단지를 지어 인구를 끌어들입니다. 다 지으면 분양 수익이 예산으로 돌아오고, ${esc(zoneName(zone))} 주민 행복도가 오릅니다.</p>
     <table class="kv">
-      <tr><td>사업비 · 공기</td><td>${formatWon(plan.cost)} · ${plan.years}년</td></tr>
+      <tr><td>사업비, 공기</td><td>${formatWon(plan.cost)}, ${plan.years}년</td></tr>
       <tr><td>인구 순유입 (다른 지역에서)</td><td>${plan.persons.toLocaleString()}명</td></tr>
       <tr><td>분양 수익 (${label}, 완공 때)</td><td class="${plan.revenue >= plan.cost ? 'pos' : ''}">${formatWon(plan.revenue)}</td></tr>
     </table>
@@ -145,7 +145,7 @@ export function develHTML(id, n) {
 export function commitDevel(id) {
   const n = nodeNames().get(id);
   const { c, zone, plan } = develPlanAt(id);
-  if (!confirm(`${n?.name || ''}역 역세권 개발을 착공할까요? ${formatWon(plan.cost)} · ${plan.years}년`)) return;
+  if (!confirm(`${n?.name || ''}역 역세권 개발을 착공할까요? ${formatWon(plan.cost)}, ${plan.years}년`)) return;
   const r = startDevel(state, { node: id, name: (n?.name || '').replace(/역$/, ''), zone, lon: c[0], lat: c[1], plan });
   if (!r.ok) { alert(r.reason); return; }
   save(state); renderAll();

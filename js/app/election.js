@@ -132,8 +132,8 @@ export function holdElection(only = 'all', reason = '') {
   if (!total) return;
   L.elections.push({ year: state.year, gov, may, reason });
   const tally = (o) => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${PARTIES[k]?.short || k} ${v}`).join(' ');
-  const m = Object.keys(may).length ? ` · 기초 ${tally(may)}` : '';
-  state.log.unshift(`${state.year}년 ${label}: 광역 ${tally(gov)}${m}${kept ? ` (광역 재선 ${kept})` : ''}${limited ? ` · 3선 연임 제한으로 물러난 단체장 ${limited}명` : ''}${retired ? ` · 불출마·공천 탈락 ${retired}명` : ''}`);
+  const m = Object.keys(may).length ? `, 기초 ${tally(may)}` : '';
+  state.log.unshift(`${state.year}년 ${label}: 광역 ${tally(gov)}${m}${kept ? ` (광역 재선 ${kept})` : ''}${limited ? `, 3선 연임 제한으로 물러난 단체장 ${limited}명` : ''}${retired ? `, 불출마·공천 탈락 ${retired}명` : ''}`);
   syncAppointed();
   if (result && map) paintZones();   // 정당·득표율 지도를 새 당선인으로
   // 게임을 시작할 때 채우는 선거는 알리지 않는다
@@ -156,7 +156,7 @@ export function bunguElectionNotice(unit) {
       const o = L.offices[k === 0 ? `m:${r}` : `m:${r}#${g}`];
       if (!o || o.appointed) return;
       if (k > 0) may[o.party] = (may[o.party] || 0) + 1;
-      rows.push({ title: o.title, name: o.name, party: o.party, share: o.share ?? 0.5, terms: o.terms, note: k === 0 ? '시군 단체장이 이어 맡음' : '신설 · 첫 구청장' });
+      rows.push({ title: o.title, name: o.name, party: o.party, share: o.share ?? 0.5, terms: o.terms, note: k === 0 ? '시군 단체장이 이어 맡음' : '신설, 첫 구청장' });
     });
   }
   if (!Object.keys(may).length) return;
@@ -174,13 +174,13 @@ export function electionNotice(e) {
       <div class="m">${Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${partyBadge(k)} ${v}`).join(' ')}</div>`;
   };
   const rows = e.govRows.map((r) => `<tr><td>${esc(r.title)}</td><td>${partyBadge(r.party)} <b>${esc(r.name || '')}</b></td><td>${Math.round(r.share * 100)}%</td>
-    <td class="m">${r.note ? esc(r.note) : r.appointed ? '첫 민선' : r.was && r.was.name === r.name ? `재선 (${r.terms}선)` : r.was ? `${r.why === 'limit' ? '연임 제한 · ' : r.why === 'retire' ? '불출마 · ' : ''}${r.was.party !== r.party ? `${esc(PARTIES[r.was.party]?.short || '')} → ${esc(PARTIES[r.party]?.short || '')}` : '같은 정당 새 인물'}` : '신설'}</td></tr>`).join('');
+    <td class="m">${r.note ? esc(r.note) : r.appointed ? '첫 민선' : r.was && r.was.name === r.name ? `재선 (${r.terms}선)` : r.was ? `${r.why === 'limit' ? '연임 제한, ' : r.why === 'retire' ? '불출마, ' : ''}${r.was.party !== r.party ? `${esc(PARTIES[r.was.party]?.short || '')} → ${esc(PARTIES[r.party]?.short || '')}` : '같은 정당 새 인물'}` : '신설'}</td></tr>`).join('');
   const wrap = document.createElement('div');
   wrap.className = 'setup-wrap';
   wrap.innerHTML = `<div class="setup" role="dialog" aria-modal="true"><h2>${e.year}년 ${esc(e.reason)} 결과</h2>
     <p class="setup-intro hint">${e.mood == null ? `새로 생긴 구마다 구청장을 뽑았습니다 (${Object.values(e.may).reduce((a, b) => a + b, 0)}곳)`
       : `전국 바람: ${e.mood > 0.02 ? '국민의힘 쪽' : e.mood < -0.02 ? '민주당 쪽' : '어느 쪽도 아님'} (${(Math.abs(e.mood) * 100).toFixed(1)}%p)`}
-      ${e.wave ? ` · <b>${esc(PARTIES[e.wave].name)} 바람</b>` : ''}${e.flips.length ? ` · 정당이 바뀐 곳 ${e.flips.length}곳` : ''}${e.limited ? ` · 3선 연임 제한 ${e.limited}명` : ''}${e.retired ? ` · 불출마·공천 탈락 ${e.retired}명` : ''}</p>
+      ${e.wave ? `, <b>${esc(PARTIES[e.wave].name)} 바람</b>` : ''}${e.flips.length ? `, 정당이 바뀐 곳 ${e.flips.length}곳` : ''}${e.limited ? `, 3선 연임 제한 ${e.limited}명` : ''}${e.retired ? `, 불출마·공천 탈락 ${e.retired}명` : ''}</p>
     <div class="setup-body">
       ${Object.keys(e.gov).length ? `<h4>광역단체장 (${e.govRows.length}곳)</h4>${bar(e.gov)}` : ''}
       ${Object.keys(e.may).length ? `<h4>기초단체장·구청장</h4>${bar(e.may)}` : ''}
@@ -574,7 +574,7 @@ export function acceptProposal(id) {
   // 같은 구간의 확장 요구는 공사가 시작됐으므로 목록에서 뺀다
   const work = linksUnderWork(state);
   setRequests(requests.filter((q) => !q.links.every((lid) => work.has(lid))));
-  toast(`<b>받아들임</b> ${esc(pr.title)} · ${formatWon(proj.cost)} · ${proj.doneYear}년 완공 예정 (사업 탭)`);
+  toast(`<b>받아들임</b> ${esc(pr.title)}, ${formatWon(proj.cost)}, ${proj.doneYear}년 완공 예정 (사업 탭)`);
   save(state); refreshLinks(); renderAll();
 }
 
@@ -611,9 +611,9 @@ export function partyBadge(p) {
 
 export function officeLine(off) {
   if (!off) return '<span class="m">지방자치 미시행</span>';
-  if (off.appointed) return `<span class="op-badge" style="background:#6b7280">관선</span> ${esc(off.title)} <b>${esc(off.name || '')}</b> <span class="m">${off.since}년~ · 중앙정부 임명 (북측 지방자치를 시행하면 선거로 뽑습니다)</span>`;
+  if (off.appointed) return `<span class="op-badge" style="background:#6b7280">관선</span> ${esc(off.title)} <b>${esc(off.name || '')}</b> <span class="m">${off.since}년~, 중앙정부 임명 (북측 지방자치를 시행하면 선거로 뽑습니다)</span>`;
   const t = off.terms || 1;
-  return `${partyBadge(off.party)} ${esc(off.title)} <b>${esc(off.name || '')}</b> <span class="m">${off.since}년~ · 지지율 ${Math.round(off.approval)}% · 제안 수용 ${off.accepted} · 완공 ${off.delivered}${t > 1 ? ` · ${t}선${t >= TERM_LIMIT ? ' (연임 제한, 다음 선거에 못 나옴)' : ''}` : ''}</span>`;
+  return `${partyBadge(off.party)} ${esc(off.title)} <b>${esc(off.name || '')}</b> <span class="m">${off.since}년~, 지지율 ${Math.round(off.approval)}%, 제안 수용 ${off.accepted}, 완공 ${off.delivered}${t > 1 ? `, ${t}선${t >= TERM_LIMIT ? ' (연임 제한, 다음 선거에 못 나옴)' : ''}` : ''}</span>`;
 }
 
 /** 민원 탭에 붙는 지자체 SOC 제안 */
@@ -645,8 +645,8 @@ export function proposalsHTML() {
   const doneRow = (p) => {
     const off = L.offices[p.office], proj = p.status === 'accepted' && state.projects.find((x) => x.proposal === p.id);
     return `<div class="item decided ${p.status}"><div class="t">${p.status === 'accepted' ? '✓ ' : ''}${esc(p.title)}</div>
-      <div class="m">${proposerHTML(p) ? `${proposerHTML(p)} · ` : ''}${p.status === 'accepted'
-        ? `<span class="pos">받아들임 · 공사 시작${proj ? ` · ${proj.doneYear}년 완공 예정` : ''}</span>` : '<span class="neg">거절함</span>'}</div></div>`;
+      <div class="m">${proposerHTML(p) ? `${proposerHTML(p)}, ` : ''}${p.status === 'accepted'
+        ? `<span class="pos">받아들임, 공사 시작${proj ? `, ${proj.doneYear}년 완공 예정` : ''}</span>` : '<span class="neg">거절함</span>'}</div></div>`;
   };
   return `<h3>지자체 SOC 제안 (${open.length})</h3>
     <p class="hint">선거로 뽑힌 단체장과 그 지역 야당(시도당)이 사업을 중앙정부에 제안합니다. 받아들여 완공하면 제안한 단체장의 지지율과 그 정당 지지가 올라 다음 선거에 유리합니다(야당 제안이면 야당이 득을 봅니다). 2년 안에 답하지 않으면 거절한 것으로 봅니다.</p>
@@ -654,10 +654,10 @@ export function proposalsHTML() {
     <div class="list">${shown.map((p) => {
       if (p.status !== 'open') return doneRow(p);
       const off = L.offices[p.office], ck = proposalCheck(p);
-      const partial = ck.targets.length < p.links.length ? ` · 일부 구간(${ck.targets.length}/${p.links.length})은 이미 공사 중` : '';
+      const partial = ck.targets.length < p.links.length ? `, 일부 구간(${ck.targets.length}/${p.links.length})은 이미 공사 중` : '';
       return `<div class="item"><div class="t">${esc(p.title)}</div>
         <div class="m">구간: ${esc(spanText(p.links))}</div>
-        <div class="m">${proposerHTML(p)} · ${p.year}년 제안 · ${formatWon(ck.cost)}${partial}</div>
+        <div class="m">${proposerHTML(p)}, ${p.year}년 제안, ${formatWon(ck.cost)}${partial}</div>
         <div class="actions"><button class="small primary" data-prop-ok="${p.id}" ${ck.afford ? '' : 'disabled title="예산과 차입 한도가 부족합니다"'}>${ck.afford ? '받아들이기' : '받아들이기 (예산 부족)'}</button>
         <button class="small" data-prop-no="${p.id}">거절</button><button class="small" data-prop-show="${p.id}">보기</button></div></div>`;
     }).join('')}</div>`;
@@ -695,11 +695,11 @@ export function localSettingsHTML() {
   return `<h4>지방자치</h4>
     <p class="hint">남측은 지방자치가 시행 중이고, 4년마다(다음: ${next}년) 광역·기초단체장 선거가 열립니다.</p>
     ${L.autonomyKP ? '<p class="hint">북측 지방자치 시행 중.</p>' : `<div class="item"><div class="t">북측 지방자치 도입</div>
-      <div class="m">북측에도 도지사·시장·군수를 선거로 뽑습니다. 남북 통합도 30% 이상 · ${formatWon(EVENT_COST.autonomy)}</div>
+      <div class="m">북측에도 도지사·시장·군수를 선거로 뽑습니다. 남북 통합도 30% 이상, ${formatWon(EVENT_COST.autonomy)}</div>
       <button class="small primary" id="ev-autonomy" ${state.integration >= 0.3 ? '' : 'disabled'}>도입</button></div>`}
     ${adminSummaryHTML()}
     ${state.linesRenamed ? '<p class="hint">북측 노선 이름을 남측 기준으로 바꿨습니다.</p>' : `<div class="item"><div class="t">북측 노선 이름을 남측 기준으로</div>
-      <div class="m">${Object.entries(KP_LINE_RENAME).map(([a, b]) => `${esc(a)}→${esc(b)}`).join(', ')}. 남북을 잇는 노선이 한 이름이 되어 직통 계통·노선도·수익성이 한 노선으로 묶입니다 · ${formatWon(LINE_RENAME_COST)}</div>
+      <div class="m">${Object.entries(KP_LINE_RENAME).map(([a, b]) => `${esc(a)}→${esc(b)}`).join(', ')}. 남북을 잇는 노선이 한 이름이 되어 직통 계통·노선도·수익성이 한 노선으로 묶입니다, ${formatWon(LINE_RENAME_COST)}</div>
       <button class="small primary" id="ev-rename">바꾸기</button></div>`}
     <p class="hint">광역시 승격·군→시 승격·분구·편입은 지도에서 그 시·군을 누르면 나오는 창에서 합니다. 읍면동(북측은 면) 하나만 옮기려면 읍면동 보기에서 그 읍면동을 누르세요.</p>
     <div class="actions"><button class="small primary" data-unit-new>시군구 신설 (지도에서 읍면동 고르기)</button></div>`;
@@ -718,19 +718,19 @@ export function zoneAdminHTML(id) {
   if (city) {
     const indep = L.historic && HISTORIC_CITIES.includes(city);
     rows.push(item(`광역시 ${indep ? '독립' : '승격'}: ${esc(city)} → ${esc(metroName(city, L))}`,
-      `${z.country === 'KP' && !L.autonomyKP ? '도에서 떼어 광역시로 만듭니다. 북측 지방자치 전이라 시장·구청장은 임명하고, 지방자치를 시작하면 선거로 뽑습니다' : '도에서 떼어 광역시로 만들고 시장·도지사를 다시 뽑습니다. 분구하면 구마다 구청장을 뽑습니다'} · ${formatWon(EVENT_COST.independence)}`,
+      `${z.country === 'KP' && !L.autonomyKP ? '도에서 떼어 광역시로 만듭니다. 북측 지방자치 전이라 시장·구청장은 임명하고, 지방자치를 시작하면 선거로 뽑습니다' : '도에서 떼어 광역시로 만들고 시장·도지사를 다시 뽑습니다. 분구하면 구마다 구청장을 뽑습니다'}, ${formatWon(EVENT_COST.independence)}`,
       `${bunguSelect('bungu-n', [...mine].some((j) => L.bungu?.[unitId(state, zoneProps[j])]?.general) ? '지금 일반구를 자치구로' : undefined)} <button class="small primary" data-ev-city="${esc(city)}">${indep ? '광역시로 독립' : '광역시로 승격'}</button>`));
   }
   const up = cityUpTargets().find((c) => inMine(c.zones));
   if (up) rows.push(item(`군 → 시 승격: ${esc(up.name)} → ${esc(up.name.replace(/군$/, '시'))}`,
-    `군수 대신 시장을 뽑습니다. ${up.pop >= PROMOTE_MIN_POP ? '일반구로 나누면 구청장은 시장이 임명하고, 지도에서 구마다 고를 수 있습니다. ' : ''}인구 ${PROMOTE_MIN_POP / 1e4}만을 넘으면 광역시로 승격할 수 있습니다 · ${formatWon(EVENT_COST.cityUp)}`,
+    `군수 대신 시장을 뽑습니다. ${up.pop >= PROMOTE_MIN_POP ? '일반구로 나누면 구청장은 시장이 임명하고, 지도에서 구마다 고를 수 있습니다. ' : ''}인구 ${PROMOTE_MIN_POP / 1e4}만을 넘으면 광역시로 승격할 수 있습니다, ${formatWon(EVENT_COST.cityUp)}`,
     `${up.pop >= PROMOTE_MIN_POP ? bunguSelect('bungu-n3', '일반구 없이') : ''} <button class="small primary" data-city-up="${esc(up.key)}">시로 승격</button>`));
   const bu = bunguUnits().find(([u]) => inMine(unitZones(u)));
   // 이미 나눈 구를 다시 여러 구로 (시 안의 구·광역시 자치구·광역시 군을 바꾼 구)
   const bk = bunguUnitOf(id);
   if (bk && (z.country === 'KR' || L.autonomyKP)) {
     const names = [...new Set(Object.values(L.bungu[bk].gu))].sort((a, b) => a.localeCompare(b, 'ko'));
-    rows.push(item('구 나누기', `구 하나를 여러 구로 나눕니다${L.bungu[bk].general ? ' (일반구: 구청장은 시장이 임명)' : ' (새 구마다 구청장 선거)'} · ${formatWon(EVENT_COST.cityUp)}`,
+    rows.push(item('구 나누기', `구 하나를 여러 구로 나눕니다${L.bungu[bk].general ? ' (일반구: 구청장은 시장이 임명)' : ' (새 구마다 구청장 선거)'}, ${formatWon(EVENT_COST.cityUp)}`,
       `<select id="gu-split-name" class="small">${names.map((g) => `<option>${esc(g)}</option>`).join('')}</select> ${bunguSelect('gu-split-n', null, 2)} <button class="small primary" data-gu-split="${esc(bk)}">나누기</button>
        <button class="small" data-gu-adjust="${esc(bk)}">구 이름·경계 고치기</button>`));
   }
@@ -738,11 +738,11 @@ export function zoneAdminHTML(id) {
   if (bk) {
     const one = (guNamesOfZone(id) || []).map((g) => ({ g, to: guMoveTargets(guSubs(id, g)) })).filter((x) => x.to.length);
     if (one.length) rows.push(item('구 하나씩 광역시로 편입',
-      `구를 하나씩 맞닿은 광역시의 자치구로 옮깁니다 (같은 이름, 구청장 선거). 시에 구가 하나만 남으면 그 시는 구를 폐지합니다 · 구마다 ${formatWon(EVENT_COST.annex)}`,
+      `구를 하나씩 맞닿은 광역시의 자치구로 옮깁니다 (같은 이름, 구청장 선거). 시에 구가 하나만 남으면 그 시는 구를 폐지합니다, 구마다 ${formatWon(EVENT_COST.annex)}`,
       one.map(({ g, to }) => to.map((r) => `<button class="small" data-gu-move-one="${esc(g)}" data-gu-move-to="${esc(r)}" data-gu-zone="${id}">${esc(g)} → ${esc(r)}</button>`).join('')).join(' ')));
   }
   if (bu) rows.push(item(`분구: ${esc(bu[1])}`,
-    `읍면동을 묶어 여러 구로 나눕니다${isGeneralUnit(bu[0]) ? ' (일반구: 구청장은 시장이 임명)' : ' (구마다 구청장 선거)'} · ${formatWon(EVENT_COST.cityUp)}`,
+    `읍면동을 묶어 여러 구로 나눕니다${isGeneralUnit(bu[0]) ? ' (일반구: 구청장은 시장이 임명)' : ' (구마다 구청장 선거)'}, ${formatWon(EVENT_COST.cityUp)}`,
     `${bunguSelect('bungu-n2', null, 2)} <button class="small primary" data-bungu="${esc(bu[0])}">분구</button>`));
   const at = annexTargets();
   const out = (at || []).flatMap(([r, cs]) => cs.filter((c) => inMine(c.zones)).map((c) => ({ r, c })));
@@ -751,18 +751,18 @@ export function zoneAdminHTML(id) {
   if (toMetro.length) {
     const isCity = /시$/.test(toMetro[0].c.name), pre = toMetro[0].c.name.replace(/시$/, ''), gen = L.bungu?.[toMetro[0].c.key]?.general;
     rows.push(item(`광역시로 편입 (지금 ${esc(toMetro[0].c.region)})`,
-      isCity && gen ? `시는 광역시 밑에 둘 수 없어, ${esc(toMetro[0].c.name)}의 일반구(${esc([...new Set(Object.values(L.bungu[toMetro[0].c.key].gu))].join('·'))})가 각각 광역시의 자치구가 됩니다(구청장 선거). 새로 나누면 지금 구는 없어집니다. 두 광역 단체장을 다시 뽑습니다 · ${formatWon(EVENT_COST.annex)} (새로 나누면 + ${formatWon(EVENT_COST.cityUp)})`
-      : isCity ? `시는 광역시 밑에 둘 수 없어 ${esc(toMetro[0].c.name)}는 광역시의 자치구가 됩니다(${esc(pre)}구). 여러 자치구로 나누면(${esc(pre)}구·${esc(pre)}동구…) 구마다 구청장을 뽑습니다. 두 광역 단체장을 다시 뽑습니다 · ${formatWon(EVENT_COST.annex)} (분구하면 + ${formatWon(EVENT_COST.cityUp)})`
-        : /구$/.test(toMetro[0].c.name) ? `구는 그 광역시의 자치구로 통째로 옮겨 갑니다(구청장은 그대로). 두 광역 단체장을 다시 뽑습니다 · ${formatWon(EVENT_COST.annex)}`
-        : `군은 광역시의 군 그대로 들어갑니다. 두 광역 단체장을 다시 뽑습니다 · ${formatWon(EVENT_COST.annex)}`,
+      isCity && gen ? `시는 광역시 밑에 둘 수 없어, ${esc(toMetro[0].c.name)}의 일반구(${esc([...new Set(Object.values(L.bungu[toMetro[0].c.key].gu))].join('·'))})가 각각 광역시의 자치구가 됩니다(구청장 선거). 새로 나누면 지금 구는 없어집니다. 두 광역 단체장을 다시 뽑습니다, ${formatWon(EVENT_COST.annex)} (새로 나누면 + ${formatWon(EVENT_COST.cityUp)})`
+      : isCity ? `시는 광역시 밑에 둘 수 없어 ${esc(toMetro[0].c.name)}는 광역시의 자치구가 됩니다(${esc(pre)}구). 여러 자치구로 나누면(${esc(pre)}구·${esc(pre)}동구…) 구마다 구청장을 뽑습니다. 두 광역 단체장을 다시 뽑습니다, ${formatWon(EVENT_COST.annex)} (분구하면 + ${formatWon(EVENT_COST.cityUp)})`
+        : /구$/.test(toMetro[0].c.name) ? `구는 그 광역시의 자치구로 통째로 옮겨 갑니다(구청장은 그대로). 두 광역 단체장을 다시 뽑습니다, ${formatWon(EVENT_COST.annex)}`
+        : `군은 광역시의 군 그대로 들어갑니다. 두 광역 단체장을 다시 뽑습니다, ${formatWon(EVENT_COST.annex)}`,
       `${isCity ? bunguSelect('annex-gu', gen ? '지금 구를 자치구로' : '한 자치구로') : ''} ${toMetro.map((o) => annexBtn(o, isCity ? 'annex-gu' : '')).join('')}`));
   }
   if (toProv.length) rows.push(item(`다른 도로 편입 (지금 ${esc(toProv[0].c.region)})`,
-    `맞닿은 도의 ${/구$/.test(toProv[0].c.name) ? '시가 됩니다(도 밑에 자치구는 없어 구청장 대신 시장을 뽑습니다)' : /시$/.test(toProv[0].c.name) ? '시가 됩니다' : '군이 됩니다'}. 두 광역 단체장을 다시 뽑습니다 · ${formatWon(EVENT_COST.annex)}`,
+    `맞닿은 도의 ${/구$/.test(toProv[0].c.name) ? '시가 됩니다(도 밑에 자치구는 없어 구청장 대신 시장을 뽑습니다)' : /시$/.test(toProv[0].c.name) ? '시가 됩니다' : '군이 됩니다'}. 두 광역 단체장을 다시 뽑습니다, ${formatWon(EVENT_COST.annex)}`,
     toProv.map((o) => annexBtn(o)).join('')));
   const r = regionOf(state, z), inn = (at || []).find(([g]) => g === r)?.[1] || [];
   if (inn.length) rows.push(`<details class="item"><summary class="t">맞닿은 시군을 ${esc(r)}에 편입 (${inn.length}곳)</summary>
-    <div class="m">${isMetroCity(r) ? '광역시는 맞닿은 시·군·구를 (시는 광역시 밑에 둘 수 없어 구가 되고, 일반구가 있던 시는 그 구들이 각각 자치구가 된다)' : '도는 맞닿은 시·군(광역시의 자치구는 시로)을'} 편입합니다 · 한 곳 ${formatWon(EVENT_COST.annex)}</div>
+    <div class="m">${isMetroCity(r) ? '광역시는 맞닿은 시·군·구를 (시는 광역시 밑에 둘 수 없어 구가 되고, 일반구가 있던 시는 그 구들이 각각 자치구가 된다)' : '도는 맞닿은 시·군(광역시의 자치구는 시로)을'} 편입합니다, 한 곳 ${formatWon(EVENT_COST.annex)}</div>
     ${isMetroCity(r) && inn.some((c) => /시$/.test(c.name)) ? `<div class="m" style="margin-top:4px">시를 편입할 때 ${bunguSelect('annex-gu-in', '한 자치구로')}</div>` : ''}
     <div class="row" style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px">${inn.map((c) => `<button class="small" data-annex="${esc(c.key)}" data-annex-to="${esc(r)}" data-annex-zone="${c.via}"${isMetroCity(r) && /시$/.test(c.name) ? ' data-annex-gu="annex-gu-in"' : ''} title="${esc(c.region)}에서 ${esc(r)}로">${esc(c.name)} <span class="m">${esc(c.region)} ${fmtPop(c.pop)}</span></button>`).join('')}</div></details>`);
   // 편입을 되돌리기: 다른 광역으로 편입한 시군을 원래 광역으로 (예전에는 광역시로 간 시는 ○○구로 보여 도가 다시 받지 못했다)
@@ -770,17 +770,17 @@ export function zoneAdminHTML(id) {
   if (ak) {
     const home = (() => { const sv = L.annex[ak]; delete L.annex[ak]; try { return regionOf(state, zoneProps[[...mine][0]]); } finally { L.annex[ak] = sv; } })();
     if (home && home !== regionOf(state, z)) rows.push(item(`편입 되돌리기: ${esc(regionOf(state, z))} → ${esc(home)}`,
-      `편입 전 광역 단체로 돌아갑니다. 두 광역 단체장을 다시 뽑습니다${L.bungu?.[ak] && /시$/.test(ak.split('|')[1] || '') ? '. 자치구는 다시 일반구가 됩니다(구청장은 시장이 임명)' : ''} · ${formatWon(EVENT_COST.annex)}`,
+      `편입 전 광역 단체로 돌아갑니다. 두 광역 단체장을 다시 뽑습니다${L.bungu?.[ak] && /시$/.test(ak.split('|')[1] || '') ? '. 자치구는 다시 일반구가 됩니다(구청장은 시장이 임명)' : ''}, ${formatWon(EVENT_COST.annex)}`,
       `<button class="small" data-annex-undo="${esc(ak)}" data-annex-home="${esc(home)}">되돌리기</button>`));
   }
   // 분구 풀기: 존 시군의 구를 없앤다 (예전에는 새로 세운 시에만 있었다)
-  if (bk && !bk.startsWith('split:')) rows.push(item('분구 풀기', `구를 모두 없애고 하나의 ${L.bungu[bk].general ? '시' : '시군'}로 돌아갑니다. 구청장 자리가 없어집니다 · ${formatWon(EVENT_COST.cityUp)}`,
+  if (bk && !bk.startsWith('split:')) rows.push(item('분구 풀기', `구를 모두 없애고 하나의 ${L.bungu[bk].general ? '시' : '시군'}로 돌아갑니다. 구청장 자리가 없어집니다, ${formatWon(EVENT_COST.cityUp)}`,
     `<button class="small" data-bungu-undo="${esc(bk)}">분구 풀기</button>`));
   // 광역시 산하 군을 구로 (그 자리에서 분구도)
   if (isMetroCity(regionOf(state, z)) && /군$/.test(zoneName(id)) && hasAutonomy(state, z) && !L.gunToGu?.includes(unitId(state, z))) {
     const nm = zoneName(id);
     rows.push(item(`구로 전환: ${esc(nm)} → ${esc(nm.replace(/군$/, '구'))}`,
-      `광역시의 군을 자치구로 바꿉니다(군수 → 구청장). 여러 구로 나누면 구마다 구청장을 뽑습니다 · ${formatWon(EVENT_COST.cityUp)}`,
+      `광역시의 군을 자치구로 바꿉니다(군수 → 구청장). 여러 구로 나누면 구마다 구청장을 뽑습니다, ${formatWon(EVENT_COST.cityUp)}`,
       `${bunguSelect('gun-gu', '한 구로')} <button class="small primary" data-gun-gu="${esc(unitId(state, z))}">바꾸기</button>`));
   }
   // 시: 동으로 바꿀 읍면 (북측은 1945년 면, 남측은 지금 읍·면)
@@ -791,24 +791,24 @@ export function zoneAdminHTML(id) {
   // 시군 나누기 (읍면동 단위, 북측은 면 단위): 북측도 지방자치 전에 세울 수 있다 (편입과 같다, 단체장은 관선)
   {
     const k = unitId(state, z);
-    rows.push(item('시군구 신설', `지도에서 읍면동(북측은 면)을 눌러 골라 새 시·군·구를 세웁니다(시티즈: 스카이라인의 구역처럼). 군에는 읍면만, 시에는 읍면동 모두 · ${formatWon(EVENT_COST.cityUp)}`,
+    rows.push(item('시군구 신설', `지도에서 읍면동(북측은 면)을 눌러 골라 새 시·군·구를 세웁니다(시티즈: 스카이라인의 구역처럼). 군에는 읍면만, 시에는 읍면동 모두, ${formatWon(EVENT_COST.cityUp)}`,
       `<button class="small" data-split-unit="${esc(k)}">지도에서 고르기</button>`));
     for (const u of splitUnits()) {
       if (u.home !== k) continue;
-      rows.push(item(`이 시군에서 떼어 세운 시군: <a href="#" data-unit-go="${esc(u.id)}">${esc(u.name)}</a>`, `${u.year}년 신설 · 읍면동 ${new Set(u.subs.map((i) => admin().emdOf[i])).size}곳${result ? ` · ${fmtPop(unitPop(u.id).pop)}` : ''}`,
+      rows.push(item(`이 시군에서 떼어 세운 시군: <a href="#" data-unit-go="${esc(u.id)}">${esc(u.name)}</a>`, `${u.year}년 신설, 읍면동 ${new Set(u.subs.map((i) => admin().emdOf[i])).size}곳${result ? `, ${fmtPop(unitPop(u.id).pop)}` : ''}`,
         `<button class="small" data-merge-split="${esc(u.id)}">다시 합치기</button>`));
     }
   }
   // 북측 구역 → 구 (행정구역 정리의 한 항목: 첫해가 지나도 여기서 바꿀 수 있다)
   if (z.country === 'KP' && /구역$/.test(zoneName(id)) && L.admin?.guyeok !== 'gu') {
-    rows.push(item('북측 구역을 구로 (전체)', `평양·남포·개성 등 북측의 ○○구역을 모두 ○○구로 부릅니다(${esc(zoneName(id))} → ${esc(zoneName(id).replace(/구역$/, '구'))}). 구역장은 구청장이 되고 선거는 하지 않습니다 · ${formatWon(EVENT_COST.cityUp)}`,
+    rows.push(item('북측 구역을 구로 (전체)', `평양·남포·개성 등 북측의 ○○구역을 모두 ○○구로 부릅니다(${esc(zoneName(id))} → ${esc(zoneName(id).replace(/구역$/, '구'))}). 구역장은 구청장이 되고 선거는 하지 않습니다, ${formatWon(EVENT_COST.cityUp)}`,
       '<button class="small primary" data-guyeok>바꾸기</button>'));
   }
   // 북측 직할시(평양·남포·개성·라선): 도에 딸리지 않은 독립시를 남측처럼 ○○광역시로 부른다 (단체장·지지율은 그대로 이어 간다)
   const rg = regionOf(state, z);
   if (KP_DIRECT_CITIES.includes(rg) || KP_DIRECT_CITIES.map(dueum).includes(rg)) {
     rows.push(item(`광역시로 명칭 변경: ${esc(rg)} → ${esc(rg.replace(/시$/, '광역시'))}`,
-      `직할시(독립시)를 남측처럼 광역시로 부릅니다. 단체장은 그대로 직함만 바뀌고 선거는 하지 않습니다 · ${formatWon(EVENT_COST.cityUp)}`,
+      `직할시(독립시)를 남측처럼 광역시로 부릅니다. 단체장은 그대로 직함만 바뀌고 선거는 하지 않습니다, ${formatWon(EVENT_COST.cityUp)}`,
       `<button class="small primary" data-metro-rename="${esc(rg)}">바꾸기</button>`));
   }
   if (!rows.length && at == null) return '<h4>행정구역 조정</h4><p class="hint">경계 자료를 읽는 중…</p>';

@@ -168,7 +168,8 @@ export function goService(id) {
   previewService(null);
   if (svcPick) endServicePick();
   endMapTools();
-  const c = serviceCoords(effectiveNetwork(base, state).links, s.segs || []);
+  // 저장된 구간(segs)이 비었거나 일부만 남은 계통(예: 대경선 복원)도 노선 전체가 들어오게 정차역 좌표를 함께 쓴다
+  const c = [...serviceCoords(effectiveNetwork(base, state).links, s.segs || []), ...(s.stops || []).map((n) => nodeCoord(n)).filter(Boolean)];
   openServiceEditor(s.line, s.cls, s.id);
   if (c.length > 1) {
     const xs = c.map((p) => p[0]), ys = c.map((p) => p[1]);
@@ -281,10 +282,10 @@ export function servicePickClick(ll) {
 
 /** 새 계통의 방식: 등급·열차·편성과 정차 방식을 한 번에 (실제 계통 이름으로 고른다) */
 export const SERVICE_MODES = {
-  ktx: { label: 'KTX', sub: '고속 · 큰 역만', kind: 'limited', types: ['hsr', 'semi', 'intercity', 'diesel'], sets: 6 },
-  itx: { label: 'ITX', sub: '급행 · 큰 역 절반', kind: 'express', types: ['intercity', 'diesel'], sets: 4 },
-  local: { label: '무궁화', sub: '보통 · 모든 역', kind: 'local', types: ['intercity', 'diesel'], sets: 4 },
-  commuter: { label: '광역', sub: '전철 · 모든 역, 싼 요금', kind: 'commuter', types: ['commuter', 'diesel'], sets: 10 },
+  ktx: { label: 'KTX', sub: '고속, 큰 역만', kind: 'limited', types: ['hsr', 'semi', 'intercity', 'diesel'], sets: 6 },
+  itx: { label: 'ITX', sub: '급행, 큰 역 절반', kind: 'express', types: ['intercity', 'diesel'], sets: 4 },
+  local: { label: '무궁화', sub: '보통, 모든 역', kind: 'local', types: ['intercity', 'diesel'], sets: 4 },
+  commuter: { label: '광역', sub: '전철, 모든 역, 싼 요금', kind: 'commuter', types: ['commuter', 'diesel'], sets: 10 },
 };
 /** 경로에 맞는 방식: 광역 전철 노선만 지나면 광역, 고속선이 절반 넘으면 KTX, 아니면 ITX */
 export function suggestMode(r) {
@@ -340,12 +341,12 @@ export function servicePickPanel() {
     ${stationSearchHTML('sp-to', '예: 여수엑스포', '종점', to != null ? nn.get(to)?.name : '', 'sp-from-list')}
     ${stationSearchHTML('sp-via', '사이에 꼭 거칠 역 (넣지 않아도 됩니다)', '거쳐 갈 역', '', 'sp-from-list')}</div>
     ${via.length ? `<div class="pick-chips">${via.map((n) => `<span class="svc-stop on">${name(n)}<button type="button" class="chip-x" data-sp-del="${picks.indexOf(n)}" aria-label="${name(n)} 빼기">×</button></span>`).join('')}</div>` : ''}
-    ${r ? `<div class="pick-route"><b>${name(from)} → ${name(to)}</b> · ${km.toFixed(0)}km · 지나는 역 ${r.nodes.length}개
+    ${r ? `<div class="pick-route"><b>${name(from)} → ${name(to)}</b>, ${km.toFixed(0)}km, 지나는 역 ${r.nodes.length}개
       <span class="m">${r.lines.map(esc).join(' → ')}</span></div>
       ${doublesBack(r) ? '<p class="hint warn-text">경로가 같은 선로를 되짚어 돌아갑니다. 거쳐 갈 역이 시점·종점 바깥에 있지 않은지 보세요.</p>' : ''}
       <div class="name-row"><span class="kind">방식</span></div>
       <div class="mode-pick" role="radiogroup" aria-label="계통 방식">${Object.entries(SERVICE_MODES).map(([k, v]) => `<button type="button" role="radio" aria-checked="${k === mode}" tabindex="${k === mode ? 0 : -1}" class="${k === mode ? 'on' : ''}" data-sp-mode="${k}">
-        <b>${v.label}</b><span class="m">${v.sub}${k === rec ? ' · 추천' : ''}</span></button>`).join('')}</div>`
+        <b>${v.label}</b><span class="m">${v.sub}${k === rec ? ', 추천' : ''}</span></button>`).join('')}</div>`
     : picks.length >= 2 ? '<p class="hint warn-text">고른 역 사이를 잇는 철도 경로가 없습니다. 다른 역을 골라 보세요.</p>' : ''}
     <div class="actions">
       <button class="primary" id="sp-ok" ${r ? '' : 'disabled'}>다음: 정차역과 열차 확인</button>${picks.length >= 2 ? '<button id="sp-swap" title="시점과 종점을 맞바꿉니다">뒤집기</button>' : ''}</div>`;
@@ -418,7 +419,7 @@ export function linkPanel(id) {
   const routeKm = route.reduce((sum, x) => sum + linkAt(base, state, x).len, 0);
   const viaKm = originConnector(l, sameRoute(id)).reduce((sum, x) => sum + linkAt(base, state, x).len, 0);
   // 신호 고도화·장편성 (선로 수 말고 수송력을 키운 개량)
-  const capRows = l.sig || l.long ? `<tr><td>수송력 개량</td><td>${[l.sig ? '신호 고도화 (운행 +30%)' : '', l.long ? '장편성 (정원 +50%)' : ''].filter(Boolean).join(' · ')}</td></tr>` : '';
+  const capRows = l.sig || l.long ? `<tr><td>수송력 개량</td><td>${[l.sig ? '신호 고도화 (운행 +30%)' : '', l.long ? '장편성 (정원 +50%)' : ''].filter(Boolean).join(', ')}</td></tr>` : '';
   const rows = l.mode === 2
     ? `<tr><td>표정 속도</td><td>${l.speed} km/h</td></tr>
        ${capRows}
@@ -441,10 +442,10 @@ export function linkPanel(id) {
   const nnS = nodeNames();
   const secLabel = sec && secIds.length > 1 ? `${nnS.get(sec.A)?.name || '교차로'} – ${nnS.get(sec.B)?.name || '교차로'}` : '';
   return `${header(l.name || CLASS_LABEL[l.cls])}
-    ${secLabel ? `<p class="hint">선택 구간: <b>${esc(secLabel)}</b> · ${secKm.toFixed(1)}km (${secIds.length}개 링크). 개량은 이 구간 전체에 적용됩니다.</p>` : ''}
+    ${secLabel ? `<p class="hint">선택 구간: <b>${esc(secLabel)}</b>, ${secKm.toFixed(1)}km (${secIds.length}개 링크). 개량은 이 구간 전체에 적용됩니다.</p>` : ''}
     ${l.mode === 1 ? passingServicesHTML(secIds) : ''}
     <table class="kv">
-      <tr><td>종류</td><td>${CLASS_LABEL[l.cls]} · ${l.kp ? '북' : '남'}</td></tr>
+      <tr><td>종류</td><td>${CLASS_LABEL[l.cls]}, ${l.kp ? '북' : '남'}</td></tr>
       ${operatorOf(state, l) ? `<tr><td>운영사</td><td>${opBadge(state, operatorOf(state, l))}</td></tr>` : ''}
       <tr><td>연장</td><td>${l.len.toFixed(1)} km</td></tr>
       ${rows}
@@ -454,31 +455,31 @@ export function linkPanel(id) {
     ${!planned && !busyProj ? reopenHTML(id, l) : ''}
     ${isNew && l.name ? `<h4>노선 이름</h4><div class="name-row"><input type="text" id="line-rename" value="${esc(l.name)}">
       <button class="small" id="line-rename-ok">바꾸기</button></div>` : ''}
-    ${planned ? `<p class="hint">진행 중인 사업 구간입니다: ${esc(osmProj?.label || '')} · ${osmProj ? `${osmProj.doneYear}년 개통 예정` : ''}. 사업 탭에서 예산 투입 속도를 바꿀 수 있습니다.</p>`
+    ${planned ? `<p class="hint">진행 중인 사업 구간입니다: ${esc(osmProj?.label || '')}, ${osmProj ? `${osmProj.doneYear}년 개통 예정` : ''}. 사업 탭에서 예산 투입 속도를 바꿀 수 있습니다.</p>`
     : l.ext ? '<p class="hint">국외 거점과 잇는 국경 연결 구간입니다. 개량 대상이 아닙니다.</p>'
     : l.cls === 'ferry' ? '<p class="hint">여객선 항로입니다. 개량 대상이 아닙니다.</p>'
-    : busyProj ? `<p class="hint">공사 중: ${esc(busyProj.label)} (${busyProj.doneYear}년 완공)</p>` : `${upProjs.map((p) => `<p class="hint">공사 중: ${esc(p.label)} (${p.doneYear}년 완공) · 겹치지 않는 다른 개량은 함께 벌일 수 있습니다</p>`).join('')}<h4>개량</h4>
+    : busyProj ? `<p class="hint">공사 중: ${esc(busyProj.label)} (${busyProj.doneYear}년 완공)</p>` : `${upProjs.map((p) => `<p class="hint">공사 중: ${esc(p.label)} (${p.doneYear}년 완공), 겹치지 않는 다른 개량은 함께 벌일 수 있습니다</p>`).join('')}<h4>개량</h4>
     <div class="actions"><button class="small sec-start" title="두 역·IC를 차례로 눌러 그 사이만 고릅니다">구간 선택 (${l.mode === 0 ? 'IC' : '역'} 두 곳 누르기)</button>
       ${l.mode >= 1 ? '<button class="small" data-padd="station" title="노선 위 한 점을 눌러 역을 놓습니다">이 노선에 역 신설</button>' : l.cls === 'motorway' ? '<button class="small" data-padd="ic">IC·JCT 신설</button><button class="small" data-padd="rest">휴게소 신설</button>' : ''}
       ${l.mode === 1 ? '<button class="small" data-st-start title="두 역 사이를 단순한 곡선으로 새로 놓고 옛 구간은 폐선합니다. 사이 역은 눌러서 자동·제자리 유지·폐역을 고릅니다">구간 직선화</button>' : ''}</div>
     ${l.mode === 1 ? fundSelect([operatorOf(state, l)]) : ''}
     ${lineBatchHTML(l, id)}
     ${route.length > 1 ? `<label class="name-row"><input type="checkbox" id="whole-route" ${wholeRoute ? 'checked' : ''}>
-      <span>같은 이름 노선 전체 (${route.length}개 구간, ${routeKm.toFixed(0)}km${viaKm > 0 ? ` · ${LINE_ORIGIN[l.name]}까지 다른 노선과 함께 쓰는 ${viaKm.toFixed(0)}km 포함` : ''})</span></label>` : ''}
+      <span>같은 이름 노선 전체 (${route.length}개 구간, ${routeKm.toFixed(0)}km${viaKm > 0 ? `, ${LINE_ORIGIN[l.name]}까지 다른 노선과 함께 쓰는 ${viaKm.toFixed(0)}km 포함` : ''})</span></label>` : ''}
     <div class="list">${ups.map((u) => {
       const ids = (wholeRoute && route.length > 1 ? route : secIds).filter((x) => u.applies(linkAt(base, state, x)));
       const cost = ids.reduce((sum, x) => sum + upgradeCost(u, linkAt(base, state, x)), 0);
       const ok = canAfford(state, cost, u.years, fundFor(state, ids.map((x) => linkAt(base, state, x))));
       return `<div class="item opt"><div class="opt-row">
-        <span>${resolve(u.label, l)}${ids.length > 1 ? ` · ${ids.length}개 구간` : ''}${upEffect(u, l) ? `<span class="m" style="display:block">${upEffect(u, l)}${ids.length > 1 ? ' (누른 구간 기준)' : ''}</span>` : ''}</span>
+        <span>${resolve(u.label, l)}${ids.length > 1 ? `, ${ids.length}개 구간` : ''}${upEffect(u, l) ? `<span class="m" style="display:block">${upEffect(u, l)}${ids.length > 1 ? ' (누른 구간 기준)' : ''}</span>` : ''}</span>
         <span class="btns"><button class="small" data-prev-up="${u.id}" title="다 지었을 때 효과">미리보기</button>
-        <button class="small ${ok && !u.retire ? 'primary' : ''}" data-up="${u.id}" ${ok ? '' : 'disabled'} title="${spendTitle(cost)}">${formatWon(cost)} · ${u.years}년</button></span></div></div>`;
+        <button class="small ${ok && !u.retire ? 'primary' : ''}" data-up="${u.id}" ${ok ? '' : 'disabled'} title="${spendTitle(cost)}">${formatWon(cost)}, ${u.years}년</button></span></div></div>`;
     }).join('') || '<p class="hint">가능한 개량이 없습니다.</p>'}</div>`}`;
 }
 
 /** 돈을 쓰는 단추의 안내: 누르면 바로 착공하고 예산이 얼마 남는지 */
 export function spendTitle(cost) {
-  return `누르면 바로 착공합니다 · 가용 예산 ${formatWon(state.budget)} → ${formatWon(state.budget - cost)}`;
+  return `누르면 바로 착공합니다, 가용 예산 ${formatWon(state.budget)} → ${formatWon(state.budget - cost)}`;
 }
 
 /** 개량이 바꾸는 값 (누른 구간 기준): "설계 속도 80→95km/h · 연장 12.0→10.8km" */
@@ -493,7 +494,7 @@ export function upEffect(u, l) {
   if (d.power && d.power !== l.power) out.push(d.power === 'AC' ? '교류 25kV 전철' : d.power);
   if (d.paved && !l.paved) out.push('포장 (수송력 회복)');
   if (u.id === 'straighten') out.push('지도 선형은 그대로 (새 자리에 곧게 놓으려면 위의 구간 직선화)');
-  return out.join(' · ');
+  return out.join(', ');
 }
 
 /**
@@ -527,9 +528,9 @@ export function lineBatchHTML(l, id) {
   if (l.mode !== 1 || !l.name || l.ext) return '';
   const b = lineBatch(id);
   if (!b.DC.ids.length && !b.none.ids.length && !b.kpstd.ids.length) return '';
-  const row = (k, label) => (b[k].ids.length ? `<div class="item opt"><div class="opt-row"><span>${label} · ${b[k].km.toFixed(0)}km (${b[k].ids.length}개 구간)</span>
-    <span class="btns"><button class="small ${b[k].ok ? 'primary' : ''}" data-line-batch="${k}" ${b[k].ok ? '' : 'disabled'}>${formatWon(b[k].cost)} · ${b[k].years}년</button></span></div></div>` : '');
-  return `<h4>노선 일괄 · ${esc(l.name)}</h4>
+  const row = (k, label) => (b[k].ids.length ? `<div class="item opt"><div class="opt-row"><span>${label}, ${b[k].km.toFixed(0)}km (${b[k].ids.length}개 구간)</span>
+    <span class="btns"><button class="small ${b[k].ok ? 'primary' : ''}" data-line-batch="${k}" ${b[k].ok ? '' : 'disabled'}>${formatWon(b[k].cost)}, ${b[k].years}년</button></span></div></div>` : '');
+  return `<h4>노선 일괄, ${esc(l.name)}</h4>
     <p class="hint">이 노선의 해당 구간을 모두 한 사업으로 (구간을 고르지 않아도 되고 10% 덜 듭니다). 다 지으면 남측 전동차가 이 노선으로 직통할 수 있습니다.</p>
     <div class="list">${row('kpstd', '노선 전체 남측 규격 개량 (북측 구간: 복선·교류 25kV·120km/h·표준궤)')}${row('DC', '노선 전체 승압 (직류 3kV → 교류 25kV)')}${row('none', '노선 전체 전철화 (비전철 → 교류 25kV)')}</div>`;
 }
@@ -569,11 +570,11 @@ export function multiPanel(ids) {
   return `${header(title)}
     ${sc ? `<div class="actions">${sc.mode === 1 ? '<button class="small" id="sec-straight">이 구간 직선화</button>' : ''}
       <button class="small" id="sec-prev">첫 개량 효과 미리보기</button><button class="small sec-start">다른 구간 고르기</button></div>` : ''}
-    <p class="hint">${km[mode].toFixed(0)}km · ${names.map(esc).join(', ')}${names.length === 6 ? ' 등' : ''}${pool.length < ids.length ? ` (다른 수단·공사 중 구간 ${ids.length - pool.length}개 제외)` : ''}<br>Shift를 누른 채 구간을 누르면 더하거나 빼고, Shift를 누른 채 끌면 상자 안 구간을 한꺼번에 고릅니다.</p>
+    <p class="hint">${km[mode].toFixed(0)}km, ${names.map(esc).join(', ')}${names.length === 6 ? ' 등' : ''}${pool.length < ids.length ? ` (다른 수단·공사 중 구간 ${ids.length - pool.length}개 제외)` : ''}<br>Shift를 누른 채 구간을 누르면 더하거나 빼고, Shift를 누른 채 끌면 상자 안 구간을 한꺼번에 고릅니다.</p>
     <div class="list">${ups.map(({ u, app, cost, len }) => {
       const ok = canAfford(state, cost, u.years);
       return `<div class="item opt"><div class="opt-row">
-        <span>${resolve(u.label, linkAt(base, state, app[0]))} · ${app.length}개 구간 ${len.toFixed(0)}km</span>
-        <button class="small ${ok && !u.retire ? 'primary' : ''}" data-mup="${u.id}" data-ids="${JSON.stringify(app)}" ${ok ? '' : 'disabled'} title="${spendTitle(cost)}">${formatWon(cost)} · ${u.years}년</button></div></div>`;
+        <span>${resolve(u.label, linkAt(base, state, app[0]))}, ${app.length}개 구간 ${len.toFixed(0)}km</span>
+        <button class="small ${ok && !u.retire ? 'primary' : ''}" data-mup="${u.id}" data-ids="${JSON.stringify(app)}" ${ok ? '' : 'disabled'} title="${spendTitle(cost)}">${formatWon(cost)}, ${u.years}년</button></div></div>`;
     }).join('') || '<p class="hint">고른 구간에 가능한 개량이 없습니다.</p>'}</div>`;
 }

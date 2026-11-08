@@ -299,7 +299,7 @@ export function watchFolds() {
 export function setBusy(on, label = '', v = 0) {
   setBusyValue(on);
   $('#busy').hidden = !on;
-  $('.busy-label').textContent = autoYears ? `${label} · 이어 넘기기 ${autoYears}년 남음` : label;
+  $('.busy-label').textContent = autoYears ? `${label}, 이어 넘기기 ${autoYears}년 남음` : label;
   $('#busy-bar').style.transform = `scaleX(${Math.max(0, Math.min(1, v))})`;
   $('#btn-next').disabled = on || !result;
   updateAutoBtn();
@@ -469,12 +469,12 @@ export function renderStatus() {
     <h4>교통</h4>
     <table class="kv">
       <tr><td>지역 간 통행 (일)</td><td>${fmtPop(t.trips)} 통행</td></tr>
-      <tr><td>수단 분담 (승용차·철도·대중교통)</td><td>${pct(t.road / t.trips, 0)} · ${pct(t.rail / t.trips, 0)} · ${pct(t.transit / t.trips, 0)}</td></tr>
-      ${t.local ? `<tr><td>시군구 안 통행 (일) · 승용차·버스·도시철도</td><td>${fmtPop(t.local.trips)} · ${pct(t.local.car / t.local.trips, 0)} · ${pct(t.local.bus / t.local.trips, 0)} · ${pct(t.local.metro / t.local.trips, 0)}</td></tr>
+      <tr><td>수단 분담 (승용차·철도·대중교통)</td><td>${pct(t.road / t.trips, 0)}, ${pct(t.rail / t.trips, 0)}, ${pct(t.transit / t.trips, 0)}</td></tr>
+      ${t.local ? `<tr><td>시군구 안 통행 (일), 승용차·버스·도시철도</td><td>${fmtPop(t.local.trips)}, ${pct(t.local.car / t.local.trips, 0)}, ${pct(t.local.bus / t.local.trips, 0)}, ${pct(t.local.metro / t.local.trips, 0)}</td></tr>
       <tr><td>전체 대중교통 분담 (시군구 안 포함)</td><td>${pct(allTransitShare(t), 1)}</td></tr>` : ''}
       <tr><td>남북 간 통행 (일)</td><td>${fmtPop(t.kpkr)} 통행</td></tr>
-      <tr><td>항공 · 국제 통행 (일)</td><td>${fmtPop(t.air || 0)} · ${fmtPop(t.intl || 0)}</td></tr>
-      <tr><td>관광 통행 (일)</td><td>${fmtPop(t.tour || 0)} <span class="m">입국 ${fmtPop(t.tourIn || 0)} · 출국 ${fmtPop(t.tourOut || 0)}</span></td></tr>
+      <tr><td>항공, 국제 통행 (일)</td><td>${fmtPop(t.air || 0)}, ${fmtPop(t.intl || 0)}</td></tr>
+      <tr><td>관광 통행 (일)</td><td>${fmtPop(t.tour || 0)} <span class="m">입국 ${fmtPop(t.tourIn || 0)}, 출국 ${fmtPop(t.tourOut || 0)}</span></td></tr>
       <tr><td>정체 도로 (V/C&gt;1)</td><td>${Math.round(cong).toLocaleString()} km</td></tr>
     </table>
     <h4>인구 이동 (지난 1년)</h4>
@@ -495,7 +495,7 @@ export function renderBuild() {
   const el = $('[data-panel=build]');
   // 건설 탭: 도로·철도·도시철도·운행 계통·지역 개발로 묶고, 묶음 이름이 '건설·부설'을 말하므로 단추에서는 뺀다
   const short = (label) => t(label).replace(/ (건설|부설)(?= \(|$)/, '');
-  const card = (k) => { const v = NEW_BUILDS[k]; return `<button data-build="${k}" class="${draft?.type === k ? 'on' : ''}">${short(v.label)}<span class="c">${formatWon(v.perKm)}/km · ${v.years}년</span></button>`; };
+  const card = (k) => { const v = NEW_BUILDS[k]; return `<button data-build="${k}" class="${draft?.type === k ? 'on' : ''}">${short(v.label)}<span class="c">${formatWon(v.perKm)}/km, ${v.years}년</span></button>`; };
   const extra = (attr, label, sub, on = false, cls = '') => `<button ${attr} class="${[cls, on ? 'on' : ''].join(' ').trim()}">${short(label)}<span class="c">${sub}</span></button>`;
   const ofMode = (m) => Object.keys(NEW_BUILDS).filter((k) => NEW_BUILDS[k].mode === m).map(card).join('');
   const group = (title, inner) => `<section class="tool-group"><h4 class="tool-h">${t(title)}</h4><div class="tool-grid">${inner}</div></section>`;
@@ -507,10 +507,10 @@ export function renderBuild() {
     + group('운행 계통', extra('', '운행 계통 신설', '시점·종점을 골라 KTX·ITX·광역 짜기', false, 'svc-pick-b')
       + extra('id="svc-list-b"', '운행 계통 고치기', '목록에서 찾아 고르기'))
     + group('지역 개발', extra('id="univ-start"', '대학 건설', '지도에서 자리 고르기')
-      + extra('data-build="airport"', AIRPORT.build.label, `${formatWon(AIRPORT.build.cost)} · ${AIRPORT.build.years}년`, draft?.type === 'airport')
+      + extra('data-build="airport"', AIRPORT.build.label, `${formatWon(AIRPORT.build.cost)}, ${AIRPORT.build.years}년`, draft?.type === 'airport')
       + extra('id="housing-pick" title="지도에서 고른 곳에 주택 단지를 조성합니다 (인구 순증)"', '택지지구 개발', '지도에서 자리 고르기'));
   // 노선 추천·미리보기 기간은 '노선 추천 · 미리보기' 접힘에 (추천 결과가 있으면 펼친다)
-  let body = `${compareHTML()}${subFold('build:more', '노선 추천 · 미리보기', `<div class="name-row" style="margin-bottom:4px"><input type="text" id="rec-text" placeholder="예: 평양에 도시철도 3호선을 짓고 싶어, 노선을 추천해줘" style="flex:1">
+  let body = `${compareHTML()}${subFold('build:more', '노선 추천, 미리보기', `<div class="name-row" style="margin-bottom:4px"><input type="text" id="rec-text" placeholder="예: 평양에 도시철도 3호선을 짓고 싶어, 노선을 추천해줘" style="flex:1">
       <button class="small primary" id="rec-go">노선 추천</button></div>
     <p class="hint" id="rec-msg">${esc(recMsg)}</p>
     <div class="name-row"><span class="kind">미리보기</span><select id="prev-years">
@@ -518,7 +518,7 @@ export function renderBuild() {
     <p class="hint">구간을 누르면 개량, <b>Shift+끌기</b>는 여러 구간. 새 노선은 위에서 종류를 고른 뒤 지도를 차례로 누르세요.</p>`;
   if (draft) {
     if (draft.type === 'airport') {
-      el.innerHTML = `<h4>${AIRPORT.build.label}</h4><p class="hint">공항을 놓을 곳을 지도에서 한 번 누르세요. ${formatWon(AIRPORT.build.cost)} · ${AIRPORT.build.years}년 · 연 ${AIRPORT.build.cap}백만 명. Esc: 취소</p>
+      el.innerHTML = `<h4>${AIRPORT.build.label}</h4><p class="hint">공항을 놓을 곳을 지도에서 한 번 누르세요. ${formatWon(AIRPORT.build.cost)}, ${AIRPORT.build.years}년, 연 ${AIRPORT.build.cap}백만 명. Esc: 취소</p>
         <button id="draft-cancel">취소</button>`;
       $('#draft-cancel').onclick = cancelDraft;
       return;
@@ -548,7 +548,7 @@ export function renderBuild() {
       })()}
       ${draft.revise ? `<p class="hint"><b>설계 변경</b>: 선을 끌거나 역을 옮겨 선형을 고친 뒤 착공하면 원래 사업과 바뀝니다. 이미 낸 공사비의 80%를 이어 받고, 지지율은 내려가지 않습니다.</p>` : ''}
       ${subFold('build:keys', '조작법', `<p class="hint">기존 ${spec.mode ? '선로' : '도로'} 근처를 누르면 연결되고, 중간을 누르면 그 자리에 ${spec.mode === 0 ? 'IC·JCT를' : '역을'} 만들어 잇습니다. ${spec.mode ? '각 점은 역이 됩니다.' : '끝점이 기존 도로 0.5km 밖이면 막다른 도로로 끝납니다.'}
-      <b>Shift+누르기</b>: 역 없는 경유점 · <b>점 끌기</b>: 역·경유점 옮기기 · <b>선 끌기</b>: 경유점을 끼워 선형 바꾸기 · Backspace: 마지막 점 지우기 · Ctrl+Z: 되돌리기 · Enter: 착공 · Esc: 취소<br>
+      <b>Shift+누르기</b>: 역 없는 경유점, <b>점 끌기</b>: 역·경유점 옮기기, <b>선 끌기</b>: 경유점을 끼워 선형 바꾸기, Backspace: 마지막 점 지우기, Ctrl+Z: 되돌리기, Enter: 착공, Esc: 취소<br>
       노란 점(◆)은 중국·러시아·일본 거점 도시입니다. 끝점을 거점에 붙이면 국제 노선이 됩니다.</p>`)}
       <div>${draft.points.map((p, i) => (p.via ? '' : pointRow(p, i))).join('') || '<p class="hint">시작점을 누르세요.</p>'}</div>
       ${draft.points.some((p) => p.via) ? `<p class="hint">선형을 잡는 경유점 ${draft.points.filter((p) => p.via).length}개 (역·IC 없음)</p>` : ''}
@@ -559,11 +559,11 @@ export function renderBuild() {
         ${NEW_BUILDS[draft.type].mode >= 1 ? `<tr><td>역 반경 ${catchKm(draft.type)}km 인구</td><td>${fmtPeople(draft.points.filter((q) => q.name && q.kind !== 'IC').reduce((t, q) => t + popNear(q.lon, q.lat, catchKm(draft.type)), 0))} <span class="m">(역 ${draft.points.filter((q) => q.name && q.kind !== 'IC').length}곳, 겹친 곳도 셈)</span></td></tr>` : ''}
         <tr><td>사업비</td><td>${formatWon(cost)}</td></tr>
         ${lims.length && spec.mode !== 2 ? `<tr><td>${spec.mode === 0 ? '설계 속도' : '최고 속도'} (선형)</td><td>${slow.length
-          ? `<span class="neg">${Math.min(...slow.map((x) => x.v))}~${spec.attrs.speed}km/h</span> <span class="m">급곡선(반경 ${minR < 1 ? `${Math.round(minR * 1000)}m` : `${minR.toFixed(1)}km`}) 때문에 ${slow.length}/${lims.length}개 구간이 느림 (지도의 빨간 점) · 경유점을 옮겨 곡선을 펴면 오릅니다</span>`
+          ? `<span class="neg">${Math.min(...slow.map((x) => x.v))}~${spec.attrs.speed}km/h</span> <span class="m">급곡선(반경 ${minR < 1 ? `${Math.round(minR * 1000)}m` : `${minR.toFixed(1)}km`}) 때문에 ${slow.length}/${lims.length}개 구간이 느림 (지도의 빨간 점), 경유점을 옮겨 곡선을 펴면 오릅니다</span>`
           : `${spec.attrs.speed}km/h <span class="m">${Number.isFinite(minR) ? `가장 급한 곡선 반경 ${minR.toFixed(1)}km` : '직선'}</span>`}</td></tr>` : ''}
-        <tr><td>공사 기간 · 연 분담</td><td>${years}년 · ${formatWon(cost / years)}</td></tr>
+        <tr><td>공사 기간, 연 분담</td><td>${years}년, ${formatWon(cost / years)}</td></tr>
         ${foreignKm > 0.5 ? `<tr><td>외국 구간 (상대국 절반 부담)</td><td>${foreignKm.toFixed(0)} km</td></tr>` : ''}
-        ${terrain && draft.points.length > 1 ? `<tr><td>지형 (어림)</td><td>터널·깎기 ${terrain.tunnelKm.toFixed(0)}km · 교량 ${(terrain.bridgeKm + terrain.seaKm).toFixed(1)}km</td></tr>` : ''}
+        ${terrain && draft.points.length > 1 ? `<tr><td>지형 (어림)</td><td>터널·깎기 ${terrain.tunnelKm.toFixed(0)}km, 교량 ${(terrain.bridgeKm + terrain.seaKm).toFixed(1)}km</td></tr>` : ''}
         ${draftCost().mids ? `<tr><td>중간 ${spec.mode === 0 ? 'IC' : '역'} ${draftCost().mids}곳</td><td>${formatWon(draftCost().mids * (spec.mode === 0 ? MID_COST.road : MID_COST.rail))}</td></tr>` : ''}
         ${draftCost().rests ? `<tr><td>휴게소 ${draftCost().rests}곳 (약 ${REST.spacingKm}km마다)</td><td>${formatWon(draftCost().rests * REST.cost)}</td></tr>` : ''}
       </table>

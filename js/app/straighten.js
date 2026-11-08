@@ -382,19 +382,19 @@ export function straightenPanel() {
   }
   const merged = pl.kept.flatMap((k) => (k.merged || []).map((m) => `${esc(m.name)} → ${esc(k.name)}`));
   return `${header(`${s.line} 구간 직선화`)}
-    <p class="hint">${picks} · ${pl.shape}${pl.shape.startsWith('옛') ? ' (바다·만을 가로지르지 않도록)' : ''}</p>
+    <p class="hint">${picks}, ${pl.shape}${pl.shape.startsWith('옛') ? ' (바다·만을 가로지르지 않도록)' : ''}</p>
     ${pl.newKm > pl.oldKm * 0.97 ? '<p class="hint neg">옛 경로가 이미 곧아서 거의 줄어들지 않습니다. 고속화 개량이 나을 수 있습니다.</p>' : ''}
     <table class="kv">
       <tr><td>길이</td><td>${pl.oldKm.toFixed(1)} → <b>${pl.newKm.toFixed(1)}km</b></td></tr>
       <tr><td>최고 속도 (곡선 반경 기준)</td><td>${pl.speed} km/h</td></tr>
       <tr><td>주행 시간 (정차 포함)</td><td>${fmtMin(pl.oldMin)} → <b>${fmtMin(pl.newMin)}</b></td></tr>
-      <tr><td>사업비 · 공기</td><td>${formatWon(pl.cost)} · ${pl.years}년</td></tr>
+      <tr><td>사업비, 공기</td><td>${formatWon(pl.cost)}, ${pl.years}년</td></tr>
     </table>
     <h4>사이의 역 (${pl.mids.length})</h4>
-    <div class="m">${pl.kept.map((k) => `${esc(k.name)} ${k.pin ? '제자리' : `${Math.round(k.moveKm * 1000).toLocaleString()}m 이동`}`).join(' · ') || '사이에 남는 역이 없습니다.'}</div>
-    ${pl.dropped.length ? `<div class="m" style="margin-top:4px">폐역: ${pl.dropped.map((d) => esc(d.name)).join(' · ')}</div>` : ''}
+    <div class="m">${pl.kept.map((k) => `${esc(k.name)} ${k.pin ? '제자리' : `${Math.round(k.moveKm * 1000).toLocaleString()}m 이동`}`).join(', ') || '사이에 남는 역이 없습니다.'}</div>
+    ${pl.dropped.length ? `<div class="m" style="margin-top:4px">폐역: ${pl.dropped.map((d) => esc(d.name)).join(', ')}</div>` : ''}
     <p class="hint">지도에서 사이의 역을 누르면 그 역을 자동(새 선로 위로)·제자리 유지(옛 자리에서 옛 선로 방향으로 지나감)·폐역 가운데 고를 수 있습니다.</p>
-    ${merged.length ? `<div class="m" style="margin-top:4px">합치는 역: ${merged.join(' · ')}</div>` : ''}
+    ${merged.length ? `<div class="m" style="margin-top:4px">합치는 역: ${merged.join(', ')}</div>` : ''}
     <div class="name-row"><span class="kind">옛 구간</span><select id="st-retire">
       <option value="retire" ${straight.keepOld ? '' : 'selected'}>완공 때 폐선 (옛 역은 새 자리로)</option>
       <option value="keep" ${straight.keepOld ? 'selected' : ''}>그대로 둔다 (연선 역·지선 유지, 보통열차가 다닐 수 있게)</option></select></div>
@@ -468,7 +468,7 @@ export function commitStraighten() {
   // 옛 구간을 그대로 두면(연선 유지) 폐선·역 옮기기·지선 잇기를 하지 않는다: 옛 선로와 역은 그대로, 새 선로는 따로
   if (straight.keepOld) {
     p.keepOld = true;
-    state.log[0] = `${state.year}년 착공: ${p.label} (${formatWon(p.cost)}, ${p.years}년) · 옛 구간은 그대로 둡니다`;
+    state.log[0] = `${state.year}년 착공: ${p.label} (${formatWon(p.cost)}, ${p.years}년), 옛 구간은 그대로 둡니다`;
     endStraighten();
     save(state); refreshLinks(); refreshPoints(); renderAll();
     startedNotice(p);
@@ -489,7 +489,7 @@ export function commitStraighten() {
   for (const i of pl.via) { vn = L[i].a === vn ? L[i].b : L[i].a; viaNodes.push(vn); }
   const onNew = new Set(p.links.flatMap((id) => { const l = linkAt(base, state, id); return [l.a, l.b]; }));
   const conns = reconnectBranches(p, L, viaNodes, new Set(p.retire), onNew, 1, newStations.filter((n) => nodeCoord(n)), new Set([straight.line]));
-  state.log[0] = `${state.year}년 착공: ${p.label} (${formatWon(p.cost)}, ${p.years}년)${conns.length ? ` · 갈라지던 ${[...new Set(conns)].join('·')}${obj([...new Set(conns)].pop())} 새 선로에 잇는 연결선 포함` : ''}`;
+  state.log[0] = `${state.year}년 착공: ${p.label} (${formatWon(p.cost)}, ${p.years}년)${conns.length ? `, 갈라지던 ${[...new Set(conns)].join('·')}${obj([...new Set(conns)].pop())} 새 선로에 잇는 연결선 포함` : ''}`;
   endStraighten();
   save(state); refreshLinks(); refreshPoints(); renderAll();
   startedNotice(p);
