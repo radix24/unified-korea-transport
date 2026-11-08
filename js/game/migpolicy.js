@@ -21,7 +21,7 @@ export const MIG_POLICY = {
   nn: {
     label: '북측 안 이주', key: 'policyNN', def: 'permit',
     opts: {
-      free: { label: '자유 이주', integ: -0.003, appr: 2, hint: '도 중심도시와 평양으로 사람이 몰립니다. 15년에 걸쳐 접근성 0.05 이하 지역은 인구 −80%, 0.15 이하 −50%, 0.25 이하 −25%가 되고 그만큼 접근성 높은 곳(0.5 넘으면 두 배)으로 옮깁니다. 처음 10년은 원산·함흥·청진이 빨리 큽니다' },
+      free: { label: '자유 이주', integ: -0.003, appr: 2, hint: '도 중심도시와 평양으로 사람이 몰립니다. 15년에 걸쳐 접근성 0.05 이하 지역은 인구 −70%, 0.15 이하 −50%, 0.25 이하 −25%가 되고 그만큼 접근성 높은 곳(0.5 넘으면 두 배)으로 옮깁니다. 시·구역은 30% 넘게 줄지 않고, 시작 인구의 1.3배를 넘은 곳은 집이 모자라 덜 옵니다. 처음 10년은 원산·함흥·청진이 빨리 큽니다' },
       permit: { label: '이주 허가제', integ: 0.002, appr: -1, hint: '지금과 같은 정도의 인구 변화' },
     },
   },
@@ -55,7 +55,8 @@ const EAST = ['원산시', '함흥시', '청진시'];
 export function migCtx(state, zoneProps) {
   const out = { sn: migOpt(state, 'sn').mult ?? 1, centers: [], boost: 1, shift: [] };
   if ((state.policyNN || 'permit') !== 'free') return out;
-  const isCenter = (z) => z.country === 'KP' && (z.province === '평양시' || CENTERS.includes(z.name) || CENTERS.includes(z.city));
+  // 평양은 시가지(구역)만 중심이다: 강동군·강남군 같은 평양시의 군까지 세 배로 끌어 교외가 두세 배로 불었다 (메일 건의)
+  const isCenter = (z) => z.country === 'KP' && ((z.province === '평양시' && /구역$/.test(z.name || '')) || CENTERS.includes(z.name) || CENTERS.includes(z.city));
   zoneProps.forEach((z, i) => { if (!z.ext && isCenter(z)) out.centers.push(i); });
   out.boost = 3;
   // 자유 이주를 몇 해째 하고 있나: 해 넘기기에서 먼저 하나 세고(state.js) 이 값을 쓰므로 첫해가 0

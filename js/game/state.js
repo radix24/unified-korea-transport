@@ -234,7 +234,8 @@ export function initOngoing(base, state, labelFor) {
     if (!(l.open > 0)) return;
     if (l.open <= state.year) { state.osm.opened[i] = true; return; }
     const name = cleanLineName(l.name);
-    const key = name ? `${name}|${l.mode}` : `|${l.mode}|${l.cls}`;
+    // 이름이 같아도 개통 연도가 다르면 따로 연다 (함양울산고속도로 함양–창녕 2026.12, 합천호–합천 2027: 메일 건의)
+    const key = name ? `${name}|${l.mode}|${l.open}` : `|${l.mode}|${l.cls}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(i);
   });
@@ -262,8 +263,9 @@ export function initOngoing(base, state, labelFor) {
       // 남은 공기만큼의 사업비 가운데 절반은 이미 확보된 계속비로 보고, 나머지 절반을 앞으로의 예산에서 낸다
       const share = Math.min(1, years / (ONGOING_TOTAL_YEARS[l0.mode] || 5)) * ONGOING_UNFUNDED;
       const name = cleanLineName(l0.name) || labelFor(l0);
+      const phased = name && [...groups.keys()].filter((k) => k.startsWith(`${cleanLineName(l0.name)}|${l0.mode}|`)).length > 1;
       projects.push({ id: crypto.randomUUID(), kind: 'osm', links: part, cost: Math.round(full * share), years,
-        label: `${name} (${km.toFixed(0)}km, 공사 중)`, mode: l0.mode });
+        label: `${name} (${phased ? `${open}년 개통 구간, ` : ''}${km.toFixed(0)}km, 공사 중)`, mode: l0.mode });
     }
   }
   for (const p of projects) startProject(state, p, { quiet: true });
@@ -381,6 +383,33 @@ export const IC_REMOVE_COST = 20;   // 새로 놓은 IC·JCT 철거 (억원)
  * (짓는 중인 IC 사업이면 취소한다). 고속도로 본선은 그대로 둔다.
  * 예전 판에서 사업을 취소해 기존 도로 노드에 이름만 남은 IC도 이것으로 걷는다 (연결도로가 없으면 이름만)
  */
+/**
+ * 기존(OSM) IC 철거 (2026.11 메일 건의): 그 IC 노드에서 고속도로 본선이 아닌 짧은 연결 구간(3km 미만)을 걷어 낸다.
+ * 고속도로 본선과 일반도로 자체는 그대로 두고 이어지는 자리만 끊는다. 철거한 IC는 state.icRemoved에 적어 지도에서 이름을 감춘다
+ */
+export const IC_RAMP_MAX_KM = 3;
+export function osmICRamps(base, state, node) {
+  const out = [];
+  base.links.forEach((l, i) => {
+    if (l.mode !== 0 || l.cls === 'motorway' || state.replaced?.[i] || (l.a !== node && l.b !== node) || l.len >= IC_RAMP_MAX_KM) return;
+    out.push(i);
+  });
+  // 본선과 닿아 있어야 IC다
+  const onMotorway = base.links.some((l, i) => l.mode === 0 && l.cls === 'motorway' && !state.replaced?.[i] && (l.a === node || l.b === node));
+  return onMotorway ? out : [];
+}
+export function removeOsmIC(base, state, node, name) {
+  if (state.budget < IC_REMOVE_COST) return { ok: false, reason: '예산이 부족합니다.' };
+  const ramps = osmICRamps(base, state, node);
+  if (!ramps.length) return { ok: false, reason: '걷어 낼 짧은 연결 구간이 없습니다 (일반도로가 본선과 길게 이어진 곳은 철거할 수 없습니다).' };
+  state.replaced ||= {};
+  for (const i of ramps) state.replaced[i] = true;
+  (state.icRemoved ||= []).push(node);
+  state.budget -= IC_REMOVE_COST;
+  state.log.unshift(`${state.year}년 ${name} 철거 (연결 구간 ${ramps.length}곳, ${formatWon(IC_REMOVE_COST)})`);
+  return { ok: true, ramps: ramps.length };
+}
+
 export function removeIC(base, state, node) {
   const nm = state.names[node];
   if (!nm || !/^(IC|JCT)$/.test(nm.kind)) return { ok: false, reason: '게임에서 놓은 IC·JCT만 철거할 수 있습니다.' };

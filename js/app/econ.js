@@ -5,7 +5,7 @@ import { DIFFICULTY, formatWon } from '../game/catalog.js';
 import { flushSave } from '../game/savestore.js';
 import { SERVICE_KINDS } from '../game/services.js';
 import { clearSim } from '../game/simstore.js';
-import { clearSave, CLOSE_APPROVAL, closeLine, closeRoute, designateIntl, effectiveNetwork, FREQ_STEPS, IC_REMOVE_COST, linkAt, newGame, removeIC, renameLine, REOPEN_PER_KM, removeAirport, reopenLine, save, setLineFreq, setPlaceName, startAirportExpand, startOpenRoute, startRestoreName, startUpgrade, UPGRADES } from '../game/state.js';
+import { clearSave, CLOSE_APPROVAL, closeLine, closeRoute, designateIntl, effectiveNetwork, FREQ_STEPS, IC_REMOVE_COST, linkAt, newGame, removeIC, removeOsmIC, renameLine, REOPEN_PER_KM, removeAirport, reopenLine, save, setLineFreq, setPlaceName, startAirportExpand, startOpenRoute, startRestoreName, startUpgrade, UPGRADES } from '../game/state.js';
 import { LANG, setLang, t } from '../i18n.js';
 import { getGuideMode, GUIDE_MODES, guideOnNewGame, setGuideMode } from '../ui/guide.js';
 import { refreshNames } from '../ui/map.js';
@@ -23,7 +23,7 @@ import { bindHousingRename, housingRowHTML } from './budget.js';
 import { bindService, econCache, fmtRatio, lineEconomics, openServiceEditor, servicePanel, setEconCache, svcStats } from './svc.js';
 import { bindFund, bindRailStats, openLineDiagram, railStatsHTML } from './operators.js';
 import { countyZones, localSettingsHTML } from './election.js';
-import { bindBunguBtns, bindLocalSettings, bunguUnitOf, drawBungu, endGuEdit, guEdit, guPanel, guSubs, moveGuTo, normGu, payEvent, renameGus, startGuEdit } from './bungu.js';
+import { bindAnnexMany, bindBunguBtns, bindLocalSettings, bunguUnitOf, drawBungu, endGuEdit, guEdit, guPanel, guSubs, moveGuTo, normGu, payEvent, renameGus, startGuEdit } from './bungu.js';
 import { bindStraighten, startStraighten, straightenPanel } from './straighten.js';
 import { bindPointAdd, pointAddPanel, REST_REMOVE_COST, startPointAdd } from './housing.js';
 import { previewUpgrade } from './compare.js';
@@ -315,6 +315,7 @@ export function renderSelection() {
   else if (selection.type === 'zones') {
     el.innerHTML = zonesPanel(selection.ids);
     el.querySelectorAll('[data-zones-one]').forEach((b) => { b.onclick = () => select({ type: 'zone', id: +b.dataset.zonesOne }); });
+    bindAnnexMany(el, selection.ids);
   }
   else if (selection.type === 'housing') {
     const h = (state.housing || []).find((x) => x.id === selection.id);
@@ -519,6 +520,13 @@ export function renderSelection() {
     const r = removeIC(base, state, id);
     if (!r.ok) { alert(r.reason); return; }
     namer?.release(r.name.name, r.name.kind);
+    save(state); select(null); refreshLinks(); refreshPoints(); renderAll();
+  });
+  el.querySelector('#ic-del-osm')?.addEventListener('click', () => {
+    const id = selection.id, n = nodeNames().get(id);
+    if (!n || !confirm(`${n.name}을(를) 철거할까요? 본선과 이어진 연결 구간을 걷어 냅니다. ${formatWon(IC_REMOVE_COST)}`)) return;
+    const r = removeOsmIC(base, state, id, n.name);
+    if (!r.ok) { alert(r.reason); return; }
     save(state); select(null); refreshLinks(); refreshPoints(); renderAll();
   });
   el.querySelector('#rest-del')?.addEventListener('click', () => {

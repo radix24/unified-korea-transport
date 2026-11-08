@@ -179,7 +179,10 @@ export const P = {
   ruralPull: { KP: 0.35, KR: 0.15 },   // 이촌향도: 통합도만큼 산간 존의 효용을 깎는다 (× 통합도 × (log 기준 밀도 − log 밀도))
   baseOutMigration: 0.03,
   maxNetMigration: 0.05,      // 존별 한 해 순이동 상한 (인구 대비)
-  accDriftYears: 15,          // 북측 안 자유 이주: 접근성이 낮은 존의 인구 감소(−25~−80%)를 이만큼 해에 걸쳐 나눈다
+  accDriftYears: 15,
+  crowdCap: 1.3,              // 북측 존: 시작 인구의 이 배를 넘으면 매력이 준다 (집·일자리 부족)
+  crowdK: 7,                  // 그 감소 세기 (넘은 몫의 로그에 곱한다)
+  urbanFloorKP: 0.3,          // 북측 시·구역 인구 감소 하한 (시작 대비)          // 북측 안 자유 이주: 접근성이 낮은 존의 인구 감소(−25~−80%)를 이만큼 해에 걸쳐 나눈다
   migUtilSensitivity: 0.8,
   migDistanceMin: 180,
   migDensityElasticity: 0.15,

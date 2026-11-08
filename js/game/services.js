@@ -307,6 +307,8 @@ export const EXISTING_SERVICES = [
   // 과천선·안산선(4호선)과 일산선(3호선)은 도시철도 열차가 직통하므로 도시철도 노선으로 바꿨다 (pipeline/through_metro.py)
   { name: '경강선', color: '#003da5', kind: 'commuter', type: 'commuter', sets: 8, lines: ['경강선'], from: '이매', to: '여주' },
   { name: '동해선 광역전철', color: '#0054a6', kind: 'commuter', type: 'commuter', sets: 10, lines: ['동해선'], from: '부전', to: '태화강' },
+  // 태화강–북울산 연장 (2026.12.31 개통 목표): 2027년부터 북울산까지 직통 (year: 그해가 되어야 다니는 계통)
+  { name: '동해선 광역전철 (부전–북울산)', color: '#0054a6', kind: 'commuter', type: 'commuter', sets: 11, lines: ['동해선'], from: '부전', to: '북울산', wait: true, year: 2027, replaces: ['동해선 광역전철'] },
   { name: '서해선 광역 (대곡–원시)', color: '#8fc31f', kind: 'commuter', type: 'commuter', sets: 10, lines: ['서해선'], from: '대곡', to: '원시' },
   { name: '서해선 일반 (서화성–홍성)', color: '#8fc31f', kind: 'local', type: 'intercity', sets: 6, lines: ['서해선'], from: '서화성', to: '홍성' },
   { name: '중부내륙선 KTX-이음 (판교–문경)', color: '#3b5bab', kind: 'express', type: 'semi', sets: 6, lines: ['경강선', '중부내륙선'], from: '판교', to: '문경' },
@@ -387,7 +389,7 @@ export function seedServices(state, base, operator = 'korail') {
   const links = base.links.map((l) => ({ ...l, active: !l.open }));
   const stationSet = new Set(base.stations.map((s) => s[1]));
   for (const s of EXISTING_SERVICES) {
-    const svc = existingService(s, links, base.stations, stationSet, !!s.wait);
+    const svc = s.year > state.year ? null : existingService(s, links, base.stations, stationSet, !!s.wait);
     if (svc) (state.services ||= []).push({ ...svc, fund: operator });
     else if (s.wait) (state.waitingServices ||= []).push(s.name);
   }
@@ -478,6 +480,7 @@ export function openWaitingServices(state, net, stations, operator = 'korail') {
   state.waitingServices = [...new Set(state.waitingServices.map((n) => RENAMED_WAITING[n] || n))];
   state.waitingServices = state.waitingServices.filter((name) => {
     const s = EXISTING_SERVICES.find((x) => x.name === name);
+    if (s?.year > state.year) return true;
     const svc = s && existingService(s, net.links, stations, stationSet, true);
     if (!svc) return true;
     // 전 구간 계통이 다니면 그 구간의 부분 계통은 없앤다 (서해선 광역·일반 → 서해선 하나)

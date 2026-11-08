@@ -389,7 +389,7 @@ export function nodeNames() {
   for (const n of retiredStationNodes()) closed.add(n);
   for (const [name, node] of base.stations) if (!out.has(node) && !closed.has(node)) out.set(node, { name: noYeok(shownStation(name, node)), kind: 'station', isNew: 0 });
   for (const [name, node] of base.metro_stations || []) if (!out.has(node) && !closed.has(node)) out.set(node, { name: noYeok(shownStation(name, node)), kind: 'station', isNew: 0, metro: 1 });
-  const restGone = new Set(state.restRemoved || []);
+  const restGone = new Set([...(state.restRemoved || []), ...(state.icRemoved || [])]);
   for (const [name, node] of base.junctions) {
     if (out.has(node) || restGone.has(node)) continue;
     out.set(node, { name, kind: /JCT|분기점/.test(name) ? 'JCT' : /휴게소|졸음쉼터|SA$/.test(name) ? 'rest' : 'IC', isNew: 0 });

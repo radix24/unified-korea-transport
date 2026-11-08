@@ -36,6 +36,9 @@ export class Model {
     this.cy = Float64Array.from(zones, (z) => z.cy);
     this.area = Float64Array.from(zones, (z) => Math.max(z.area, 1));
     this.pop = Float64Array.from(zones, (z) => z.pop);
+    // 북측 이주 균형 (2026.11 메일 건의): 시작 인구와 시·구역(도시) 여부. 도시는 시작보다 30% 넘게 줄지 않고, 시작의 1.5배를 넘으면 집이 모자라 덜 온다
+    this.pop0 = Float64Array.from(zones, (z) => Math.max(z.pop, 1));
+    this.urbanKP = Uint8Array.from(zones, (z) => (z.country === 'KP' && /(시|구역)$/.test(z.name || '') ? 1 : 0));
     this.initSubzones(zones, grid);
     // 관광지가 있는 읍면동 (하루 방문객): 관광 통행은 시군구 전체가 아니라 관광지 읍면동으로 간다
     this.tourSub = new Float64Array(this.S); this.tourSubKP = new Float64Array(this.S);
@@ -1736,7 +1739,15 @@ export class Model {
     return Math.log(this.income[i]) + P.migAccessWeight * Math.log(this.access[i] / this.accessRef + 1e-6)
       - P.migDensityElasticity * Math.log(dens + 1) + this.amenity[i] - this.amenExcess[i] * this.catchUp(i)
       + 0.1 * (this.edu?.[i] || 0)   // 새 대학 가까이로 청년이 조금 모인다
-      - this.ruralPenalty(i, dens);
+      - this.ruralPenalty(i, dens)
+      - this.crowdPenalty(i);
+  }
+
+  /** 북측 존이 시작 인구의 crowdCap배를 넘게 불면 집·일자리가 모자라 매력이 준다 (교외 군·구역이 두세 배로 불던 것) */
+  crowdPenalty(i) {
+    if (!this.isKP[i] || !this.pop0) return 0;
+    const over = Math.log(this.pop[i] / (this.pop0[i] * P.crowdCap));
+    return over > 0 ? P.crowdK * over : 0;
   }
 
   /** 이촌향도: 통합이 진행될수록 산간·농촌(밀도 낮은 존)에서 도시로 떠난다. 기준 연도 보정(통합도 0)에는 들지 않는다 */
@@ -1767,7 +1778,9 @@ export class Model {
     const w = new Float64Array(Z);
     for (let i = 0; i < Z; i++) {
       if (this.isExt[i]) continue;
-      const rate = Math.min(Math.max(P.baseOutMigration * Math.exp(-P.migUtilSensitivity * (U[i] - ubar)), 0.01), 0.15);
+      // 북측 시·구역은 시작 인구의 70% 아래로는 떠나지 않는다 (도시 인구 감소 하한 30%)
+      const floor = this.urbanKP?.[i] && this.pop[i] < this.pop0[i] * (1 - P.urbanFloorKP);
+      const rate = floor ? 0 : Math.min(Math.max(P.baseOutMigration * Math.exp(-P.migUtilSensitivity * (U[i] - ubar)), 0.01), 0.15);
       const out = this.pop[i] * rate;
       let s = 0;
       for (let j = 0; j < Z; j++) {
@@ -1775,7 +1788,8 @@ export class Model {
         let x = attract[j] * Math.exp(-ccomp[i * Z + j] / P.migDistanceMin);
         if (this.isKP[i] && !this.isKP[j]) x *= policyFactor;
         else if (!this.isKP[i] && this.isKP[j]) x *= snF;
-        else if (centers && this.isKP[i] && this.isKP[j] && centers.has(j)) x *= boost;
+        // 중심도시 쏠림: 중심도시 사이(평양 구역끼리)나 이미 꽉 찬 곳(시작의 crowdCap배 넘음)으로는 더하지 않는다
+        else if (centers && this.isKP[i] && this.isKP[j] && centers.has(j) && !centers.has(i) && !(this.pop[j] > this.pop0[j] * P.crowdCap)) x *= boost;
         w[j] = x; s += x;
       }
       if (s <= 0) continue;
@@ -1875,7 +1889,7 @@ export class Model {
 
   /**
    * 북측 안 자유 이주의 접근성 기준 인구 변동 (메일 건의). 접근성은 화면과 같은 기준(그해 모든 존의 중앙값 = 1)이다.
-   * 0.05 이하는 −80%, 0.15 이하는 −50%, 0.25 이하는 −25%를 accDriftYears년에 걸쳐 덜어 내고(해마다 같은 비율),
+   * 0.05 이하는 −70%, 0.15 이하는 −50%, 0.25 이하는 −25%를 accDriftYears년에 걸쳐 덜어 내고(해마다 같은 비율),
    * 덜어 낸 인구는 접근성 0.25를 넘는 존에 인구 비례로 옮긴다: 0.5를 넘으면 두 배, 자유 이주 처음 10년은 원산·함흥·청진(east) 세 배.
    * 북측 전체 인구는 그대로다. 옮긴 인구를 돌려준다
    * @param {{years:number, east:number[]}} acc years: 자유 이주를 몇 해째 하고 있나 (첫해 0)
@@ -1890,13 +1904,17 @@ export class Model {
       const a = this.access[i] / ref;
       // 원산·함흥·청진은 처음 10년 접근성이 낮아도 줄지 않고 받는 쪽이다 (동해안 중심도시)
       const boost = eastSet.has(i) && years < 10;
-      const cut = boost ? 0 : a <= 0.05 ? 0.8 : a <= 0.15 ? 0.5 : a <= 0.25 ? 0.25 : 0;
+      let cut = boost ? 0 : a <= 0.05 ? 0.7 : a <= 0.15 ? 0.5 : a <= 0.25 ? 0.25 : 0;
+      // 시·구역은 접근성과 상관없이 시작 인구의 70% 아래로 줄지 않는다
+      if (cut && this.urbanKP?.[i]) cut = this.pop[i] <= this.pop0[i] * (1 - P.urbanFloorKP) ? 0 : Math.min(cut, P.urbanFloorKP);
       if (cut) {
         const m = this.pop[i] * (1 - (1 - cut) ** (1 / P.accDriftYears));
         this.pop[i] = Math.max(100, this.pop[i] - m);
         moved += m;
       } else {
-        const k = this.pop[i] * (a >= 0.5 ? 2 : 1) * (boost ? 3 : 1);
+        // 이미 시작 인구의 crowdCap배를 넘은 곳은 집이 모자라 덜 받는다 (교외가 두세 배로 불던 것)
+        const room = this.pop0 && this.pop[i] > this.pop0[i] * P.crowdCap ? 0.05 : 1;
+        const k = this.pop[i] * (a >= 0.5 ? 2 : 1) * (boost ? 3 : 1) * room;
         to.push([i, k]);
         w += k;
       }

@@ -47,6 +47,40 @@ export function opBadge(state, op) {
   return `<span class="op-badge" style="${badgeStyle(o.color)}" title="${o.name}">${op === 'merged' ? o.name : o.en}</span>`;
 }
 
+// 도시철도 운영 기관 (2026.11 메일 건의): 지방공기업·민자 운영사를 노선 이름과 자리로 가른다 (표시용, 재정은 정부 예산과 같이 센다)
+export const METRO_OPERATORS = {
+  seoul: { name: '서울교통공사', en: 'Seoul Metro', color: '#1E5AA8' },
+  metro9: { name: '서울시메트로9호선', en: 'Metro 9', color: '#BDB092' },
+  busan: { name: '부산교통공사', en: 'Humetro', color: '#E8423A' },
+  daegu: { name: '대구교통공사', en: 'DTRO', color: '#2E8B57' },
+  incheon: { name: '인천교통공사', en: 'Incheon TC', color: '#4C7CC0' },
+  gwangju: { name: '광주교통공사', en: 'GRTC', color: '#009A44' },
+  daejeon: { name: '대전교통공사', en: 'DJET', color: '#007448' },
+  pyongyang: { name: '평양지하철관리국', en: 'Pyongyang Metro', color: '#B5232A' },
+};
+// 광역시 자리 (경도·위도 상자): 이름으로 못 가른 도시철도 구간
+const METRO_AREAS = [
+  ['seoul', 126.76, 37.42, 127.19, 37.71], ['incheon', 126.35, 37.33, 126.79, 37.62], ['busan', 128.85, 35.03, 129.3, 35.4],
+  ['daegu', 128.45, 35.75, 128.75, 36.0], ['gwangju', 126.7, 35.05, 127.0, 35.27], ['daejeon', 127.25, 36.2, 127.5, 36.5],
+  ['pyongyang', 125.6, 38.9, 125.9, 39.15],
+];
+export function metroOperatorOf(link) {
+  if (!link || link.mode !== 2) return null;
+  const n = link.name || '';
+  const key = /9호선/.test(n) && !/부산|대구|인천|광주|대전/.test(n) ? 'metro9'
+    : /^서울|우이신설|신림선/.test(n) ? 'seoul' : /^부산/.test(n) ? 'busan' : /^대구/.test(n) ? 'daegu'
+    : /^인천/.test(n) ? 'incheon' : /^광주/.test(n) ? 'gwangju' : /^대전/.test(n) ? 'daejeon'
+    : /천리마|혁신|평양/.test(n) ? 'pyongyang' : null;
+  if (key) return METRO_OPERATORS[key];
+  const x = link.geom?.[0], y = link.geom?.[1];
+  const hit = METRO_AREAS.find(([, x0, y0, x1, y1]) => x >= x0 && x <= x1 && y >= y0 && y <= y1);
+  return hit ? METRO_OPERATORS[hit[0]] : null;
+}
+export function metroOpBadge(link) {
+  const o = metroOperatorOf(link);
+  return o ? `<span class="op-badge" style="${badgeStyle(o.color)}" title="${o.name}">${o.name}</span>` : '';
+}
+
 // 국외 철도 운영사 (국제 열차 운행 현황): 로고는 위키미디어 공용의 공용 영역 파일이며 각 회사의 상표다 (비상업 식별용).
 export const FOREIGN_OPERATORS = {
   CN: { name: '중국국가철로', en: 'China Railway', color: '#B22222', logo: 'assets/brand/cr.svg' },

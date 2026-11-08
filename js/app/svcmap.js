@@ -1,6 +1,6 @@
 // 운행 계통을 지도에 노선으로.
 import { formatWon, resolve } from '../game/catalog.js';
-import { opBadge, operatorOf } from '../game/operators.js';
+import { metroOpBadge, opBadge, operatorOf } from '../game/operators.js';
 import { canRun, defaultTrainType, EXISTING_SERVICES, SERVICE_KINDS } from '../game/services.js';
 import { canAfford, effectiveNetwork, fundFor, linkAt, linkPending, linksBlockedFor, linksUnderBuild, upgradeCost, UPGRADES } from '../game/state.js';
 import { t } from '../i18n.js';
@@ -445,7 +445,7 @@ export function linkPanel(id) {
     ${l.mode === 1 ? passingServicesHTML(secIds) : ''}
     <table class="kv">
       <tr><td>종류</td><td>${CLASS_LABEL[l.cls]}, ${l.kp ? '북' : '남'}</td></tr>
-      ${operatorOf(state, l) ? `<tr><td>운영사</td><td>${opBadge(state, operatorOf(state, l))}</td></tr>` : ''}
+      ${operatorOf(state, l) ? `<tr><td>운영사</td><td>${opBadge(state, operatorOf(state, l))}</td></tr>` : metroOpBadge(l) ? `<tr><td>운영 기관</td><td>${metroOpBadge(l)}</td></tr>` : ''}
       <tr><td>연장</td><td>${l.len.toFixed(1)} km</td></tr>
       ${rows}
       <tr><td>혼잡도 (V/C)</td><td class="${vc > 1 ? 'neg' : ''}">${vc.toFixed(2)}</td></tr>

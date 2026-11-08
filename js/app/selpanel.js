@@ -3,7 +3,7 @@ import { airlinesHTML } from '../game/airlines.js';
 import { AIRPORT, formatWon, KP_COST_FACTOR } from '../game/catalog.js';
 import { placeIntroHTML } from '../game/cities.js';
 import { CITY_UP_MIN_POP, dueum, EVENT_COST, governorTitle, hasAutonomy, isMetroCity, HAMHEUNG_ENCLAVE, KP_DIRECT_CITIES, metroName, PARTIES, partySupport, PROMOTE_MIN_POP, REGION_REORG, regionOf } from '../game/local.js';
-import { AIR, AIRPORT_REMOVE, effectiveNetwork, IC_REMOVE_COST, load, RENAME, save, START_YEAR } from '../game/state.js';
+import { AIR, AIRPORT_REMOVE, effectiveNetwork, IC_REMOVE_COST, load, osmICRamps, RENAME, save, START_YEAR } from '../game/state.js';
 import { t } from '../i18n.js';
 import { routeKey } from '../sim/model.js';
 import { refreshNames } from '../ui/map.js';
@@ -20,7 +20,7 @@ import { select } from './interact.js';
 import { fmtPop, pct, renderAll } from './panels.js';
 import { foreignCountry } from './operators.js';
 import { countyRep, countyZones, holdElection, mayorKey, partyBadge, splitGus, syncMayors, zoneAdminHTML, zoneGus } from './election.js';
-import { adjacency, annexTargets, bindAnnexBtns, bunguSelect, bunguUnits, drawBungu, syncGovernors, guNamesOfZone, guNamingDialog, guOfSub, guSubs, makeBungu, payEvent, pruneBungu, setCoreGu, unitZones } from './bungu.js';
+import { adjacency, annexManyHTML, annexTargets, bindAnnexBtns, bunguSelect, bunguUnits, drawBungu, syncGovernors, guNamesOfZone, guNamingDialog, guOfSub, guSubs, makeBungu, payEvent, pruneBungu, setCoreGu, unitZones } from './bungu.js';
 import { localZoneHTML } from './firstyear.js';
 import { REST_REMOVE_COST } from './housing.js';
 import { header } from './svcmap.js';
@@ -104,7 +104,8 @@ export function zonesPanel(reps) {
     </table>
     <h4>고른 시군구</h4>
     <table class="kv">${[...reps].sort((a, b) => countyZones(b).reduce((s, j) => s + r.pop[j], 0) - countyZones(a).reduce((s, j) => s + r.pop[j], 0)).map(one).join('')}</table>
-    <p class="hint">Shift를 누른 채 시군구를 누르면 더하거나 뺍니다. 평균 값은 인구로 가중합니다.</p>`;
+    <p class="hint">Shift를 누른 채 시군구를 누르면 더하거나 뺍니다. 평균 값은 인구로 가중합니다.</p>
+    ${annexManyHTML(reps)}`;
 }
 
 /** 옛 이름 되찾기 사업 한 줄 (지역 패널·건설 탭에서 함께 쓴다) */
@@ -823,6 +824,8 @@ export function nodePanel(id) {
     ${n.kind === 'rest' ? `<div class="actions"><button class="small" id="rest-del">휴게소 철거 (${formatWon(REST_REMOVE_COST)})</button></div>` : ''}
     ${(n.kind === 'IC' || n.kind === 'JCT') && n.isNew ? `<div class="actions"><button class="small" id="ic-del">${n.kind} 철거 (${formatWon(IC_REMOVE_COST)})</button></div>
       <p class="hint">게임에서 놓은 ${n.kind}입니다. 철거하면 이름을 지우고 연결도로를 걷어 냅니다(고속도로 본선은 그대로). 짓는 중이면 그 사업을 접습니다.</p>` : ''}
+    ${n.kind === 'IC' && !n.isNew && osmICRamps(base, state, id).length ? `<div class="actions"><button class="small" id="ic-del-osm">IC 철거 (${formatWon(IC_REMOVE_COST)})</button></div>
+      <p class="hint">이 IC에서 고속도로 본선과 일반도로를 잇는 짧은 연결 구간 ${osmICRamps(base, state, id).length}곳을 걷어 냅니다. 본선과 일반도로는 그대로입니다. 다른 자리에 다시 놓으려면 건설 탭의 IC·JCT 신설을 쓰세요.</p>` : ''}
     <h4>이름</h4>
     <div class="name-row"><input type="text" id="node-name" value="${esc(n.name)}">
       <button class="small" id="node-save">바꾸기</button>

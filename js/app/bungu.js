@@ -1512,6 +1512,56 @@ export function bindAnnexBtns(el) {
   });
 }
 
+/**
+ * 여러 시군구를 한꺼번에 한 광역 단체로 (2026.11 메일 건의). reps: 고른 시군구의 대표 존.
+ * 맞닿은 곳부터 차례로 편입하고(먼저 옮긴 시군에 맞닿은 곳도 이어서), 선거는 끝에 한 번 한다
+ */
+function keysOfReps(reps) {
+  const cs = [...counties().values()];
+  return [...new Set(reps.map((x) => cs.find((c) => c.zones.includes(x))?.key).filter(Boolean))];
+}
+export function annexManyHTML(reps) {
+  const t = annexTargets();
+  if (!t || reps.length < 2) return '';
+  const keys = new Set(keysOfReps(reps)), cs = counties();
+  const own = new Set([...keys].map((k) => cs.get(k)?.region));
+  const regions = t.filter(([r, list]) => list.some((c) => keys.has(c.key)) && !(own.size === 1 && own.has(r))).map(([r]) => r);
+  if (!regions.length) return '';
+  return `<h4>한꺼번에 편입</h4><p class="hint">고른 시군구 ${keys.size}곳을 한 광역 단체로 옮깁니다. 맞닿은 곳부터 차례로 편입하고, 이미 그 단체인 곳은 건너뜁니다. 선거는 끝에 한 번 합니다. 1곳에 ${formatWon(EVENT_COST.annex)}</p>
+    <div class="actions">${regions.map((r) => `<button class="small" data-annex-many="${esc(r)}">${esc(r)}에 편입</button>`).join('')}</div>`;
+}
+export function bindAnnexMany(el, reps) {
+  el.querySelectorAll('[data-annex-many]').forEach((b) => {
+    b.onclick = () => {
+      const to = b.dataset.annexMany, L = state.local;
+      let left = keysOfReps(reps).filter((k) => counties().get(k)?.region !== to);
+      if (!left.length) return;
+      if (!confirm(`고른 시군구 ${left.length}곳을 ${to}에 편입할까요? 맞닿지 않은 곳은 건너뜁니다. 최대 ${formatWon(EVENT_COST.annex * left.length)}`)) return;
+      const done = [], from = new Set();
+      for (let grew = true; grew && left.length;) {
+        grew = false;
+        const cand = new Map((annexTargets()?.find(([r]) => r === to)?.[1] || []).map((c) => [c.key, c]));
+        for (const k of [...left]) {
+          const c = cand.get(k);
+          if (!c || !payEvent(EVENT_COST.annex)) continue;
+          (L.annex ||= {})[k] = annexBase(to, c.via);
+          if (!isMetroCity(to) && isMetroCity(c.region)) leaveMetro(k, to);
+          adminInvalidate();
+          state.log.unshift(`${state.year}년 ${c.name}, ${c.region}에서 ${to}로 편입`);
+          done.push(c.name); from.add(c.region);
+          left = left.filter((x) => x !== k);
+          grew = true;
+        }
+      }
+      if (!done.length) { toast(`${to}에 맞닿은 곳이 없어 편입하지 못했습니다.`); return; }
+      drawBungu();
+      holdElection([to, ...from], `${to} 시군 편입 선거`);
+      syncMayors(); refreshNames(map); save(state); renderAll();
+      toast(`<b>편입</b>${done.join(', ')} → ${to}${left.length ? ` (맞닿지 않아 ${left.length}곳은 건너뜀)` : ''}`);
+    };
+  });
+}
+
 export function bindLocalSettings(el) {
   const L = state.local;
   el.querySelector('#ev-autonomy')?.addEventListener('click', () => {
