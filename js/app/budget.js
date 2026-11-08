@@ -224,7 +224,8 @@ export function locateProject(p) {
 }
 
 export let reqSide = 'all';   // 확장 요구 목록: 전체·남·북
-const reqMore = { KR: 0, KP: 0 };   // 남·북 묶음마다 '더 보기'로 더 보여 줄 줄 수 (기본은 첫해 10줄, 그 뒤 20줄)
+const reqMore = { KR: 0, KP: 0 };
+const BIG_SHARE = 0.05;   // 가용 예산에서 이 비율을 넘는 착공은 한 번 더 확인한다   // 남·북 묶음마다 '더 보기'로 더 보여 줄 줄 수 (기본은 첫해 10줄, 그 뒤 20줄)
 
 /** 패널을 다시 그려도 스크롤 자리를 지킨다 (확장 요구를 들어준 뒤 목록 맨 위로 튀지 않게) */
 export function keepScroll(el, fn) {
@@ -244,14 +245,17 @@ function rowError(btn, reason) {
 export function renderRequests() {
   const el = $('[data-panel=requests]');
   const c = $('#req-count');
+  const firstYear = state.year === START_YEAR;
   c.hidden = requests.length === 0;
-  c.textContent = requests.length;
+  // 첫해에는 쌓인 요구가 한꺼번에 올라오므로 배지는 '가장 급한 곳' 수만 (전체는 탭 안에서)
+  c.textContent = firstYear ? Math.min(10, requests.length) : requests.length;
+  c.title = firstYear ? `가장 급한 ${Math.min(10, requests.length)}곳 (전체 ${requests.length}곳)` : `확장 요구 ${requests.length}곳`;
   const nKR = requests.filter((r) => !r.kp).length, nKP = requests.length - nKR;
   const shown = requests.map((r, i) => [r, i]).filter(([r]) => reqSide === 'all' || (reqSide === 'KP') === !!r.kp);
   const sideBtn = (v, label) => `<button class="small ${reqSide === v ? 'on' : ''}" data-req-side="${v}">${label}</button>`;
   const nn = nodeNames();
-  el.innerHTML = `${proposalsHTML()}<h3>확장 요구 (${requests.length})</h3>
-    <p class="hint">혼잡도(V/C)가 1.0을 넘는 상태가 2년 이상 이어진 노선입니다(남은 고속도로·간선국도, 북은 모든 도로, 그리고 철도). 방치하면 지지율이 떨어집니다. 넓혀도 통행비용이 줄면 수요가 다시 늘 수 있습니다.</p>
+  el.innerHTML = `${proposalsHTML()}<h3>${firstYear && requests.length > 10 ? `확장 요구: 가장 급한 10곳 <span class="m">(전체 ${requests.length}곳 중)</span>` : `확장 요구 (${requests.length})`}</h3>
+    <p class="hint">혼잡도(V/C, 1.0이면 도로·선로가 꽉 참)가 1.0을 넘는 상태가 2년 이상 이어진 노선입니다(남은 고속도로·간선국도, 북은 모든 도로, 그리고 철도). 방치하면 지지율이 떨어집니다. 넓혀도 통행비용이 줄면 수요가 다시 늘 수 있습니다.</p>
     <div class="pace">${sideBtn('all', `전체 ${requests.length}`)}${sideBtn('KR', `남 ${nKR}`)}${sideBtn('KP', `북 ${nKP}`)}</div>
     ${(() => {
       // 남·북으로 묶어 표로: 이름을 누르면 지도에서 보기, 오른쪽에 V/C, 아래 줄에 개량·보류
@@ -260,8 +264,9 @@ export function renderRequests() {
         const l = linkAt(base, state, r.links[0]);
         const fix = defaultFix(l);
         const cost = fix ? r.links.reduce((sum, id) => sum + upgradeCost(fix, linkAt(base, state, id)), 0) : 0;
+        const share = cost / Math.max(1, state.budget), big = share > BIG_SHARE;
         return `<tr><td><a href="#" data-goto="${i}" title="지도에서 보기"><b>${esc(r.name || CLASS_LABEL[r.cls])}</b></a> <span class="m">${esc(spanText(r.links, nn))}, ${CLASS_LABEL[r.cls]}, ${r.years}년째, ${r.links.length}개 구간</span>
-          <span class="req-act">${fix ? `<button class="small" data-fix="${i}" title="바로 착공합니다 (몇 초 동안 되돌릴 수 있음)">${resolve(fix.label, l)} ${formatWon(cost)}</button>` : ''}<button class="small" data-dismiss="${i}">올해 보류</button></span></td>
+          <span class="req-act">${fix ? `<button class="small${big ? ' big-cost' : ''}" data-fix="${i}" data-share="${share}" title="${big ? `가용 예산의 ${Math.round(share * 100)}%라 한 번 더 눌러야 착공합니다` : '바로 착공합니다 (몇 초 동안 되돌릴 수 있음)'}">${resolve(fix.label, l)} <b>${formatWon(cost)}</b>${big ? ` <span class="share">예산의 ${Math.round(share * 100)}%</span>` : ''}</button>` : ''}<button class="small" data-dismiss="${i}">올해 보류</button></span></td>
           <td class="${r.vc > 2 ? 'neg' : ''}">${r.vc.toFixed(2)}</td></tr>`;
       };
       const group = (side, title) => {
@@ -271,7 +276,7 @@ export function renderRequests() {
         return `${reqSide === 'all' ? `<h4>${title} ${rows.length}</h4>` : ''}<table class="cmp req-t"><tr><th>노선 (누르면 지도에서 보기)</th><th>최대 V/C</th></tr>${rows.slice(0, lim).map(row).join('')}</table>
           ${more > 0 ? `<button class="small" data-req-more="${side}">${Math.min(more, per)}개 더 보기 (남은 ${more}개)</button>` : ''}`;
       };
-      const first = state.year === START_YEAR && requests.length ? '<p class="hint">통일 첫해라 그동안 쌓인 혼잡 구간이 한꺼번에 올라왔습니다. 가장 붐비는 곳부터 10개씩 보여 줍니다. 한 해에 다 풀 필요는 없습니다.</p>' : '';
+      const first = firstYear && requests.length ? '<p class="hint">통일 첫해라 그동안 쌓인 혼잡 구간이 한꺼번에 올라왔습니다. 가장 붐비는 곳부터 10개씩 보여 줍니다. 한 해에 다 풀 필요는 없습니다.</p>' : '';
       return first + (group('KR', '남측') + group('KP', '북측') || '<p class="hint">요구가 없습니다.</p>');
     })()}
     ${policyHTML()}`;
@@ -281,6 +286,17 @@ export function renderRequests() {
     b.onclick = () => {
       const k = +b.dataset.fix, r = requests[k];
       const fix = defaultFix(linkAt(base, state, r.links[0]));
+      // 가용 예산의 5%를 넘는 착공은 단추를 '확인'으로 바꿔 한 번 더 누르게 한다 (다른 곳을 누르거나 6초가 지나면 원래대로)
+      if (+b.dataset.share > BIG_SHARE && !b.classList.contains('confirm')) {
+        el.querySelectorAll('[data-fix].confirm').forEach((x) => { x.classList.remove('confirm'); x.innerHTML = x.dataset.orig; });
+        b.dataset.orig = b.innerHTML;
+        const cost = r.links.reduce((sum, id) => sum + upgradeCost(fix, linkAt(base, state, id)), 0);
+        b.classList.add('confirm');
+        b.innerHTML = `<b>${formatWon(cost)} 착공 확인</b> <span class="share">남는 예산 ${formatWon(state.budget - cost)}</span>`;
+        clearTimeout(b.undoTimer);
+        b.undoTimer = setTimeout(() => { if (b.isConnected && b.classList.contains('confirm')) { b.classList.remove('confirm'); b.innerHTML = b.dataset.orig; } }, 6000);
+        return;
+      }
       // 되돌리기용: 착공이 바꾸는 값(예산·부채·운영사 잔액·사업·기록)만 적어 둔다
       const snap = { budget: state.budget, debt: state.debt, nLog: state.log.length, year: state.year,
         cash: Object.fromEntries(Object.entries(state.rail?.ops || {}).map(([id, o]) => [id, o.cash])) };

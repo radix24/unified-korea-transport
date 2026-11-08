@@ -2,7 +2,8 @@
 import { regionOf } from '../game/local.js';
 import { t } from '../i18n.js';
 import { setZoneOutline } from '../ui/map.js';
-import { draft, map, measure, selection, setSelection, state, subsFC, zoneProps } from './core.js';
+import { draft, map, measure, requests, selection, setSelection, state, subsFC, zoneProps } from './core.js';
+import { gotoLinks } from './budget.js';
 import { krRi, loadRiFiles, riAt, riCodeMap, subInfo } from './mapdata.js';
 import { admin, hallPick, hallPickClick, isMetroBody, showHalls, subAtLngLat, subKey, subRegion, subUnit, unitPick, unitPickClick, unitRepZone } from './region.js';
 import { univPick, univPickClick } from './univ.js';
@@ -38,6 +39,13 @@ export function bindMap() {
     if (draft?.type === 'airport') { placeAirport(e.lngLat); return; }
     if (draft) { if (performance.now() - draftPress < 700) return; addDraftPoint(e.lngLat, { pass: !!e.originalEvent?.shiftKey }); return; }
     const box = [[e.point.x - 4, e.point.y - 4], [e.point.x + 4, e.point.y + 4]];
+    // 혼잡 주의(⚠)를 누르면 그 확장 요구 구간 전체를 고른다 (요구가 없으면 그 구간만)
+    const hot = map.getLayer('hotspots') ? map.queryRenderedFeatures([[e.point.x - 10, e.point.y - 10], [e.point.x + 10, e.point.y + 10]], { layers: ['hotspots'] })[0] : null;
+    if (hot && hot.properties.link != null) {
+      const req = requests.find((r) => r.links.includes(hot.properties.link));
+      if (req) { gotoLinks(req.links); return; }
+      return select({ type: 'link', id: hot.properties.link, section: sectionOf(hot.properties.link) });
+    }
     const pl = shownPlan ? map.queryRenderedFeatures(box, { layers: ['plans-line'] })[0] : null;
     if (pl) { openPlan(pl.properties.id); return; }
     const uv = map.getLayer('univs-dot') ? map.queryRenderedFeatures(box, { layers: ['univs-dot'] })[0] : null;
@@ -77,7 +85,7 @@ export function bindMap() {
   map.on('mouseout', () => catchLabel(null));
   enableBoxSelect();
   enableDraftDrag();
-  for (const l of ['roads', 'roads-minor', 'roads-motorway', 'rails', 'metro', 'rails-vc', 'metro-vc', 'points', 'plans-line', 'closed-line']) {
+  for (const l of ['roads', 'roads-minor', 'roads-motorway', 'rails', 'metro', 'rails-vc', 'metro-vc', 'points', 'plans-line', 'closed-line', 'hotspots']) {
     map.on('mouseenter', l, () => { if (!draft) map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', l, () => { if (!draft) map.getCanvas().style.cursor = ''; });
   }

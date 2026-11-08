@@ -81,7 +81,7 @@ let labelData = null;
 const unitFiles = new Map();
 
 // 전국 화면(줌 6~7)에서는 시군 색칠과 바다 항로를 옅게: 철도·운행 계통이 먼저 보이게 하고, 가까이 갈수록 원래 진하기로
-const zoneFillOpacity = (max) => ['interpolate', ['linear'], ['zoom'], 6.5, +(max * 0.55).toFixed(2), 8.5, max];
+const zoneFillOpacity = (max) => ['interpolate', ['linear'], ['zoom'], 6.5, +(max * 0.45).toFixed(2), 8.5, max];
 const FAR_FADE = ['interpolate', ['linear'], ['zoom'], 6.5, 0.35, 8.5, 1];
 
 export function setNameResolver(fn) { nameResolver = fn; }
@@ -541,7 +541,7 @@ export function addLayers(map, zonesFC, linksFC, subsFC) {
   map.addLayer({
     // 시군구 경계: 경계선 조각(edges) 가운데 같은 광역 단체 안의 변만 (도 경계는 bg-sido, 해안은 bg-coast가 한 번씩 그린다)
     id: 'zones-line', type: 'line', source: 'edges', filter: ['==', ['get', 'i'], -1], layout: { 'line-join': 'round', 'line-cap': 'round' },
-    paint: { 'line-color': '#686d74', 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.2, 9, 0.9, 12, 1.6], 'line-opacity': 0.8 },
+    paint: { 'line-color': '#686d74', 'line-width': ['interpolate', ['linear'], ['zoom'], 5, 0.2, 9, 0.9, 12, 1.6], 'line-opacity': ['interpolate', ['linear'], ['zoom'], 6.5, 0.25, 7.5, 0.8] },   // 전국 화면에서는 시군 경계를 옅게
   }, below);
   map.addLayer({
     id: 'zones-sel-edge', type: 'line', source: 'edges', filter: ['==', ['get', 'i'], -1], layout: { 'line-join': 'round', 'line-cap': 'round' },
@@ -929,7 +929,7 @@ export function legendHTML(metric, view = 'all', basemap = 'plain', level = 'sgg
   if (rail || view === 'rail') rows.push(`${sw('#8d6e52', 'dash')} 폐선 (눌러서 재개통)`);
   if (road) rows.push(`${sw('#2b7bb9', 'dash')} 여객선 ${sw('#7a7f86', 'dash')} 국경 연결`);
   if (view === 'none') rows.push('교통망을 숨기고 지표 색칠만 봅니다.');
-  if (view !== 'air' && view !== 'none') rows.push(`<i class="sw warn"></i> 혼잡 주의 (V/C &gt; ${HOT_VC})`);
+  if (view !== 'air' && view !== 'none') rows.push(`<i class="sw warn"></i> 혼잡 주의 (V/C &gt; ${HOT_VC}, 누르면 그 구간)`);
   return `<select id="layerview" title="지도에 그릴 교통망">${Object.entries(LAYER_VIEWS).map(([k, v]) => `<option value="${k}" ${k === view ? 'selected' : ''}>${v}</option>`).join('')}</select>
     <div class="lv-tabs" role="tablist" title="지도 층위">${Object.entries(MAP_LEVELS).map(([k, v]) => `<button type="button" class="small ${k === level ? 'on' : ''}" data-maplevel="${k}">${v}</button>`).join('')}</div>
     <select id="metric">${opts}</select>

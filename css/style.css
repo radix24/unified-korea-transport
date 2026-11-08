@@ -93,7 +93,7 @@ button.small { min-height: var(--btn-h-sm); padding: 0 10px; font-size: 12px; }
 button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; box-shadow: none; }
 /* 나란히 놓인 단추 사이 간격 (flex·grid 묶음은 gap으로) */
 #side button + button { margin-left: var(--s2); }
-:is(.row, .pace, .tools, .tool-grid, .econ-bar, .name-row, .ld-tabs, .btns, .item.line) > button + button, #side :is(.row, .pace, .tools, .tool-grid, .econ-bar, .name-row, .ld-tabs, .btns, .item.line) > button + button { margin-left: 0; }
+:is(.row, .pace, .tools, .tool-grid, .variant-pick, .econ-bar, .name-row, .ld-tabs, .btns, .item.line) > button + button, #side :is(.row, .pace, .tools, .tool-grid, .variant-pick, .econ-bar, .name-row, .ld-tabs, .btns, .item.line) > button + button { margin-left: 0; }
 
 input[type=text], select {
   font: inherit; font-size: 13px; min-height: var(--btn-h-sm); padding: 0 8px; border-radius: var(--r-sm);
@@ -149,6 +149,17 @@ table.cmp.svc-list td:first-child { word-break: keep-all; }
 table.cmp.req-t td:first-child { word-break: keep-all; }
 table.cmp.req-t .req-act { display: flex; flex-wrap: wrap; gap: var(--s1); margin-top: var(--s1); }
 table.cmp.req-t .req-act button { margin: 0; }
+/* 큰 착공(가용 예산의 5% 넘음): 금액에 무게를 두고, 첫 번째 누르면 확인 단추로 바뀐다 */
+table.cmp.req-t .req-act button .share { font-weight: 400; color: var(--muted); }
+table.cmp.req-t .req-act button.big-cost { border-color: var(--line-strong); }
+table.cmp.req-t .req-act button.confirm { background: var(--bad-soft); border-color: var(--bad); color: var(--ink); }
+table.cmp.req-t .req-act button.confirm .share { color: var(--ink); }
+/* 건설 탭: 그리는 중 방식(지하·해저·차로 등) 고르기 */
+.variant-pick { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--s1); margin: var(--s2) 0; }
+.variant-pick > button { margin: 0; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; white-space: normal; height: auto; min-height: 44px; padding: var(--s1) var(--s2); }
+.variant-pick > button .c { font-size: 11px; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.loss-tag { display: block; font-size: 11px; font-weight: 400; }
+.variant-pick > button.on { border-color: var(--accent); background: var(--accent-soft); }
 table.cmp.req-t + button { margin-bottom: var(--s3); }
 /* 탭의 요구 수는 경보가 아니라 개수: 빨강 대신 차분한 칩 */
 #req-count { background: var(--chip); color: var(--ink); }

@@ -75,7 +75,7 @@ export function econPanelHTML() {
     <div class="econ-list">${shown.map((e) => {
       const f = state.lineFreq?.[e.name] || 1;
       return `<div class="econ-row"><div class="n"><b>${esc(e.name)}</b><span class="m">${Math.round(e.km)}km, 최대 ${Math.round(e.peak).toLocaleString()}명/일, 수입 ${formatWon(e.rev / 1e8)}, 비용 ${formatWon(e.cost / 1e8)}</span></div>
-        <span class="r ${ratioCls(e.ratio)}">${fmtRatio(e.ratio)}</span>
+        <span class="r ${ratioCls(e.ratio)}">${fmtRatio(e.ratio)}${e.ratio > 100 ? '<span class="loss-tag">적자</span>' : ''}</span>
         <select data-freq="${esc(e.name)}" title="기본 열차 운행 비율">${FREQ_STEPS.map((x) => `<option value="${x}" ${x === f ? 'selected' : ''}>운행 ${Math.round(x * 100)}%</option>`).join('')}</select>
         <button class="small" data-close-line="${esc(e.name)}" title="폐선">폐선</button></div>`;
     }).join('') || '<p class="hint">노선이 없습니다.</p>'}</div>
@@ -234,12 +234,12 @@ function serviceListHTML() {
     const x = stats.get(s.id), kind = SERVICE_KINDS[s.kind].label;
     const key = [s.name, kind, ...(s.lines || [s.line]), ...s.stops.map((n) => nn.get(n)?.name || '')].join(' ').toLowerCase();
     return `<tr data-svc-go="${s.id}" data-svc-key="${esc(key)}" style="cursor:pointer" title="눌러서 고르기"><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${esc(svcColor(s, k))}"></span> <a href="#">${esc(s.name)}</a> <span class="m">${[s.name.includes(kind) ? '' : kind, `${s.stops.length}역`, x ? `승차율 ${Math.round(x.load * 100)}%` : '', s.built ? '' : '차량 제작 중'].filter(Boolean).join(', ')}</span></td>
-    ${x ? `<td>${s.trains}</td><td title="가장 붐비는 구간 ${Math.round(x.peak).toLocaleString()}명">${Math.round(x.riders).toLocaleString()}</td><td class="${x.ratio > 100 ? 'neg' : ''}">${fmtRatio(x.ratio)}</td>` : `<td>${s.trains || '–'}</td><td>–</td><td>–</td>`}</tr>`;
+    ${x ? `<td>${s.trains}</td><td title="가장 붐비는 구간 ${Math.round(x.peak).toLocaleString()}명">${Math.round(x.riders).toLocaleString()}</td><td class="${x.ratio > 100 ? 'neg' : ''}">${fmtRatio(x.ratio)}${x.ratio > 100 ? '<span class="loss-tag">적자</span>' : ''}</td>` : `<td>${s.trains || '–'}</td><td>–</td><td>–</td>`}</tr>`;
   }).join('');
   if (!rows) return '<p class="hint">아직 짠 계통이 없습니다.</p>';
   return `<div class="name-row"><span class="kind">찾기</span><input type="text" id="svc-q" value="${esc(svcQuery)}" placeholder="이름·노선·역·등급 (예: 전라선, 여수, 특급)" style="flex:1"><span class="m" id="svc-q-n"></span></div>
-    <p class="hint">줄을 누르면 그 계통을 지도에 보여 주고 고칠 수 있습니다. 마우스를 올리면 지도에서 그 계통만 진하게 보입니다.</p>
-    <table class="cmp svc-list" id="svc-list"><tr><th>계통</th><th>회/일</th><th title="하루 이용객 (어림: 구간 이용객이 늘어난 만큼 탄 것으로 셈). 숫자에 마우스를 올리면 가장 붐비는 구간 이용객">이용객/일</th><th>영업계수</th></tr>${rows}</table>`;
+    <p class="hint">줄을 누르면 그 계통을 지도에 보여 주고 고칠 수 있습니다. 마우스를 올리면 지도에서 그 계통만 진하게 보입니다. 영업계수가 100을 넘으면 적자입니다.</p>
+    <table class="cmp svc-list" id="svc-list"><tr><th>계통</th><th>회/일</th><th title="하루 이용객 (어림: 구간 이용객이 늘어난 만큼 탄 것으로 셈). 숫자에 마우스를 올리면 가장 붐비는 구간 이용객">이용객/일</th><th title="영업비용 ÷ 영업수입 × 100. 100을 넘으면 적자">영업계수</th></tr>${rows}</table>`;
 }
 
 function bindServiceList(el) {

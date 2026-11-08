@@ -116,5 +116,11 @@ export function toast(html, kind = 'ok') {
   el.className = `show ${kind}`;
   el.innerHTML = html;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { el.className = kind; }, 4500);
+  // 단추(되돌리기 등)가 든 알림은 10초 두고, 마우스를 올리거나 단추에 초점이 있는 동안은 닫지 않는다
+  const hasBtn = !!el.querySelector('button');
+  const hide = () => {
+    if (el.matches(':hover') || el.contains(document.activeElement)) { toastTimer = setTimeout(hide, 1000); return; }
+    el.className = kind;
+  };
+  toastTimer = setTimeout(hide, hasBtn ? 10000 : 4500);
 }

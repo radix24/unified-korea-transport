@@ -498,13 +498,30 @@ export function renderStatus() {
     <div class="log">${state.log.slice(0, 30).map((l) => `<div>${esc(l)}</div>`).join('')}</div>`;
 }
 
+/** 건설 탭 단추: 기본 종류마다 하나, 방식(지하·해저·차로·속도)은 그리는 중에 고른다 */
+const BUILD_FAMILIES = [
+  { mode: 0, name: '고속도로', kinds: [['motorway', '지상 4차로', '보통의 고속도로'], ['motorwayUg', '지하', '도심 아래로 곧게, 지형을 보지 않음'], ['tunnelRoad', '해저', '바다를 건널 때']] },
+  { mode: 0, name: '국도', kinds: [['trunk', '4차로', '간선 국도'], ['trunk2', '2차로', '싸고 빨리, 수요가 적은 곳']] },
+  { mode: 1, name: '고속선로', kinds: [['hsr', '300km/h', 'KTX급 고속선'], ['hsr350', '350km/h', '차세대 고속열차용, 더 비쌈'], ['tunnelRail', '해저', '바다를 건널 때']] },
+  { mode: 1, name: '일반선로', kinds: [['rail', '복선 150km/h', '보통의 복선 전철'], ['semi200', '200km/h', '준고속 (KTX-이음급)'], ['semi250', '250km/h', '준고속, 곡선을 더 폄'], ['rail1', '단선 비전철', '싸고 빨리, 나중에 복선화·전철화']] },
+  { mode: 1, name: '광역급행철도 (대심도)', kinds: [['gtx', '', '수도권·대도시권 급행, 역마다 정차']] },
+  { mode: 2, name: '도시철도', kinds: [['metro', '지하철', '수송력이 큼'], ['lrtug', '지하 경전철', '정거장·차량이 작음'], ['lrt', '지상 경전철·트램', '지하철의 3분의 1 값, 느림']] },
+];
+const familyOf = (type) => BUILD_FAMILIES.find((f) => f.kinds.some(([k]) => k === type));
+
 export function renderBuild() {
   const el = $('[data-panel=build]');
   // 건설 탭: 도로·철도·도시철도·운행 계통·지역 개발로 묶고, 묶음 이름이 '건설·부설'을 말하므로 단추에서는 뺀다
   const short = (label) => t(label).replace(/ (건설|부설)(?= \(|$)/, '');
-  const card = (k) => { const v = NEW_BUILDS[k]; return `<button data-build="${k}" class="${draft?.type === k ? 'on' : ''}">${short(v.label)}<span class="c">${formatWon(v.perKm)}/km, ${v.years}년</span></button>`; };
   const extra = (attr, label, sub, on = false, cls = '') => `<button ${attr} class="${[cls, on ? 'on' : ''].join(' ').trim()}">${short(label)}<span class="c">${sub}</span></button>`;
-  const ofMode = (m) => Object.keys(NEW_BUILDS).filter((k) => NEW_BUILDS[k].mode === m).map(card).join('');
+  // 기본 종류 단추: 값은 그 갈래의 가장 싼 것~비싼 것 (방식은 그리기를 시작한 뒤 고른다)
+  const fam = (f) => {
+    const ks = f.kinds.map(([k]) => k).filter((k) => NEW_BUILDS[k]);
+    const per = ks.map((k) => NEW_BUILDS[k].perKm), lo = Math.min(...per), hi = Math.max(...per);
+    const on = ks.includes(draft?.type);
+    return `<button data-family="${ks[0]}" class="${on ? 'on' : ''}" title="${f.kinds.length > 1 ? `방식: ${f.kinds.map(([, n]) => n).join(', ')} (그리면서 고릅니다)` : esc(f.kinds[0][2])}">${t(f.name)}<span class="c">${lo === hi ? `${formatWon(lo)}/km, ${NEW_BUILDS[ks[0]].years}년` : `${formatWon(lo)}~${formatWon(hi)}/km${f.kinds.length > 1 ? `, ${f.kinds.length}가지` : ''}`}</span></button>`;
+  };
+  const ofMode = (m) => BUILD_FAMILIES.filter((f) => f.mode === m).map(fam).join('');
   const group = (title, inner) => `<section class="tool-group"><h4 class="tool-h">${t(title)}</h4><div class="tool-grid">${inner}</div></section>`;
   const tools = group('도로 건설', ofMode(0)
       + extra('data-padd="ic"', 'IC·JCT 신설', '고속도로 위 한 점')
@@ -540,7 +557,10 @@ export function renderBuild() {
     const draftFund = draftOp && state.rail.fund === 'op' ? draftOp : 'gov';
     const affordable = canAfford(state, cost, years, draftFund);
     const lineName = draftLineName();
+    const f = familyOf(draft.type);
+    const variants = f && f.kinds.length > 1 ? `<div class="variant-pick" role="radiogroup" aria-label="${esc(f.name)} 방식">${f.kinds.map(([k, n, d]) => `<button type="button" role="radio" aria-checked="${k === draft.type}" class="${k === draft.type ? 'on' : ''}" data-build="${k}" title="${esc(d)}">${esc(n)}<span class="c">${formatWon(NEW_BUILDS[k].perKm)}/km, ${NEW_BUILDS[k].years}년</span><span class="c">${esc(d)}</span></button>`).join('')}</div>` : '';
     body = `<h4>${spec.label}</h4>
+      ${variants}
       ${draft.recNote ? `<p class="hint">${esc(draft.recNote)}</p>` : ''}
       ${lineName ? `<div class="name-row"><span class="kind">노선</span><input type="text" id="line-name" value="${esc(lineName)}"></div>` : ''}
       ${draft.extendOf || draft.extend === false ? `<div class="name-row"><label><input type="checkbox" id="draft-extend" ${draft.extendOf ? 'checked' : ''}>
@@ -603,6 +623,8 @@ export function renderBuild() {
   el.querySelector('#rec-go')?.addEventListener('click', recGo);
   el.querySelector('#rec-text')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.stopPropagation(); recGo(); } });
   el.querySelectorAll('[data-build]').forEach((b) => { b.onclick = () => startDraft(b.dataset.build); });
+  // 갈래 단추: 이미 그 갈래를 그리는 중이면 고른 방식을 그대로 둔다
+  el.querySelectorAll('[data-family]').forEach((b) => { b.onclick = () => { if (familyOf(draft?.type) === familyOf(b.dataset.family)) return; startDraft(b.dataset.family); }; });
   if (draft) {
     $('#draft-ok').onclick = commitDraft;
     $('#draft-prev').onclick = previewDraft;
