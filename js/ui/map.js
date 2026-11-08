@@ -80,6 +80,10 @@ let nameResolver = (_level, _id, original) => original;
 let labelData = null;
 const unitFiles = new Map();
 
+// 전국 화면(줌 6~7)에서는 시군 색칠과 바다 항로를 옅게: 철도·운행 계통이 먼저 보이게 하고, 가까이 갈수록 원래 진하기로
+const zoneFillOpacity = (max) => ['interpolate', ['linear'], ['zoom'], 6.5, +(max * 0.55).toFixed(2), 8.5, max];
+const FAR_FADE = ['interpolate', ['linear'], ['zoom'], 6.5, 0.35, 8.5, 1];
+
 export function setNameResolver(fn) { nameResolver = fn; }
 
 let regionKey = '';
@@ -532,7 +536,7 @@ export function addLayers(map, zonesFC, linksFC, subsFC) {
   map.addSource('zones', { type: 'geojson', data: zonesFC });
   map.addLayer({
     id: 'zones-fill', type: 'fill', source: 'zones',
-    paint: { 'fill-color': ['coalesce', ['feature-state', 'color'], 'rgba(0,0,0,0)'], 'fill-opacity': 0.55 },
+    paint: { 'fill-color': ['coalesce', ['feature-state', 'color'], 'rgba(0,0,0,0)'], 'fill-opacity': zoneFillOpacity(0.55) },
   }, below);
   map.addLayer({
     // 시군구 경계: 경계선 조각(edges) 가운데 같은 광역 단체 안의 변만 (도 경계는 bg-sido, 해안은 bg-coast가 한 번씩 그린다)
@@ -672,11 +676,11 @@ export function addLayers(map, zonesFC, linksFC, subsFC) {
   // 여객선 항로와 국경 연결(가상 링크)은 점선
   map.addLayer({
     id: 'ferries', type: 'line', source: 'links', filter: ['==', ['get', 'cls'], 'ferry'],
-    paint: { 'line-color': '#2b7bb9', 'line-width': 1.6, 'line-dasharray': [2, 2] },
+    paint: { 'line-color': '#2b7bb9', 'line-width': 1.6, 'line-dasharray': [2, 2], 'line-opacity': FAR_FADE },
   });
   map.addLayer({
     id: 'ext-links', type: 'line', source: 'links', filter: ['all', ['==', ['get', 'ext'], 1], ['!=', ['get', 'cls'], 'ferry']],
-    paint: { 'line-color': ['case', ['==', ['get', 'mode'], 1], '#6c3fa0', '#7a7f86'], 'line-width': 1.6, 'line-dasharray': [1, 1.5] },
+    paint: { 'line-color': ['case', ['==', ['get', 'mode'], 1], '#6c3fa0', '#7a7f86'], 'line-width': 1.6, 'line-dasharray': [1, 1.5], 'line-opacity': FAR_FADE },
   });
   // 공사 중인 신설 노선은 회색 점선
   map.addLayer({
@@ -830,7 +834,7 @@ export function setBasemap(map, kind) {
   const sat = kind === 'sat';
   // 위성 사진 위에서는 호수·강 색과 시군 색칠을 옅게 (사진이 보이게)
   for (const id of ['bg-lake', 'bg-river']) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', sat ? 'none' : 'visible');
-  for (const id of ['zones-fill', 'gu-metric-fill']) if (map.getLayer(id)) map.setPaintProperty(id, 'fill-opacity', sat ? 0.3 : 0.55);
+  for (const id of ['zones-fill', 'gu-metric-fill']) if (map.getLayer(id)) map.setPaintProperty(id, 'fill-opacity', zoneFillOpacity(sat ? 0.3 : 0.55));
   if (!r) return;
   map.addSource('bg-raster', { type: 'raster', tiles: r.tiles, tileSize: 256, maxzoom: r.maxzoom, attribution: r.attribution });
   // 위성 사진은 육지 면 대신 맨 밑에, 음영기복은 시군 색칠 위에 반투명으로 얹어 산줄기가 보이게

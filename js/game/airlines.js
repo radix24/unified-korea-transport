@@ -1,6 +1,7 @@
 // 항공사: 합병과 상관없이 대한항공·아시아나항공 두 회사가 노선을 나눠 맡는다 (게임용 배분, 실제 노선 배분과 다를 수 있다).
 // 운항이 많은 노선(하루 6회 이상)은 두 회사가 나눠 띄우고, 적은 노선은 한 회사가 맡는다.
 // 배지는 게임에서 그린 색 표시이며 실제 회사 상표가 아니다.
+import { badgeStyle } from './color.js';
 import { routeKey } from '../sim/model.js';
 
 export const AIRLINES = {
@@ -41,7 +42,7 @@ export function airlinesOf(a, b, freq) {
 
 export function airlineBadge(code) {
   const a = AIRLINES[code];
-  return `<span class="op-badge" style="background:${a.color}" title="${a.name} (게임 표시)">${a.name}</span>`;
+  return `<span class="op-badge" style="${badgeStyle(a.color)}" title="${a.name} (게임 표시)">${a.name}</span>`;
 }
 
 export function airlinesHTML(a, b, freq) {

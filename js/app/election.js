@@ -1,4 +1,5 @@
 // 지방자치·선거·단체장 SOC 제안.
+import { badgeStyle } from '../game/color.js';
 import { formatWon, resolve } from '../game/catalog.js';
 import {
   bumpApproval, countyTitle, dueum, ELECTION, EVENT_COST, governorTitle, hasAutonomy, HISTORIC_CITIES, isMetroCity, KP_DIRECT_CITIES, leanP, metroName, PARTIES,
@@ -606,7 +607,7 @@ export function proposerHTML(pr) {
 
 export function partyBadge(p) {
   const x = PARTIES[p];
-  return x ? `<span class="op-badge" style="background:${x.color}">${x.short}</span>` : '';
+  return x ? `<span class="op-badge" style="${badgeStyle(x.color)}">${x.short}</span>` : '';
 }
 
 export function officeLine(off) {

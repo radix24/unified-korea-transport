@@ -275,8 +275,15 @@ export function foldSections(el, key, tag) {
       box = document.createElement('details');
       box.className = 'fold';
       box.open = folds[id] ?? !(FOLD_CLOSED.has(id) || FOLD_CLOSED_PANELS.has(key));
-      box.ontoggle = () => { folds[id] = box.open; try { localStorage.setItem(FOLD_KEY, JSON.stringify(folds)); } catch { /* 저장 못 해도 된다 */ } };
+      // 펼침 기록은 사람이 제목을 눌렀을 때만 남긴다. 다시 그리기·자리 맞추기(keepPanels)가 바꾼 상태까지 적으면
+      // 착공 한 번에 '확장 요구'가 접힌 채로 저장되어 다음부터 닫혀 열렸다
+      box.ontoggle = () => {
+        if (!box.userToggle || !box.isConnected) return;
+        box.userToggle = false;
+        folds[id] = box.open; try { localStorage.setItem(FOLD_KEY, JSON.stringify(folds)); } catch { /* 저장 못 해도 된다 */ }
+      };
       const sum = document.createElement('summary');
+      sum.addEventListener('click', () => { box.userToggle = true; });
       sum.innerHTML = c.innerHTML;
       el.insertBefore(box, c);
       box.appendChild(sum);
