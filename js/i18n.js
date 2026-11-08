@@ -61,7 +61,7 @@ const EXACT = {
   '고속선로 부설 (350km/h)': 'Lay high-speed track (350 km/h)', '고속선로 부설 (300km/h)': 'Lay high-speed track (300 km/h)', '고속선로 부설 (해저)': 'Lay high-speed track (undersea)',
   '일반선로 부설 (250km/h)': 'Lay rail track (250 km/h)', '일반선로 부설 (200km/h)': 'Lay rail track (200 km/h)', '일반선로 부설 (복선)': 'Lay rail track (double)', '일반선로 부설 (단선)': 'Lay rail track (single)',
   '광역급행철도선로 부설 (대심도)': 'Lay GTX express track (deep tunnel)', '도시철도 선로 부설 (지하)': 'Lay metro track (underground)', '경전철·트램 선로 부설 (지상)': 'Lay light rail / tram track (surface)', '경전철 선로 부설 (지하)': 'Lay light rail track (underground)', '공항 신설': 'New airport',
-  '(도시)철도역 신설': 'New (metro) station', 'IC·JCT 신설': 'New interchange / junction', '고속도로 휴게소 설치': 'New motorway rest area', '대학 건설': 'Build a university', '신공항 건설': 'Build a new airport',
+  '철도역 신설 (일반·광역·도시철도)': 'New station (rail · commuter · metro)', 'IC·JCT 신설': 'New interchange / junction', '고속도로 휴게소 설치': 'New motorway rest area', '대학 건설': 'Build a university', '신공항 건설': 'Build a new airport',
   '효과 미리보기': 'Preview effect', '비교에 담기 (A·B·C안)': 'Add to comparison (A/B/C)', '모두 지우기': 'Clear all', '계획 사업': 'Planned projects',
   // 설정
   '도움말': 'Help', '처음 안내 다시 보기': 'Show the tutorial again', '오류 제보하기': 'Report a bug', '저장 슬롯': 'Save slots', '새 게임': 'New game', '난이도': 'Difficulty', '데이터': 'Data',

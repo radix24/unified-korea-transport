@@ -503,7 +503,7 @@ export function renderBuild() {
       + extra('data-padd="ic"', 'IC·JCT 신설', '고속도로 위 한 점')
       + extra('data-padd="rest"', '고속도로 휴게소 설치', '고속도로 위 한 점'))
     + group('철도 부설', ofMode(1))
-    + group('도시철도 부설', ofMode(2) + extra('data-padd="station"', '(도시)철도역 신설', '노선 위 한 점'))
+    + group('도시철도 부설', ofMode(2) + extra('data-padd="station"', '철도역 신설 (일반·광역·도시철도)', '철도·도시철도 노선 위 한 점'))
     + group('운행 계통', extra('', '운행 계통 신설', '시점·종점을 골라 KTX·ITX·광역 짜기', false, 'svc-pick-b')
       + extra('id="svc-list-b"', '운행 계통 고치기', '목록에서 찾아 고르기'))
     + group('지역 개발', extra('id="univ-start"', '대학 건설', '지도에서 자리 고르기')
