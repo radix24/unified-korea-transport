@@ -461,8 +461,9 @@ export function renderSelection() {
     const v = el.querySelector('#line-rename').value.trim();
     const old = linkAt(base, state, selection.id).name;
     if (!v || v === old) return;
-    renameLine(state, old, v);
-    save(state); renderAll();
+    renameLine(state, old, v, base, linkAt(base, state, selection.id).mode);
+    state.log.unshift(`${state.year}년 노선 이름 변경: ${old} → ${v}`);
+    save(state); refreshLinks(); renderAll();
   });
   el.querySelectorAll('[data-close-route]').forEach((b) => {
     b.onclick = () => {

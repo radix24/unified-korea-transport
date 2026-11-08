@@ -1071,9 +1071,33 @@ export function renameKPLines(base, state) {
   return { ok: true };
 }
 
-export function renameLine(state, oldName, newName) {
-  for (const l of state.newLinks) if (l.name === oldName) l.name = newName;
+/** 예전 저장의 노선 이름을 지금 자료 이름으로 (자료에서 OSM 이름을 고친 노선: 계통·운행 비율이 옛 이름을 들고 있다) */
+export const LINE_NAME_MIGRATE = { 수도권광역급행철도에이선: 'GTX-A', 수도권광역급행철도비선: 'GTX-B', 수도권광역급행철도씨선: 'GTX-C' };
+export function migrateLineNames(state) {
+  let n = 0;
+  for (const s of state.services || []) {
+    if (LINE_NAME_MIGRATE[s.line]) { s.line = LINE_NAME_MIGRATE[s.line]; n++; }
+    if (s.lines?.some((x) => LINE_NAME_MIGRATE[x])) { s.lines = s.lines.map((x) => LINE_NAME_MIGRATE[x] || x); n++; }
+    if ((s.name || '').startsWith('GTX-A (운정–')) { s.name = s.name.replace('GTX-A (운정–', 'GTX-A (운정중앙–'); n++; }
+  }
+  for (const [a, b] of Object.entries(LINE_NAME_MIGRATE)) if (state.lineFreq?.[a] != null) { state.lineFreq[b] = state.lineFreq[a]; delete state.lineFreq[a]; n++; }
+  for (const l of state.newLinks || []) if (LINE_NAME_MIGRATE[l.name]) { l.name = LINE_NAME_MIGRATE[l.name]; n++; }
+  return n;
+}
+
+export function renameLine(state, oldName, newName, base = null, mode = null) {
+  for (const l of state.newLinks) if (l.name === oldName && (mode == null || l.mode === mode)) l.name = newName;
   for (const p of state.projects) if (p.label.startsWith(`${oldName} `)) p.label = p.label.replace(oldName, newName);
+  // 기존(OSM) 노선도: 구간마다 이름을 덮어쓴다 (2026.11 메일 건의: 기존 고속도로 이름 바꾸기)
+  if (base) base.links.forEach((l, i) => {
+    const cur = state.overrides[i]?.name ?? l.name;
+    if (cur === oldName && (mode == null || l.mode === mode)) state.overrides[i] = { ...(state.overrides[i] || {}), name: newName };
+  });
+  for (const s of state.services || []) {
+    if (s.line === oldName) s.line = newName;
+    if (s.lines) s.lines = s.lines.map((x) => (x === oldName ? newName : x));
+  }
+  if (state.lineFreq?.[oldName] != null) { state.lineFreq[newName] = state.lineFreq[oldName]; delete state.lineFreq[oldName]; }
 }
 
 export function nameOf(state, node) {

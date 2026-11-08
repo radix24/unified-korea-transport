@@ -4,22 +4,22 @@
 
 export const MEGA = [
   {
-    id: 'kj-tunnel', cat: '국제 연결', name: '한일해저터널', label: '한일해저터널 (부산–대마도–이키–후쿠오카)', cost: 600000, years: 10,
+    id: 'kj-tunnel', cat: '해저 터널', name: '한일해저터널', label: '한일해저터널 (부산–대마도–이키–후쿠오카)', cost: 600000, years: 10,
     desc: '부산에서 쓰시마·이키를 거쳐 후쿠오카까지 약 230km(해저 약 130km)의 고속철도 터널. 총사업비의 절반을 한국이 낸다. 완공되면 부산역에서 후쿠오카까지 고속열차가 다닌다.',
     ready: () => true,
   },
   {
-    id: 'jeju-hsr', cat: '국토 연결', name: '호남고속철 제주 연장', label: '호남고속철 제주 연장 (목포–해남–보길도–추자도–제주)', cost: 170000, years: 8,
+    id: 'jeju-hsr', cat: '해저 터널', name: '호남고속철 제주 연장', label: '호남고속철 제주 연장 (목포–해남–보길도–추자도–제주)', cost: 170000, years: 8,
     desc: '목포에서 해남·보길도·추자도를 거쳐 제주까지 약 167km(해저 약 73km). 완공되면 제주역이 생기고 호남고속선 열차가 제주까지 간다.',
     ready: () => true,
   },
   {
-    id: 'tsr', cat: '국제 연결', name: '시베리아 횡단철도 진입', label: '시베리아 횡단철도 진입 (두만강–하산 현대화·환적 시설)', cost: 50000, years: 4,
+    id: 'tsr', cat: '국제 연결', tree: '국제 사업/철도 연결', name: '시베리아 횡단철도 진입', label: '시베리아 횡단철도 진입 (두만강–하산 현대화·환적 시설)', cost: 50000, years: 4,
     desc: '두만강–하산 국경 철도를 현대화하고 궤간이 다른 러시아 철도와의 환적 시설을 지어 시베리아 횡단철도와 잇는다. 완공되면 국경 철도가 빨라지고, 철도 운영사가 해마다 대륙 통과 화물 수입을 얻는다.',
     ready: (state) => state.integration >= 0.5, need: '남북 통합도 50% 이상',
   },
   {
-    id: 'kp-ac', cat: '북측 철도 현대화', name: '북측 철도 교류화', label: '북측 철도 교류화 (직류 3kV → 교류 25kV 전국 승압)', cost: 0, years: 6,   // 사업비는 직류 구간 연장으로 (kpACCost)
+    id: 'kp-ac', cat: '북한 철도·전력 현대화', name: '북측 철도 교류화', label: '북측 철도 교류화 (직류 3kV → 교류 25kV 전국 승압)', cost: 0, years: 6,   // 사업비는 직류 구간 연장으로 (kpACCost)
     desc: '북측의 직류 3kV 전철 구간을 모두 남측과 같은 교류 25kV로 바꾸는 국가 사업. 변전소·가선을 한꺼번에 바꿔 구간마다 할 때보다 20% 덜 든다. 공사 기간 동안 긴 노선부터 해마다 차례로 교류로 개통하고, 남북 열차가 기관차를 바꾸지 않고 다닌다.',
     ready: (state) => state.integration >= 0.7, need: '남북 통합도 70% 이상',
   },
@@ -35,23 +35,23 @@ export const MEGA = [
   },
   // ---- 전력 현대화 (메일 건의): 북측의 고질적 전력난을 풀어 남북 격차를 줄인다. power: 발전 현대화율에 더하는 몫(%),
   // grid: 송전망 사업 (그 지역 소득·수렴). 효과는 game/power.js (해마다 계산에 넘김), 완공 때 한 번 오르는 통합도는 integ
-  { id: 'pw-thermal', cat: '전력 현대화', noMap: true, power: 17, name: '화력 발전소 정비·건설', label: '북측 화력 발전소 정비·건설', cost: 170000, years: 5,
+  { id: 'pw-thermal', cat: '북한 철도·전력 현대화', noMap: true, power: 17, name: '화력 발전소 정비·건설', label: '북측 화력 발전소 정비·건설', cost: 170000, years: 5,
     desc: '북측의 낡은 석탄 화력 발전소를 정비하고 새로 짓습니다. 발전 현대화율 +17%.', ready: () => true },
-  { id: 'pw-nuclear', cat: '전력 현대화', noMap: true, power: 32, name: '원자력 발전소 건설', label: '북측 원자력 발전소 건설', cost: 880000, years: 10,
+  { id: 'pw-nuclear', cat: '북한 철도·전력 현대화', noMap: true, power: 32, name: '원자력 발전소 건설', label: '북측 원자력 발전소 건설', cost: 880000, years: 10,
     desc: '북측 동해안에 원자력 발전소를 짓습니다. 발전 현대화율 +32%.', ready: (state) => state.integration >= 0.4, need: '남북 통합도 40% 이상' },
-  { id: 'pw-hydro', cat: '전력 현대화', noMap: true, power: 19, name: '수력 발전소 정비·건설', label: '북측 수력 발전소 정비·건설', cost: 190000, years: 7,
+  { id: 'pw-hydro', cat: '북한 철도·전력 현대화', noMap: true, power: 19, name: '수력 발전소 정비·건설', label: '북측 수력 발전소 정비·건설', cost: 190000, years: 7,
     desc: '압록강·장진강·부전강 수계의 수력 발전소를 고치고 새로 짓습니다. 발전 현대화율 +19%.', ready: () => true },
-  { id: 'pw-lng', cat: '전력 현대화', noMap: true, power: 10, name: 'LNG 화력 발전소 건설', label: '북측 LNG 화력 발전소 건설', cost: 30000, years: 3,
+  { id: 'pw-lng', cat: '북한 철도·전력 현대화', noMap: true, power: 10, name: 'LNG 화력 발전소 건설', label: '북측 LNG 화력 발전소 건설', cost: 30000, years: 3,
     desc: '남포·원산 일대에 LNG 화력 발전소를 짓습니다. 발전 현대화율 +10%.', ready: () => true },
-  { id: 'pw-solar', cat: '전력 현대화', noMap: true, power: 10, name: '태양광 발전소 건설', label: '북측 태양광 발전소 건설', cost: 40000, years: 2,
+  { id: 'pw-solar', cat: '북한 철도·전력 현대화', noMap: true, power: 10, name: '태양광 발전소 건설', label: '북측 태양광 발전소 건설', cost: 40000, years: 2,
     desc: '황해도 평야·간척지에 태양광 발전 단지를 짓습니다. 발전 현대화율 +10%.', ready: () => true },
-  { id: 'pw-wind', cat: '전력 현대화', noMap: true, power: 10, name: '풍력 발전소 건설', label: '북측 풍력 발전소 건설', cost: 100000, years: 3,
+  { id: 'pw-wind', cat: '북한 철도·전력 현대화', noMap: true, power: 10, name: '풍력 발전소 건설', label: '북측 풍력 발전소 건설', cost: 100000, years: 3,
     desc: '동해안·서해 섬에 풍력 발전 단지를 짓습니다. 발전 현대화율 +10%.', ready: () => true },
-  { id: 'grid-emergency', cat: '전력 현대화', noMap: true, grid: 'cities', name: '송전망 긴급 복구', label: '송전망 긴급 복구 (평양·함흥·청진)', cost: 50000, years: 3,
+  { id: 'grid-emergency', cat: '북한 철도·전력 현대화', noMap: true, grid: 'cities', name: '송전망 긴급 복구', label: '송전망 긴급 복구 (평양·함흥·청진)', cost: 50000, years: 3,
     desc: '평양·함흥·청진을 중심으로 송전망을 먼저 복구합니다. 세 도시의 1인당 소득·HDI가 오르고 소득 격차가 줄어듭니다.', ready: () => true },
-  { id: 'grid-trunk', cat: '전력 현대화', noMap: true, grid: 'si', integ: 0.02, name: '송전 간선망 현대화', label: '북측 송전 간선망 현대화 (시 지역)', cost: 200000, years: 5,
+  { id: 'grid-trunk', cat: '북한 철도·전력 현대화', noMap: true, grid: 'si', integ: 0.02, name: '송전 간선망 현대화', label: '북측 송전 간선망 현대화 (시 지역)', cost: 200000, years: 5,
     desc: '북측 시 지역을 중심으로 송전 간선망을 고칩니다. 시 지역 1인당 소득·HDI가 오르고 남북 통합도 +2%.', ready: () => true },
-  { id: 'grid-dist', cat: '전력 현대화', noMap: true, grid: 'gun', integ: 0.02, name: '배전망 확충', label: '북측 배전망 확충 (군 지역)', cost: 220000, years: 10,
+  { id: 'grid-dist', cat: '북한 철도·전력 현대화', noMap: true, grid: 'gun', integ: 0.02, name: '배전망 확충', label: '북측 배전망 확충 (군 지역)', cost: 220000, years: 10,
     desc: '북측 군 지역까지 배전망을 넓힙니다. 군 지역 1인당 소득·HDI가 오르고 남북 통합도 +2%.', ready: () => true },
 ];
 

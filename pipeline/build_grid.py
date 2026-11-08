@@ -51,6 +51,10 @@ MIN_COVERAGE = 0.6        # 읍면동 경계가 존 면적의 이만큼은 덮�
 KM_PER_DEG = 111.32
 
 
+# 인구 격자(WorldPop)가 크게 틀린 존: (나라, 이름) → 조사 인구
+# 삼수군: 격자 7천 명, 2008년 북한 인구조사 약 4만 명 (2026.11 메일 건의)
+POP_FIX = {("KP", "삼수군"): 40000}
+
 def log(*a):
     print(*a, file=sys.stderr, flush=True)
 
@@ -175,6 +179,11 @@ def main():
 
     rec = np.array(records, dtype=np.float32)
     (OUT / "grid.bin").write_bytes(rec.astype("<f4").tobytes())
+    # 인구 격자가 크게 틀린 존은 조사 인구로 덮는다 (메일 건의)
+    for f in fc["features"]:
+        q = f["properties"]
+        if (q.get("country"), q.get("name")) in POP_FIX:
+            q["pop"] = POP_FIX[(q["country"], q["name"])]
     # 게임은 존 속성만 받는다 (도형은 data/admin/sgg.geojson과 같은 순서)
     (OUT / "zones.json").write_text(
         json.dumps([f["properties"] for f in fc["features"]], ensure_ascii=False, separators=(",", ":")), encoding="utf-8")

@@ -55,13 +55,15 @@ export function cityUpTargets() {
 }
 
 export let zoneAdj = null;   // 존 → 맞닿은 존들 (시군 경계 자료에서)
+export const zoneAdjWater = new Map();   // 존 → 물 건너 맞닿은 존들 (섬 군: 신도군–신의주 등)
 export function adjacency() {
   if (zoneAdj) return zoneAdj;
   zoneAdj = new Map();
   fetchEdges().then((edges) => {
     for (const f of edges) {
       const { a, b, w } = f.properties;
-      if (w || a < 0 || b < 0 || a === b) continue;   // 물 위 경계(제주–전남, 거제–부산 등)로는 잇지 않는다
+      if (a < 0 || b < 0 || a === b) continue;
+      if (w) { for (const [x, y] of [[a, b], [b, a]]) { if (!zoneAdjWater.has(x)) zoneAdjWater.set(x, new Set()); zoneAdjWater.get(x).add(y); } continue; }   // 물 위 경계(제주–전남, 거제–부산 등)는 따로
       for (const [x, y] of [[a, b], [b, a]]) { if (!zoneAdj.has(x)) zoneAdj.set(x, new Set()); zoneAdj.get(x).add(y); }
     }
     zoneAdj.ready = true;
@@ -88,7 +90,9 @@ export function annexTargets() {
     // 세종도, 북측 지방자치 전의 북측 도·시군도 옮길 수 있다 (지방자치 전 북측으로 옮긴 시군의 단체장은 관선이 된다)
     if (!r) return;
     const metro = isMetroCity(r);
-    for (const j of adj.get(i) || []) {
+    // 물 건너 이웃은 원래 같은 도였던 곳만 (신도군 → 신의주광역시는 되고, 제주–전남·거제–부산은 안 된다: 2026.11 메일 건의)
+    const water = [...(zoneAdjWater.get(i) || [])].filter((j) => zoneProps[j]?.province && zoneProps[j].province === z.province);
+    for (const j of [...(adj.get(i) || []), ...water]) {
       const d = byZone.get(j);
       if (!d || d.region === r || L.independent.includes(d.name)) continue;
       // 광역시는 시·군·구를 받는다: 시는 광역시 밑에 둘 수 없어 구로 내려가고(함주시 → 함주구), 일반구가 있던 시는 그 구들이 각각 자치구가 된다.
@@ -1320,29 +1324,33 @@ export async function drawBungu() {
 export const bunguSelect = (id, none = '분구 안 함 (구 없이)', min = 1) => `<select id="${id}" class="small">${[1, 2, 3, 4, 5].filter((n) => n >= min).map((n) => `<option value="${n}">${n === 1 ? none : `${n}개 구로 분구`}</option>`).join('')}</select>`;
 
 /** 건설 탭: 국가 대형 사업 목록 (착공 전·공사 중·완공). 선형 보기·효과 미리보기·착공 */
+/** 국가 대형 사업 한 줄 (계획 사업 묶음에서도 쓴다: 시베리아 횡단철도) */
+export function megaRowHTML(m) {
+  const p = state.projects.find((x) => x.kind === 'mega' && x.mega === m.id);
+  const status = state.mega?.[m.id] ? `<span class="pos">${state.mega[m.id]}년 완공</span>`
+    : p ? `공사 중, ${p.doneYear}년 완공 예정`
+    : `<button class="small primary" data-mega="${m.id}" ${m.ready(state) ? '' : 'disabled'}>착공 ${formatWon(m.cost)}, ${m.years}년</button>
+      ${m.noMap ? '' : `<button class="small" data-mega-prev="${m.id}">효과 미리보기</button>`}${m.ready(state) || !m.need ? '' : ` <span class="m">조건: ${esc(m.need)}</span>`}`;
+  const acInfo = m.id === 'kp-ac' ? (() => { const L = kpDCLines(base, state); return ` 남은 직류 구간 ${L.length}개 노선 ${Math.round(L.reduce((s0, g) => s0 + g.km, 0)).toLocaleString()}km.`; })() : '';
+  return `<div class="item"><div class="t">${esc(m.name)} ${m.id === 'kp-ac' || m.noMap ? '' : `<button class="small" data-mega-show="${m.id}">선형 보기</button>`}</div>
+    <div class="m">${esc(m.desc)}${m.id === 'tsr' ? ` 화물 수입 연 ${formatWon(TSR_FREIGHT)}.` : ''}${acInfo}</div><div class="row" style="display:flex;gap:4px;flex-wrap:wrap">${status}</div></div>`;
+}
+
 export function megaHTML() {
   // 교류화 사업비는 남은 직류 구간 연장으로 (착공 전에만 다시 잰다)
   const ac = MEGA.find((m) => m.id === 'kp-ac');
   if (ac && !state.projects.some((x) => x.kind === 'mega' && x.mega === 'kp-ac')) ac.cost = state.mega?.['kp-ac'] ? ac.cost : kpACCost(base, state);
   // 계획 사업과 겹쳐 물린 사업(retired)은 이미 짓거나 지은 저장에서만 보인다
-  const shown = MEGA.filter((m) => !m.retired || state.mega?.[m.id] || state.projects.some((x) => x.kind === 'mega' && x.mega === m.id));
+  // tree가 있는 사업(시베리아 횡단철도)은 계획 사업 묶음에 보인다 (plans.js)
+  const shown = MEGA.filter((m) => !m.tree && (!m.retired || state.mega?.[m.id] || state.projects.some((x) => x.kind === 'mega' && x.mega === m.id)));
   // 분야별로 접어 둔다 (처음에는 모두 접힘: 메일 건의)
   const cats = [...new Set(shown.map((m) => m.cat || '기타'))];
-  const megaRow = (m) => {
-    const p = state.projects.find((x) => x.kind === 'mega' && x.mega === m.id);
-    const status = state.mega?.[m.id] ? `<span class="pos">${state.mega[m.id]}년 완공</span>`
-      : p ? `공사 중, ${p.doneYear}년 완공 예정`
-      : `<button class="small primary" data-mega="${m.id}" ${m.ready(state) ? '' : 'disabled'}>착공 ${formatWon(m.cost)}, ${m.years}년</button>
-        ${m.noMap ? '' : `<button class="small" data-mega-prev="${m.id}">효과 미리보기</button>`}${m.ready(state) || !m.need ? '' : ` <span class="m">조건: ${esc(m.need)}</span>`}`;
-    const acInfo = m.id === 'kp-ac' ? (() => { const L = kpDCLines(base, state); return ` 남은 직류 구간 ${L.length}개 노선 ${Math.round(L.reduce((s0, g) => s0 + g.km, 0)).toLocaleString()}km.`; })() : '';
-    return `<div class="item"><div class="t">${esc(m.name)} ${m.id === 'kp-ac' || m.noMap ? '' : `<button class="small" data-mega-show="${m.id}">선형 보기</button>`}</div>
-      <div class="m">${esc(m.desc)}${m.id === 'tsr' ? ` 화물 수입 연 ${formatWon(TSR_FREIGHT)}.` : ''}${acInfo}</div><div class="row" style="display:flex;gap:4px;flex-wrap:wrap">${status}</div></div>`;
-  };
+  const megaRow = megaRowHTML;
   const pw = powerPct(state);
   const megaBody = `<p class="hint">해마다 예산을 들여 짓는 국가 단위 사업입니다. 선형을 지도에서 보고, 다 지었을 때의 효과와 예비타당성 평가를 미리 볼 수 있습니다.</p>
-    ${cats.map((c) => subFold(`mega:${c}`, `${esc(c)} <span class="cnt">${shown.filter((m) => (m.cat || '기타') === c).length + (c === '북측 철도 현대화' && kpStdAllHTML() ? 1 : 0)}</span>`,
-    `${c === '전력 현대화' ? `<p class="hint">북측 발전 현대화율 <b>${pw}%</b> (25·50·75·100%를 넘을 때마다 통합도 +1%p, 북측 소득 수렴이 빨라집니다)</p>` : ''}
-      <div class="list">${shown.filter((m) => (m.cat || '기타') === c).map(megaRow).join('')}${c === '북측 철도 현대화' ? kpStdAllHTML() : ''}</div>`)).join('')}`;
+    ${cats.map((c) => subFold(`mega:${c}`, `${esc(c)} <span class="cnt">${shown.filter((m) => (m.cat || '기타') === c).length + (c === '북한 철도·전력 현대화' && kpStdAllHTML() ? 1 : 0)}</span>`,
+    `${c === '북한 철도·전력 현대화' ? `<p class="hint">북측 발전 현대화율 <b>${pw}%</b> (25·50·75·100%를 넘을 때마다 통합도 +1%p, 북측 소득 수렴이 빨라집니다)</p>` : ''}
+      <div class="list">${shown.filter((m) => (m.cat || '기타') === c).map(megaRow).join('')}${c === '북한 철도·전력 현대화' ? kpStdAllHTML() : ''}</div>`)).join('')}`;
   // 대형 도시 개발: 분야별로 접고, 그 자리에서 바로 착공한다 (시군 창의 '도시 개발'과 같은 사업)
   const devCats = [...new Set(Object.values(SPECIAL_DEV).map((D) => D.cat || '남측 도시 개발'))];
   const devRow = ([k, D]) => {

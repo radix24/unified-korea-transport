@@ -14,6 +14,8 @@ import { renderBuild, shownPlan, switchTab } from './panels.js';
 import { openServicePlan, railStationSet, requireName, servicePlanLines, setPlansOf } from './svc.js';
 import { plansTakenByClosed } from './reopen.js';
 import { showGazette } from './gazette.js';
+import { megaRowHTML } from './bungu.js';
+import { MEGA } from '../game/mega.js';
 
 // ------------------------------------------------------------ 계획 사업 (data/plans.json)
 
@@ -467,8 +469,10 @@ export function plansHTML() {
   // 다 지은 계획은 목록에서 뺀다 (사업 탭의 완공 사업에서 본다)
   const doneIds = new Set(state.projects.filter((p) => p.status === 'done' && p.plan).map((p) => p.plan));
   const building = new Map(state.projects.filter((p) => p.status === 'building' && p.plan).map((p) => [p.plan, p]));
-  const open = plans.filter((p) => !doneIds.has(p.id));
+  // 국가 대형 사업 가운데 tree가 있는 것(시베리아 횡단철도)도 그 묶음에 함께 보인다
+  const open = [...plans.filter((p) => !doneIds.has(p.id)), ...MEGA.filter((m) => m.tree).map((m) => ({ id: `mega:${m.id}`, tree: m.tree, mega: m }))];
   const row = (p) => {
+    if (p.mega) return megaRowHTML(p.mega);
     let km = 0;
     for (let i = 1; i < p.points.length; i++) km += kmBetween(p.points[i - 1][1], p.points[i - 1][2], p.points[i][1], p.points[i][2]);
     const spec = NEW_BUILDS[p.type];

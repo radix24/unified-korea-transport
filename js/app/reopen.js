@@ -345,10 +345,23 @@ export function sameRoute(id, withOrigin = false) {
   const out = [];
   // 걷어 낸 구간(직선화·개량으로 폐선된 옛 구간, 나뉘기 전 구간)은 이름이 같아도 뺀다 (노선 전체를 고르면 옛 선형이 계속 보이던 것)
   const gone = (i) => (i < base.links.length ? !!state.replaced?.[i] : !!state.newLinks[i - base.links.length]?.replaced);
+  const other = [];   // 이름은 같은데 남북이 다른 구간: 이어져 있을 때만 (남측 노선을 북측으로 연장한 것)
   allLinks().forEach((_, i) => {
     const m = linkAt(base, state, i);
-    if (m.name === l.name && m.mode === l.mode && m.cls === l.cls && m.kp === l.kp && (i === id || !gone(i))) out.push(i);
+    if (m.name !== l.name || m.mode !== l.mode || m.cls !== l.cls || (i !== id && gone(i))) return;
+    (m.kp === l.kp ? out : other).push(i);
   });
+  if (other.length) {
+    const nodes = new Set(out.flatMap((i) => { const m = linkAt(base, state, i); return [m.a, m.b]; }));
+    for (let grew = true; grew;) {
+      grew = false;
+      for (let k = other.length - 1; k >= 0; k--) {
+        const m = linkAt(base, state, other[k]);
+        if (!nodes.has(m.a) && !nodes.has(m.b)) continue;
+        out.push(other[k]); nodes.add(m.a); nodes.add(m.b); other.splice(k, 1); grew = true;
+      }
+    }
+  }
   return withOrigin ? out.concat(originConnector(l, out)) : out;
 }
 

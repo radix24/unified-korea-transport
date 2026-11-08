@@ -311,8 +311,8 @@ export const EXISTING_SERVICES = [
   { name: '서해선 일반 (서화성–홍성)', color: '#8fc31f', kind: 'local', type: 'intercity', sets: 6, lines: ['서해선'], from: '서화성', to: '홍성' },
   { name: '중부내륙선 KTX-이음 (판교–문경)', color: '#3b5bab', kind: 'express', type: 'semi', sets: 6, lines: ['경강선', '중부내륙선'], from: '판교', to: '문경' },
   // GTX-A: 수서–동탄은 수서평택고속선 선로를 함께 쓴다 (2024.3 개통). 운정–서울은 2024.12 개통
-  { name: 'GTX-A (수서–동탄)', color: '#9a6292', kind: 'express', type: 'intercity', sets: 6, lines: ['수도권광역급행철도에이선', '수서평택고속선'], stops: ['수서', '성남', '구성', '동탄'] },
-  { name: 'GTX-A (운정–서울)', color: '#9a6292', kind: 'express', type: 'intercity', sets: 8, lines: ['수도권광역급행철도에이선'], stops: ['운정', '킨텍스', '대곡', '연신내', '서울'] },
+  { name: 'GTX-A (수서–동탄)', color: '#9a6292', kind: 'express', type: 'intercity', sets: 6, lines: ['GTX-A', '수서평택고속선'], stops: ['수서', '성남', '구성', '동탄'] },
+  { name: 'GTX-A (운정중앙–서울)', color: '#9a6292', kind: 'express', type: 'intercity', sets: 8, lines: ['GTX-A'], stops: ['운정중앙', '킨텍스', '대곡', '연신내', '서울'] },
   // 선로가 열리면(원시–서화성 연결, OSM 개통 예정 2030) 그해부터 다니는 계통
   // 고속열차 (KTX, SR 통합 뒤 수서발도 KTX): 고속선과 서울·용산·수서 쪽 기존선을 직통한다 (호남고속선은 오송에서 경부고속선으로 서울까지)
   { name: 'KTX 경부선 (서울–부산)', color: '#1b3f8b', kind: 'limited', type: 'hsr', cls: 'hsr', sets: 14, hsr: true, lines: ['경부선', '경부고속선'],
@@ -331,7 +331,7 @@ export const EXISTING_SERVICES = [
   { name: '서해선 (대곡–홍성)', color: '#8fc31f', kind: 'local', type: 'intercity', sets: 22, lines: ['서해선'], from: '대곡', to: '홍성', wait: true,
     replaces: ['서해선 광역 (대곡–원시)', '서해선 일반 (서화성–홍성)'] },
   // 서울–삼성–수서 구간이 열리면 GTX-A 전 구간 직통
-  { name: 'GTX-A (운정–동탄)', color: '#9a6292', kind: 'express', type: 'intercity', sets: 16, lines: ['수도권광역급행철도에이선', '수서평택고속선'], stops: ['운정', '킨텍스', '대곡', '연신내', '서울', '삼성', '수서', '성남', '구성', '동탄'], wait: true },
+  { name: 'GTX-A (운정중앙–동탄)', color: '#9a6292', kind: 'express', type: 'intercity', sets: 16, lines: ['GTX-A', '수서평택고속선'], stops: ['운정중앙', '킨텍스', '대곡', '연신내', '서울', '삼성', '수서', '성남', '구성', '동탄'], wait: true },
 ];
 
 /** 계통 하나를 지금 선로로 짠다. strict면 정해진 노선 선로만으로 이어질 때만 (다른 노선으로 돌아가면 null) */

@@ -14,7 +14,7 @@ import { initPPP } from './game/ppp.js';
 import { clearAuto, getRef, keepBackup, loadAuto } from './game/savestore.js';
 import { planService, refreshExistingServices, rerouteCommutersOffHsr, seedServices, tripsPerDay } from './game/services.js';
 import { clearSim, loadSim } from './game/simstore.js';
-import { colourNewMetro, dropOrphanNames, effectiveNetwork, initAirRoutes, initOngoing, load, migrateAir, newGame, placeName, save } from './game/state.js';
+import { colourNewMetro, dropOrphanNames, effectiveNetwork, migrateLineNames, initAirRoutes, initOngoing, load, migrateAir, newGame, placeName, save } from './game/state.js';
 import { loadTerrain, terrainAt } from './game/terrain.js';
 import { extendWorld, urbanLanes } from './game/world.js';
 import { t } from './i18n.js';
@@ -163,6 +163,7 @@ async function init() {
   if (convertRadialHousingRoads()) save(state);   // 예전 1기 신도시급 방사형 간선 → # 격자
   // 예전 저장: 광역시로 승격한 시 자체는 중구, 편입한 시군은 구가 됐다 → 단체장 직함을 지금 이름으로
   renamePyongyangMetro();
+  if (migrateLineNames(state)) save(state);   // GTX 노선 이름 (OSM 이름 → GTX-A·B·C)
   initLocal(state);
   fixPropagandaUnivs();
   const keysFixed = normalizeUnitKeys(state, zoneProps);

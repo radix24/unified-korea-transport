@@ -97,6 +97,8 @@ export function unitMyeon(i) {
 
 /** 시에서 동으로 바꾼 면의 리 이름: ○○리 → ○○동 (직접 바꾼 이름은 그대로) */
 export function riToDong(i, name) {
+  // 군으로 편입한 동은 읍이 된다 (군에는 읍·면만 둔다: 2026.11 메일 건의로 동도 군에 편입할 수 있게)
+  if (/동$/.test(name || '') && !state.placeNames?.[`u:${i}`] && state.local?.annexSubUnit?.[subKey(i)] && /군$/.test(unitName(subUnit(i)))) return name.replace(/동$/, '읍');
   // 남측 시: 동으로 바꾼 읍면은 ○○읍·○○면 → ○○동 (군에는 읍면만, 시에는 읍면동 모두 둘 수 있다)
   const sp = splitOfSub(i), spSi = sp && /시$/.test(state.local.splitUnit[sp]?.name || ''), spDong = sp ? new Set(state.local.dongMyeon?.[sp] || []) : null;
   // 광역시의 자치구 밑은 동만 둔다 (군을 구로 바꾸거나 읍면이 있던 시를 편입·신설해 자치구가 되면 읍면 → 동). 광역시의 군·구 없는 몸통은 읍면 그대로
@@ -346,16 +348,15 @@ export function subAnnexAll(i, one = false) {
   // 북측은 지방자치를 들이기 전에도 리·면을 옮길 수 있다 (단체장·의회 협의가 없어 오히려 싸다: annexSubCost)
   if (zp.ext) return { metro: [], si: [] };
   const own = subRegion(i), ownU = subUnit(i), metro = new Set(), si = new Map();
-  const dong = annexGroup(i, one).some((s) => /동$/.test(subName(s)));
   for (const s of annexGroup(i, one)) for (const j of subNeighbors(s)) {
     const r = subRegion(j), u = subUnit(j);
     if (u === ownU) continue;
     if (r !== own && isMetroCity(r)) { metro.add(r); continue; }   // 세종도 받는다
     const nm = unitName(u);
     // 같은 광역시 안: 이웃 자치구(구역)로 옮긴다 (평양시 역포구 역포동 → 낙랑구). 광역시의 군에는 읍·면만
-    if (isMetroCity(r)) { if (r === own && (/(구|구역)$/.test(nm) || (/군$/.test(nm) && !dong))) si.set(u, nm); continue; }
-    // 시·군 모두 받는다. 군에는 읍·면만 둘 수 있어 동은 군으로 들이지 않는다
-    if (/시$/.test(nm) || (/군$/.test(nm) && !dong)) si.set(u, nm);
+    if (isMetroCity(r)) { if (r === own && /(구|구역|군)$/.test(nm)) si.set(u, nm); continue; }
+    // 시·군 모두 받는다. 군에는 읍·면만 두므로 동을 군으로 옮기면 읍이 된다 (riToDong)
+    if (/[시군]$/.test(nm)) si.set(u, nm);
   }
   return { metro: [...metro], si: [...si] };
 }

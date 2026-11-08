@@ -714,16 +714,27 @@ export function usedLineNames() {
 /** 그리는 노선의 첫 점이나 끝점이 같은 종류 기존 노선의 종점이면 그 노선 이름 (연장 후보) */
 export function extensionOf() {
   if (!draft || draft.points.length < 2) return null;
-  const spec = NEW_BUILDS[draft.type];
-  for (const p of [draft.points[0], draft.points[draft.points.length - 1]]) {
-    if (p.node == null) continue;
+  const spec = NEW_BUILDS[draft.type], all = allLinks();
+  const endName = (node) => {
     const count = new Map();
-    for (const l of allLinks()) {
-      if ((l.a !== p.node && l.b !== p.node) || l.mode !== spec.mode || l.cls !== spec.attrs.cls || !l.name || l.ext) continue;
+    for (const l of all) {
+      if ((l.a !== node && l.b !== node) || l.mode !== spec.mode || l.cls !== spec.attrs.cls || !l.name || l.ext) continue;
       count.set(l.name, (count.get(l.name) || 0) + 1);
     }
     // 그 점에서 한 구간만 뻗는 노선 = 종점
     for (const [name, n] of count) if (n === 1) return name;
+    return null;
+  };
+  for (const p of [draft.points[0], draft.points[draft.points.length - 1]]) {
+    if (p.node != null) { const n = endName(p.node); if (n) return n; continue; }
+    // 종점 노드가 아니라 마지막 구간 위(종점 1.5km 안)에 붙였어도 연장으로 본다 (예전에는 새 이름이 붙어 '같은 이름 노선 전체'로 묶이지 않았다: 2026.11 메일 건의)
+    if (p.split == null) continue;
+    const l = all[p.split];
+    if (!l?.name || l.mode !== spec.mode || l.cls !== spec.attrs.cls || l.ext) continue;
+    for (const e of [l.a, l.b]) {
+      const c = nodeCoord(e);
+      if (c && kmBetween(c[0], c[1], p.lon, p.lat) < 1.5 && endName(e) === l.name) return l.name;
+    }
   }
   return null;
 }

@@ -414,7 +414,6 @@ export function linkPanel(id) {
   const planned = id < base.links.length && linkPending(base, state, id);
   const osmProj = planned && state.projects.find((p) => p.kind === 'osm' && p.status === 'building' && p.links.includes(id));
   const ups = l.ext || l.cls === 'ferry' || planned ? [] : UPGRADES.filter((u) => u.mode === l.mode && u.applies(l) && !(upProjs.length && linksBlockedFor(state, u.id).has(id)));
-  const isNew = id >= base.links.length;
   const route = sameRoute(id, true);
   const routeKm = route.reduce((sum, x) => sum + linkAt(base, state, x).len, 0);
   const viaKm = originConnector(l, sameRoute(id)).reduce((sum, x) => sum + linkAt(base, state, x).len, 0);
@@ -453,7 +452,7 @@ export function linkPanel(id) {
     </table>
     ${l.mode >= 1 && l.name && !l.ext && !planned ? serviceSection(l, secIds) : ''}
     ${!planned && !busyProj ? reopenHTML(id, l) : ''}
-    ${isNew && l.name ? `<h4>노선 이름</h4><div class="name-row"><input type="text" id="line-rename" value="${esc(l.name)}">
+    ${l.name && !l.ext && l.cls !== 'ferry' ? `<h4>노선 이름</h4><div class="name-row"><input type="text" id="line-rename" value="${esc(l.name)}">
       <button class="small" id="line-rename-ok">바꾸기</button></div>` : ''}
     ${planned ? `<p class="hint">진행 중인 사업 구간입니다: ${esc(osmProj?.label || '')}, ${osmProj ? `${osmProj.doneYear}년 개통 예정` : ''}. 사업 탭에서 예산 투입 속도를 바꿀 수 있습니다.</p>`
     : l.ext ? '<p class="hint">국외 거점과 잇는 국경 연결 구간입니다. 개량 대상이 아닙니다.</p>'

@@ -206,6 +206,13 @@ export const UNIV_TYPES = {
   branch: { label: '국립대 분교·캠퍼스', seats: 5000, cost: 2000, years: 3 },
 };
 // 북측 대학 이름의 인물 (지도자·가족·혁명가): 개칭 사업으로 지명 이름으로 바꾼다
+// 북측 대학 이름 정리 (2026.11 메일 건의): 인물 이름이나 선전 문구를 뺀 지명 이름. 아래 표가 UNIV_PERSONS 규칙보다 먼저
+export const UNIV_NAME_FIX = {
+  오중흡청진제일사범대학: '청진사범대학', 김정숙사범대학: '회령사범대학', 원산리수덕교원대학: '원산교원대학', 정준택원산경제대학: '원산경제대학',
+  량강공업대학: '혜산공업대학', 차광수신의주제1사범대학: '신의주사범대학', 신의주영예군인대학: '신의주경제대학', 리수복순천화학공업대학: '순천공업대학',
+  강건사리원의학대학: '사리원의학대학', 리계순사리원제1사범대학: '사리원사범대학', 김제원해주농업대학: '해주농업대학', 김종태해주제1사범대학: '해주사범대학',
+  조목희해주교원대학: '해주교원대학', 안영애대학교: '개성의학대학',
+};
 export const UNIV_PERSONS = ['김일성', '김정일', '김정은', '김정숙', '김형직', '김형권', '김철주', '김보현', '강반석', '김책', '김원균', '리수덕', '조군실', '차광수', '김종태', '최현', '오중흡', '리계순', '한덕수'];
 export const UNIV_RENAME = { cost: 100, years: 1, bonus: 2 };
 
@@ -224,6 +231,7 @@ export function univList() {
 
 /** 인물 이름이 든 북측 대학의 바꿀 이름: 인물 이름을 빼고, 지명이 없으면 소재 도시 이름을 앞에 (김일성종합대학 → 평양종합대학) */
 export function univPersonRename(u) {
+  if (u.country === 'KP' && UNIV_NAME_FIX[u.orig ?? u.name]) return UNIV_NAME_FIX[u.orig ?? u.name];
   const p = UNIV_PERSONS.find((x) => u.name.includes(x));
   if (!p || u.country !== 'KP') return null;
   let rest = u.name.replace(p, '');
@@ -237,7 +245,7 @@ export function univPersonRename(u) {
  * 하나씩 돈 들여 바꾸던 '이름 되돌리기'는 그대로 남는다 (이미 바꾼 대학은 뜨지 않는다)
  */
 export function fixPropagandaUnivs() {
-  if (!state?.local || !zoneProps || !univs?.length || state.univPropagandaDone) return;
+  if (!state?.local || !zoneProps || !univs?.length || state.univPropagandaDone >= 2) return;   // 2: 2026.11 대학 추가·이름 표 (예전 저장도 한 번 더 돈다, 이미 바꾼 대학은 건너뜀)
   let n = 0;
   for (const u of univList()) {
     if (u.isNew || u.name !== u.orig) continue;
@@ -246,7 +254,7 @@ export function fixPropagandaUnivs() {
     (state.univNames ||= {})[u.orig] = to;
     n++;
   }
-  state.univPropagandaDone = true;
+  state.univPropagandaDone = 2;
   if (n) state.log.unshift(`${state.year}년 선전용 인물 이름이 든 북측 대학 ${n}곳을 지명 이름으로 일괄 변경 (예: ${univPersonRename({ ...univList().find((u) => state.univNames[u.orig] && u.orig !== state.univNames[u.orig]), name: '' }) || ''})`);
 }
 
