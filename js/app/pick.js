@@ -140,7 +140,7 @@ export function endMapTools() {
 
 export function startServicePick(first = []) {
   endMapTools();
-  svcPick = { picks: [...first] };
+  svcPick = { picks: Array.isArray(first) ? [...first] : [] };   // 단추 onclick이 이벤트를 넘겨도 빈 선택으로
   map.getCanvas().style.cursor = 'crosshair';
   select({ type: 'svcpick' });
   drawServicePick();

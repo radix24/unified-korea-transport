@@ -243,7 +243,7 @@ function serviceListHTML() {
 }
 
 function bindServiceList(el) {
-  el.querySelectorAll('.svc-pick-b').forEach((b) => { b.onclick = startServicePick; });
+  el.querySelectorAll('.svc-pick-b').forEach((b) => { b.onclick = () => startServicePick(); });
   const rows = [...el.querySelectorAll('[data-svc-go]')];
   rows.forEach((r) => {
     r.onclick = (ev) => { ev.preventDefault(); goService(r.dataset.svcGo); };

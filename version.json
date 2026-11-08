@@ -1,6 +1,6 @@
 {
-"v": "Alpha 0.8.5",
-"h": "53d1de1dbb",
+"v": "Alpha 0.8.6",
+"h": "2bc30742ea",
 "files": [
 "css/style.css",
 "js/app/budget.js",
@@ -101,13 +101,13 @@
 "data/baseline.bin"
 ],
 "hash": {
-"css/style.css": "0ae60a3dbe",
+"css/style.css": "50ecab9651",
 "js/app/budget.js": "cac6d3c882",
 "js/app/bungu.js": "a572b29378",
 "js/app/compare.js": "5fdd23f7ab",
-"js/app/core.js": "b4ce832dbb",
+"js/app/core.js": "093852e476",
 "js/app/draw.js": "e6fac3684d",
-"js/app/econ.js": "2fdd5b6820",
+"js/app/econ.js": "8d61db6542",
 "js/app/election.js": "ec004f9348",
 "js/app/firstyear.js": "f801566964",
 "js/app/fresh.js": "f38019bc52",
@@ -116,8 +116,8 @@
 "js/app/interact.js": "7cd4b4bcc8",
 "js/app/mapdata.js": "d433fd60e2",
 "js/app/operators.js": "242cfdb470",
-"js/app/panels.js": "b3e5f6717b",
-"js/app/pick.js": "416062904c",
+"js/app/panels.js": "72ad60961b",
+"js/app/pick.js": "b1cae6eac5",
 "js/app/plans.js": "08466691f8",
 "js/app/ppp.js": "289ab9bcc5",
 "js/app/preview.js": "ae12b434dc",

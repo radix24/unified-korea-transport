@@ -493,20 +493,22 @@ export function renderStatus() {
 
 export function renderBuild() {
   const el = $('[data-panel=build]');
-  // 건설 탭 (2026.11 건의): 왼쪽은 도로와 점 사업(IC·휴게소·역·대학·공항·택지), 오른쪽은 선로 부설과 운행 계통
-  const card = (k) => { const v = NEW_BUILDS[k]; return `<button data-build="${k}" class="${draft?.type === k ? 'on' : ''}">${t(v.label)}<span class="c">${formatWon(v.perKm)}/km · ${v.years}년</span></button>`; };
-  const extra = (attr, label, sub, on = false, cls = '') => `<button ${attr} class="${[cls, on ? 'on' : ''].join(' ').trim()}">${t(label)}<span class="c">${sub}</span></button>`;
-  const left = Object.keys(NEW_BUILDS).filter((k) => NEW_BUILDS[k].mode === 0).map(card).join('')
-    + extra('data-padd="ic"', 'IC·JCT 신설', '고속도로 위 한 점')
-    + extra('data-padd="rest"', '고속도로 휴게소 설치', '고속도로 위 한 점')
-    + extra('data-padd="station"', '(도시)철도역 신설', '노선 위 한 점')
-    + extra('id="univ-start"', '대학 건설', '지도에서 자리 고르기')
-    + extra('data-build="airport"', AIRPORT.build.label, `${formatWon(AIRPORT.build.cost)} · ${AIRPORT.build.years}년`, draft?.type === 'airport')
-    + extra('id="housing-pick" title="지도에서 고른 곳에 주택 단지를 조성합니다 (인구 순증)"', '택지지구 개발', '지도에서 자리 고르기');
-  const right = Object.keys(NEW_BUILDS).filter((k) => NEW_BUILDS[k].mode >= 1).map(card).join('')
-    + extra('', '운행 계통 신설', '시점·종점을 골라 KTX·ITX·광역 짜기', false, 'svc-pick-b')
-    + extra('id="svc-list-b"', '운행 계통 고치기', '목록에서 찾아 고르기');
-  const tools = `<div class="tool-col">${left}</div><div class="tool-col">${right}</div>`;
+  // 건설 탭: 도로·철도·도시철도·운행 계통·지역 개발로 묶고, 묶음 이름이 '건설·부설'을 말하므로 단추에서는 뺀다
+  const short = (label) => t(label).replace(/ (건설|부설)(?= \(|$)/, '');
+  const card = (k) => { const v = NEW_BUILDS[k]; return `<button data-build="${k}" class="${draft?.type === k ? 'on' : ''}">${short(v.label)}<span class="c">${formatWon(v.perKm)}/km · ${v.years}년</span></button>`; };
+  const extra = (attr, label, sub, on = false, cls = '') => `<button ${attr} class="${[cls, on ? 'on' : ''].join(' ').trim()}">${short(label)}<span class="c">${sub}</span></button>`;
+  const ofMode = (m) => Object.keys(NEW_BUILDS).filter((k) => NEW_BUILDS[k].mode === m).map(card).join('');
+  const group = (title, inner) => `<section class="tool-group"><h4 class="tool-h">${t(title)}</h4><div class="tool-grid">${inner}</div></section>`;
+  const tools = group('도로 건설', ofMode(0)
+      + extra('data-padd="ic"', 'IC·JCT 신설', '고속도로 위 한 점')
+      + extra('data-padd="rest"', '고속도로 휴게소 설치', '고속도로 위 한 점'))
+    + group('철도 부설', ofMode(1))
+    + group('도시철도 부설', ofMode(2) + extra('data-padd="station"', '(도시)철도역 신설', '노선 위 한 점'))
+    + group('운행 계통', extra('', '운행 계통 신설', '시점·종점을 골라 KTX·ITX·광역 짜기', false, 'svc-pick-b')
+      + extra('id="svc-list-b"', '운행 계통 고치기', '목록에서 찾아 고르기'))
+    + group('지역 개발', extra('id="univ-start"', '대학 건설', '지도에서 자리 고르기')
+      + extra('data-build="airport"', AIRPORT.build.label, `${formatWon(AIRPORT.build.cost)} · ${AIRPORT.build.years}년`, draft?.type === 'airport')
+      + extra('id="housing-pick" title="지도에서 고른 곳에 주택 단지를 조성합니다 (인구 순증)"', '택지지구 개발', '지도에서 자리 고르기'));
   // 노선 추천·미리보기 기간은 '노선 추천 · 미리보기' 접힘에 (추천 결과가 있으면 펼친다)
   let body = `${compareHTML()}${subFold('build:more', '노선 추천 · 미리보기', `<div class="name-row" style="margin-bottom:4px"><input type="text" id="rec-text" placeholder="예: 평양에 도시철도 3호선을 짓고 싶어, 노선을 추천해줘" style="flex:1">
       <button class="small primary" id="rec-go">노선 추천</button></div>
@@ -582,7 +584,7 @@ export function renderBuild() {
   el.querySelectorAll('[data-plan-show]').forEach((b) => { b.onclick = () => showPlan(shownPlan === b.dataset.planShow ? null : b.dataset.planShow); });
   if (draft) showPlan(null);
   el.querySelectorAll('[data-plan]').forEach((b) => { b.onclick = () => openPlan(b.dataset.plan); });
-  el.querySelectorAll('.svc-pick-b').forEach((b) => { b.onclick = startServicePick; });
+  el.querySelectorAll('.svc-pick-b').forEach((b) => { b.onclick = () => startServicePick(); });
   el.querySelector('#svc-list-b')?.addEventListener('click', () => { goSection('ops', '철도 운행 계통'); $('#svc-q')?.focus(); });
   el.querySelectorAll('[data-padd]').forEach((b) => { b.onclick = () => startPointAdd(b.dataset.padd); });
   el.querySelector('#univ-start')?.addEventListener('click', startUnivPick);

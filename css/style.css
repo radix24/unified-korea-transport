@@ -78,7 +78,7 @@ button.small { min-height: var(--btn-h-sm); padding: 0 10px; font-size: 12px; }
 button.on { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; box-shadow: none; }
 /* 나란히 놓인 단추 사이 간격 (flex·grid 묶음은 gap으로) */
 #side button + button { margin-left: var(--s2); }
-:is(.row, .pace, .tools, .econ-bar, .name-row, .ld-tabs, .btns, .item.line) > button + button, #side :is(.row, .pace, .tools, .econ-bar, .name-row, .ld-tabs, .btns, .item.line) > button + button { margin-left: 0; }
+:is(.row, .pace, .tools, .tool-grid, .econ-bar, .name-row, .ld-tabs, .btns, .item.line) > button + button, #side :is(.row, .pace, .tools, .tool-grid, .econ-bar, .name-row, .ld-tabs, .btns, .item.line) > button + button { margin-left: 0; }
 
 input[type=text], select {
   font: inherit; font-size: 13px; min-height: var(--btn-h-sm); padding: 0 8px; border-radius: var(--r-sm);
@@ -168,14 +168,14 @@ details.fold-sub .item.line .n .t-row .phase-tag { margin-left: 0; }
 .progress > div { height: 100%; background: var(--accent); }
 
 /* 건설 도구 */
-.tools { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); margin-bottom: var(--s3); }
-.tools button { text-align: left; padding: var(--s2) 10px; justify-content: flex-start; flex-direction: column; align-items: flex-start; gap: 2px; min-height: 48px; font-weight: 600; }
-.tools button .c { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
-.tools button.on .c { color: var(--accent); }
-/* 카드 높이가 달라도(두 줄 이름) 글자는 위에서부터, 아래 작은 단추들은 두 칸 격자로 */
-.tools button { height: 100%; white-space: normal; }
-.tool-col { display: flex; flex-direction: column; gap: var(--s2); }
-.tool-col button { height: auto; width: 100%; }
+.tools { margin-bottom: var(--s3); }
+.tool-group + .tool-group { margin-top: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); }
+.tool-h { margin: 0 0 var(--s2); }
+/* 같은 줄 카드는 높이를 맞추고, 두 줄 이름도 접히게 */
+.tool-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s2); }
+.tool-grid > button { margin: 0; width: 100%; height: 100%; min-height: 48px; text-align: left; padding: var(--s2) 10px; justify-content: flex-start; flex-direction: column; align-items: flex-start; gap: 2px; font-weight: 600; white-space: normal; }
+.tool-grid > button .c { display: block; font-size: 11px; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.tool-grid > button.on .c { color: var(--accent); }
 .tool-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); margin-bottom: var(--s3); }
 .tool-row button { width: 100%; white-space: normal; text-align: center; padding: 4px 8px; }
 .tool-row button.wide { grid-column: 1 / -1; }
