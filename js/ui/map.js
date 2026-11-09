@@ -457,7 +457,7 @@ const vcColor = () => ['case', ['>', vol, 0], ['interpolate', ['linear'], ['coal
 const IDLE_COLOR = '#9aa1aa';
 const idleOpacity = (on) => ['case', ['>', vol, 0], on, 0.45];
 // 철도 기본 색: 고속철 파랑, 협궤 주황, 일반철도 보라
-const RAIL_COLOR = ['case', ['==', ['get', 'cls'], 'hsr'], '#2453c9', ['==', ['get', 'cls'], 'gtx'], '#9a6292', ['==', ['get', 'narrow'], 1], '#e07b1a', '#6c3fa0'];
+const RAIL_COLOR = ['case', ['==', ['get', 'cls'], 'hsr'], '#2453c9', ['==', ['get', 'cls'], 'gtx'], '#0b7a8f', ['==', ['get', 'narrow'], 1], '#e07b1a', '#6c3fa0'];
 const METRO_COLOR = ['case', ['==', ['get', 'colour'], ''], '#1a9a6c', ['get', 'colour']];
 
 let linksCache = null;
@@ -923,7 +923,7 @@ export function legendHTML(metric, view = 'all', basemap = 'plain', level = 'sgg
   const rows = [];
   if (road) rows.push(`${sw('#3f9e63', 'line motorway')} 고속도로 ${sw('#3f9e63')} 일반도로`);
   if (view === 'rail') rows.push(`${sw('#6c3fa0', 'line thin')} 굵기 = 이용객, 색 = 혼잡도`);
-  else if (rail) rows.push(`${sw('#2453c9')} 고속철 ${sw('#6c3fa0')} 일반철도 ${sw('#e07b1a')} 협궤`, `${sw('#1a9a6c')} 도시철도 (노선색, 굵기 = 이용객)`);
+  else if (rail) rows.push(`${sw('#2453c9')} 고속철 ${sw('#0b7a8f')} GTX ${sw('#6c3fa0')} 일반철도 ${sw('#e07b1a')} 협궤`, `${sw('#1a9a6c')} 도시철도 (노선색, 굵기 = 이용객)`);
   if (air) rows.push(`${sw('#b04a9c', 'dot')} 공항 ${sw('#b04a9c')} 항공 노선 (굵기 = 여객)`);
   if (road || rail) rows.push(`${sw(IDLE_COLOR)} 이용 없음 ${sw('#8a8f96', 'dash')} 미개통`);
   if (rail || view === 'rail') rows.push(`${sw('#8d6e52', 'dash')} 폐선 (눌러서 재개통)`);

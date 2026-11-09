@@ -1,6 +1,6 @@
 {
-"v": "Alpha 0.9.4",
-"h": "4690f8133c",
+"v": "Alpha 0.9.5",
+"h": "239342d2ab",
 "files": [
 "css/style.css",
 "js/app/budget.js",
@@ -106,7 +106,7 @@
 "js/app/budget.js": "015a4a1443",
 "js/app/bungu.js": "a0ce641208",
 "js/app/compare.js": "1550036335",
-"js/app/core.js": "d56f06dc9a",
+"js/app/core.js": "d1dec411fd",
 "js/app/draw.js": "19ffc03075",
 "js/app/econ.js": "a4f9f0ac0f",
 "js/app/election.js": "73eb65fc77",
@@ -132,12 +132,12 @@
 "js/app/sez.js": "6155496fa2",
 "js/app/straighten.js": "b9225230cd",
 "js/app/svc.js": "5212c5956b",
-"js/app/svcmap.js": "a72a5801df",
+"js/app/svcmap.js": "80a3ef94bd",
 "js/app/transfer.js": "516b55816f",
 "js/app/univ.js": "402bbcfbda",
 "js/app/year.js": "953337f0c4",
 "js/app/zonedev.js": "9490d70bf3",
-"js/data/netfix.js": "e5eaf2dc48",
+"js/data/netfix.js": "e34961845e",
 "js/data/netpack.js": "c93034050a",
 "js/game/admin.js": "6e7cff7d4f",
 "js/game/airlines.js": "de900e693f",
@@ -156,7 +156,7 @@
 "js/game/migpolicy.js": "3463d75b0e",
 "js/game/migrate.js": "95ed1305c7",
 "js/game/naming.js": "240eca8f9f",
-"js/game/operators.js": "58de7c53c8",
+"js/game/operators.js": "c87aac77db",
 "js/game/points.js": "fbed4a5263",
 "js/game/ppp.js": "d54b9fc174",
 "js/game/recommend.js": "052e1fbad1",
@@ -181,7 +181,7 @@
 "js/ui/gazette.js": "0153535eaf",
 "js/ui/guide.js": "39dd5deb9e",
 "js/ui/linediagram.js": "8a0d016974",
-"js/ui/map.js": "234e47c9bf",
+"js/ui/map.js": "90b9c58049",
 "js/ui/notice.js": "62ccbf32db",
 "js/ui/palette.js": "3b607c113b",
 "js/ui/panel.js": "faad0fdbfd",
@@ -198,7 +198,7 @@
 "data/grid.bin": "f71413232c",
 "data/air_sea.json": "ed23acc23d",
 "data/admin/sgg.geojson": "092c999886",
-"data/baseline.json": "f24de161f7",
-"data/baseline.bin": "8adae727e2"
+"data/baseline.json": "c9657cd8e3",
+"data/baseline.bin": "f7f9c471d1"
 }
 }

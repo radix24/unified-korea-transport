@@ -7,6 +7,9 @@
 //    환승역 19곳): 역 노드를 노선의 곧은 줄기 위로 옮긴다
 
 export const GTX_NAME = /^GTX-|광역급행철도/;
+/** 일반철도 자료로 들어온 도시철도 노선과 그 표정 속도 (km/h) */
+const METRO_AS_RAIL = /^신분당선$/;
+const METRO_AS_RAIL_KMH = 50;
 const km = (a, b) => Math.hypot((a[0] - b[0]) * 88.6, (a[1] - b[1]) * 111);
 
 /** 구간 도형을 노드 쪽부터 [[x, y], ...]로 (NaN으로 나뉜 여러 조각이면 null) */
@@ -191,6 +194,36 @@ export function fixNetwork(base, nodeFix = {}, roadFix = {}, linkFix = null) {
   }
   // 대심도 광역급행철도(GTX): 지도 자료 선형이 역 어귀에서 기존 노선을 따라 구불거린다(대곡 등). 지하 깊이 거의 곧게 가므로
   // 250m 안의 잔굴곡을 없애고 매끈한 곡선으로 (양 끝 역 자리는 그대로)
+  // 일반철도 자료로 들어온 도시철도 노선 (신분당선): 도시철도로 옮긴다. 일반철도 망에 있으면 같은 노드를 쓰는 분당선(정자·미금)과
+  // 공짜로 갈아타 미금–정자 구간 이용객이 0이 되고, 버스·도시철도와 갈아탈 수 없어 혼잡도가 실제의 몇 분의 일로 나왔다.
+  // 역은 도시철도역으로, 이름이 같은 가까운(600m 안) 다른 도시철도역(강남·양재 등)과는 환승 통로를 잇는다
+  {
+    const conv = base.links.filter((l) => l.mode === 1 && METRO_AS_RAIL.test(l.name || ''));
+    const railSt = new Map(base.stations.map(([nm, n]) => [n, nm]));
+    const nodes = new Set();
+    for (const l of conv) { l.mode = 2; l.cls = 'metro'; l.speed = METRO_AS_RAIL_KMH; nodes.add(l.a); nodes.add(l.b); }
+    const metroSt = (base.metro_stations ||= []);
+    const isMetroSt = new Set(metroSt.map((s) => s[1]));
+    const stillRail = new Set();
+    for (const l of base.links) if (l.mode === 1) { stillRail.add(l.a); stillRail.add(l.b); }
+    const plain = (s) => String(s).replace(/(.)역$/, '$1');
+    const added = new Set();
+    for (const n of nodes) {
+      const nm = railSt.get(n);
+      if (nm == null) continue;
+      if (!isMetroSt.has(n)) { metroSt.push([nm, n]); isMetroSt.add(n); }
+      // 다른 일반철도가 지나지 않는 역은 일반철도역에서 뺀다
+      if (!stillRail.has(n)) for (let k = base.stations.length - 1; k >= 0; k--) if (base.stations[k][1] === n) base.stations.splice(k, 1);
+      for (const [nm2, m] of metroSt) {
+        if (m === n || nodes.has(m) || plain(nm2) !== plain(nm) || added.has(`${Math.min(n, m)}-${Math.max(n, m)}`)) continue;
+        const d = km(base.nodes[n], base.nodes[m]);
+        if (d > 0.6) continue;
+        added.add(`${Math.min(n, m)}-${Math.max(n, m)}`);
+        base.links.push({ a: n, b: m, mode: 2, cls: 'metro', name: `${plain(nm)} 환승`, speed: 5, tracks: 2, kp: 0,
+          len: Math.max(0.1, Math.round(d * 100) / 100), geom: [...base.nodes[n], ...base.nodes[m]] });
+      }
+    }
+  }
   // GTX는 따로 된 선로 등급(cls 'gtx')으로 둔다: 고속철도·일반철도·도시철도와 갈라, 전용 열차만 다닌다.
   // 이름은 link_fix에서 GTX-A·B·C로 바뀐 뒤다 (예전 이름 '…광역급행철도…'만 찾던 아래 손질이 0.9.1부터 듣지 않았다)
   for (const l of base.links) {

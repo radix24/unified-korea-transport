@@ -28,7 +28,7 @@ export function setShowHousing(v) { return (showHousing = v); }
 try { showHousing = localStorage.getItem('ukt-housing') !== '0'; } catch { /* 기본은 켬 */ }
 
 /** 운행 계통 색: 등급마다 한 색 (노선마다 다른 색이면 여러 계통이 겹칠 때 무엇이 특급인지 읽히지 않았다) */
-export const GRADE_COLORS = { hsr: '#1f5fd1', gtx: '#9a6292', limited: '#d62828', express: '#f08c00', local: '#2b8a3e', commuter: '#0c8599' };
+export const GRADE_COLORS = { hsr: '#1f5fd1', gtx: '#0b7a8f', limited: '#d62828', express: '#f08c00', local: '#2b8a3e', commuter: '#7048e8' };
 export const GRADE_LABELS = { hsr: '고속', gtx: 'GTX', limited: '특급', express: '급행', local: '보통', commuter: '광역' };
 export function svcGrade(s) {
   if ((s.lines || [s.line]).some((n) => /^GTX-/.test(n || ''))) return 'gtx';

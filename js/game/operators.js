@@ -51,6 +51,7 @@ export function opBadge(state, op) {
 export const METRO_OPERATORS = {
   seoul: { name: '서울교통공사', en: 'Seoul Metro', color: '#1E5AA8' },
   metro9: { name: '서울시메트로9호선', en: 'Metro 9', color: '#BDB092' },
+  sinbundang: { name: '신분당선(주)', en: 'Shinbundang', color: '#D4003B' },
   busan: { name: '부산교통공사', en: 'Humetro', color: '#E8423A' },
   daegu: { name: '대구교통공사', en: 'DTRO', color: '#2E8B57' },
   incheon: { name: '인천교통공사', en: 'Incheon TC', color: '#4C7CC0' },
@@ -67,7 +68,7 @@ const METRO_AREAS = [
 export function metroOperatorOf(link) {
   if (!link || link.mode !== 2) return null;
   const n = link.name || '';
-  const key = /9호선/.test(n) && !/부산|대구|인천|광주|대전/.test(n) ? 'metro9'
+  const key = /^신분당/.test(n) ? 'sinbundang' : /9호선/.test(n) && !/부산|대구|인천|광주|대전/.test(n) ? 'metro9'
     : /^서울|우이신설|신림선/.test(n) ? 'seoul' : /^부산/.test(n) ? 'busan' : /^대구/.test(n) ? 'daegu'
     : /^인천/.test(n) ? 'incheon' : /^광주/.test(n) ? 'gwangju' : /^대전/.test(n) ? 'daejeon'
     : /천리마|혁신|평양/.test(n) ? 'pyongyang' : null;
