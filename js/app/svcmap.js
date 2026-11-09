@@ -1,7 +1,7 @@
 // 운행 계통을 지도에 노선으로.
 import { formatWon, resolve } from '../game/catalog.js';
 import { metroOpBadge, opBadge, operatorOf } from '../game/operators.js';
-import { canRun, defaultTrainType, EXISTING_SERVICES, SERVICE_KINDS } from '../game/services.js';
+import { canRun, defaultTrainType, isGTX, SERVICE_KINDS } from '../game/services.js';
 import { canAfford, effectiveNetwork, fundFor, linkAt, linkPending, linksBlockedFor, linksUnderBuild, upgradeCost, UPGRADES } from '../game/state.js';
 import { t } from '../i18n.js';
 import { kmBetween } from '../sim/model.js';
@@ -27,10 +27,19 @@ export let showHousing = true;   // 택지지구 면·경계·단지 도로 (범
 export function setShowHousing(v) { return (showHousing = v); }
 try { showHousing = localStorage.getItem('ukt-housing') !== '0'; } catch { /* 기본은 켬 */ }
 
-export function svcColor(s, k) {
-  // 예전 저장의 기본 계통은 색이 없다: 실제 노선도 색으로
-  return s.color || (s.existing && EXISTING_SERVICES.find((x) => x.name === s.name)?.color) || SVC_COLORS[Math.max(0, k) % SVC_COLORS.length];
+/** 운행 계통 색: 등급마다 한 색 (노선마다 다른 색이면 여러 계통이 겹칠 때 무엇이 특급인지 읽히지 않았다) */
+export const GRADE_COLORS = { hsr: '#1f5fd1', gtx: '#9a6292', limited: '#d62828', express: '#f08c00', local: '#2b8a3e', commuter: '#0c8599' };
+export const GRADE_LABELS = { hsr: '고속', gtx: 'GTX', limited: '특급', express: '급행', local: '보통', commuter: '광역' };
+export function svcGrade(s) {
+  if ((s.lines || [s.line]).some((n) => /^GTX-/.test(n || ''))) return 'gtx';
+  return s.cls === 'hsr' ? 'hsr' : GRADE_COLORS[s.kind] ? s.kind : 'local';
 }
+/** 선로 종류: 도시철도·GTX·일반철도·고속철도를 가른다 (GTX는 일반철도 자료로 들어와 있다) */
+export function railKindLabel(l) {
+  if (l.mode === 1 && isGTX(l)) return 'GTX (광역급행철도, GTX 열차만 다님)';
+  return CLASS_LABEL[l.cls];
+}
+export function svcColor(s) { return GRADE_COLORS[svcGrade(s)]; }
 
 /** 새 계통 색: 아직 안 쓴 색부터 */
 export function nextSvcColor() {
@@ -145,7 +154,11 @@ export function drawServices() {
           const sign = fwd === canon(i) ? 1 : -1;
           // 계통마다 칸 하나를 처음부터 끝까지 (함께 지나는 계통끼리 다른 칸): 칸이 바뀌지 않아 계통 하나가 끊기지 않은 한 줄이 된다.
           // 칸은 진행 방향 오른쪽으로 센다 (예전에는 구간 방향(동서)마다 칸과 쪽이 바뀌어 남북으로 가는 경강선 등이 토막토막 끊겨 보였다)
-          for (let m = 0; m + 1 < c.length; m++) put(c[m], c[m + 1], slotOf[j]);
+          // 칸 번호는 이 구간을 함께 지나는 계통 사이의 순서로 줄인다: 계통 전체에 한 칸을 쓰면 붐비는 수도권에서 받은 큰 칸 번호를
+          // 혼자 다니는 곳에서도 그대로 써, 선로에서 멀리 떨어져 그려졌다 (혼자 다니면 선로 위에)
+          const g = linkGroup(i).filter((t) => t !== j);
+          const off = g.filter((t) => slotOf[t] < slotOf[j] || (slotOf[t] === slotOf[j] && t < j)).length;
+          for (let m = 0; m + 1 < c.length; m++) put(c[m], c[m + 1], off);
         }
       }
       flush();
@@ -183,7 +196,7 @@ export function drawServiceEdit() {
   if (!e) return;
   const { plan } = servicePlan();
   const f = [...e.stops].filter((n) => nodeCoord(n)).map((n) => ({ type: 'Feature', properties: { svc: 1 }, geometry: { type: 'Point', coordinates: nodeCoord(n) } }));
-  if (plan) f.push({ type: 'Feature', properties: { svc: 1, color: e.color }, geometry: { type: 'LineString', coordinates: serviceCoords(effectiveNetwork(base, state).links, plan.segs) } });
+  if (plan) f.push({ type: 'Feature', properties: { svc: 1, color: svcColor(e) }, geometry: { type: 'LineString', coordinates: serviceCoords(effectiveNetwork(base, state).links, plan.segs) } });
   map.getSource('draft').setData({ type: 'FeatureCollection', features: f });
   const src = map.getSource('services');
   if (src && e.id) drawServices();
@@ -444,7 +457,7 @@ export function linkPanel(id) {
     ${secLabel ? `<p class="hint">선택 구간: <b>${esc(secLabel)}</b>, ${secKm.toFixed(1)}km (${secIds.length}개 링크). 개량은 이 구간 전체에 적용됩니다.</p>` : ''}
     ${l.mode === 1 ? passingServicesHTML(secIds) : ''}
     <table class="kv">
-      <tr><td>종류</td><td>${CLASS_LABEL[l.cls]}, ${l.kp ? '북' : '남'}</td></tr>
+      <tr><td>종류</td><td>${railKindLabel(l)}, ${l.kp ? '북' : '남'}</td></tr>
       ${operatorOf(state, l) ? `<tr><td>운영사</td><td>${opBadge(state, operatorOf(state, l))}</td></tr>` : metroOpBadge(l) ? `<tr><td>운영 기관</td><td>${metroOpBadge(l)}</td></tr>` : ''}
       <tr><td>연장</td><td>${l.len.toFixed(1)} km</td></tr>
       ${rows}

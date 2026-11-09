@@ -11,7 +11,7 @@ import { renderSelection } from './econ.js';
 startI18n();
 { const ll = document.querySelector('#ld-lang'); if (ll) { ll.textContent = LANG === 'en' ? '한국어' : 'English'; ll.addEventListener('click', (e) => { e.preventDefault(); setLang(LANG === 'en' ? 'ko' : 'en'); }); } }
 
-export const APP_VERSION = 'Alpha 0.9.3';
+export const APP_VERSION = 'Alpha 0.9.4';
 export const BUG_MAIL = 'evrgrn0528@gmail.com';
 // 오류 제보에 함께 보낼 최근 오류 (화면에 안 보이는 것도)
 export const errLog = [];
@@ -27,7 +27,7 @@ document.addEventListener('click', (e) => {
   metric = metricForLevel(metric, mapLevel);
   paintZones(); renderLegend(); drawEmdLines();
 });
-export const CLASS_LABEL = { motorway: '고속도로', trunk: '간선국도', primary: '주요 도로', secondary: '지방 도로', hsr: '고속철도', conv: '일반철도', metro: '도시철도' };
+export const CLASS_LABEL = { motorway: '고속도로', trunk: '간선국도', primary: '주요 도로', secondary: '지방 도로', hsr: '고속철도', gtx: 'GTX (광역급행철도)', conv: '일반철도', metro: '도시철도' };
 export const POLICY_LABEL = { free: '자유 이주', limited: '이주 제한 (허가제)', closed: '이주 통제' };
 
 export let map, base, zonesFC, zoneProps, places, grid, subsFC, subPop0, namer, worker;

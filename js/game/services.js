@@ -126,6 +126,12 @@ export function lineStations({ links, nodes }, stationSet, name, mode = 1) {
 }
 
 /** 광역 전철 계통인지 (광역 등급이거나 광역 통근 전동차): 고속선을 지나지 않는다 */
+/** GTX(수도권 광역급행철도) 선로: 전용 차량·신호라 다른 노선 열차가 들어가지 않는다 */
+export function isGTX(l) { return l?.cls === 'gtx' || /^GTX-|광역급행철도/.test(l?.name || ''); }
+
+/** 고속선을 다른 노선 사이를 잇는 데 빌려 쓸 수 있는 열차 (고속·준고속 차량). 일반 열차는 제 노선이 고속선일 때만 다닌다 */
+export function hsrBridgeOk(typeId) { return typeId === 'hsr' || typeId === 'semi'; }
+
 export function isCommuter(kind, typeId) {
   return kind === 'commuter' || typeId === 'commuter';
 }
@@ -170,7 +176,7 @@ export function railPath(links, from, to, line, mode = 1, adj = railAdjacency(li
 }
 
 /** railPath의 이웃 목록 (같은 망·노선으로 여러 번 찾을 때 한 번만 만들어 넘긴다) */
-export function railAdjacency(links, line, mode = 1, noHsr = false, hsrFirst = false) {
+export function railAdjacency(links, line, mode = 1, noHsr = false, hsrFirst = false, bridgeHsr = true, bridgeGtx = false) {
   const adj = new Map();
   links.forEach((l, i) => {
     if (l.mode !== mode || !l.active || l.via) return;
@@ -181,6 +187,12 @@ export function railAdjacency(links, line, mode = 1, noHsr = false, hsrFirst = f
     const own = !line || l.name?.endsWith(' 환승') || (line instanceof Set ? line.has(l.name) : Array.isArray(line) ? line.includes(l.name) : l.name === line);
     // 국외 선로(단둥–선양 철도 등)는 계통이 그 노선을 적었을 때만 다닌다 (평양–베이징 직통)
     if (l.ext && !(line && own)) return;
+    // GTX 선로는 GTX 계통(노선 목록에 그 GTX가 든 계통)만 다닌다: 일반철도 계통이 끊긴 곳을 잇는다며 GTX로 입선하지 않게.
+    // 노선을 정하지 않고 찾을 때(역 고르기)도 GTX는 두 역이 GTX 역일 때(bridgeGtx)만 쓴다
+    const named = line && (line instanceof Set ? line.has(l.name) : Array.isArray(line) ? line.includes(l.name) : l.name === line);
+    if (isGTX(l) && !named && !bridgeGtx) return;
+    // 고속선도 일반 열차는 제 노선일 때만 (고속·준고속 차량만 다른 노선 사이를 고속선으로 잇는다)
+    if (l.cls === 'hsr' && !named && !bridgeHsr) return;
     // 고속열차 계통은 고속선이 있으면 고속선으로 다닌다 (일반선은 서울역–광명 같은 진입 구간만)
     const t = (l.len / l.speed) * (own ? 1 : 4) * (hsrFirst && l.cls !== 'hsr' ? 4 : 1);
     for (const [u, v] of [[l.a, l.b], [l.b, l.a]]) {
@@ -199,7 +211,7 @@ export function planService(links, stationSet, stops, kind, line, typeId = 'inte
   const cap = TRAIN_TYPES[typeId]?.maxKmh ?? 999;
   const segs = [];
   let km = 0, min = 0;
-  const adj = railAdjacency(links, line, 1, isCommuter(kind, typeId), typeId === 'hsr');
+  const adj = railAdjacency(links, line, 1, isCommuter(kind, typeId), typeId === 'hsr', hsrBridgeOk(typeId));
   for (let k = 0; k + 1 < stops.length; k++) {
     const via = railPath(links, stops[k], stops[k + 1], line, 1, adj);
     if (!via) return null;
@@ -354,7 +366,7 @@ function existingService(s, links, stations, stationSet, strict) {
   else {
     // 두 끝 역 사이 경로의 모든 역
     const a = find(s.from), b = find(s.to);
-    const via = a != null && b != null ? railPath(links, a, b, new Set(s.lines), 1, railAdjacency(links, new Set(s.lines), 1, isCommuter(s.kind, s.type), s.type === 'hsr')) : null;
+    const via = a != null && b != null ? railPath(links, a, b, new Set(s.lines), 1, railAdjacency(links, new Set(s.lines), 1, isCommuter(s.kind, s.type), s.type === 'hsr', hsrBridgeOk(s.type))) : null;
     if (!via) return null;
     if (strict && via.some((i) => links[i].name && !s.lines.includes(links[i].name) && !links[i].name.endsWith(' 환승'))) return null;
     stops = [a];
@@ -465,6 +477,24 @@ export function rerouteCommutersOffHsr(state, net, stations) {
   for (const s of state.services || []) {
     if (!isCommuter(s.kind, s.type) || !s.segs?.some((sg) => sg.via.some((i) => net.links[i]?.cls === 'hsr'))) continue;
     const plan = planService(net.links, stationSet, s.stops, s.kind, new Set(s.lines || [s.line]), s.type);
+    if (!plan) continue;
+    s.segs = plan.segs; s.runMin = plan.runMin; s.km = plan.km; s.trains = tripsPerDay(s.sets, plan.runMin);
+    fixed.push(s.name);
+  }
+  return fixed;
+}
+
+/**
+ * 예전 저장: GTX 선로를 빌려 다니던 다른 계통(노선 목록에 그 GTX가 없는 계통)을 다시 짠다.
+ * 같은 이유로 일반 열차(고속·준고속 차량이 아닌)가 제 노선이 아닌 고속선으로 다니던 것도 다시 짠다. 다시 못 짜면 그대로 둔다
+ */
+export function rerouteOffForeignTrack(state, net, stations) {
+  const stationSet = new Set(stations.map((s) => s[1])), fixed = [];
+  for (const s of state.services || []) {
+    const own = new Set(s.lines || [s.line]);
+    const bad = (l) => l && !own.has(l.name) && (isGTX(l) || (l.cls === 'hsr' && !hsrBridgeOk(s.type)));
+    if (!s.segs?.some((sg) => sg.via.some((i) => bad(net.links[i])))) continue;
+    const plan = planService(net.links, stationSet, s.stops, s.kind, own, s.type);
     if (!plan) continue;
     s.segs = plan.segs; s.runMin = plan.runMin; s.km = plan.km; s.trains = tripsPerDay(s.sets, plan.runMin);
     fixed.push(s.name);

@@ -457,7 +457,7 @@ const vcColor = () => ['case', ['>', vol, 0], ['interpolate', ['linear'], ['coal
 const IDLE_COLOR = '#9aa1aa';
 const idleOpacity = (on) => ['case', ['>', vol, 0], on, 0.45];
 // 철도 기본 색: 고속철 파랑, 협궤 주황, 일반철도 보라
-const RAIL_COLOR = ['case', ['==', ['get', 'cls'], 'hsr'], '#2453c9', ['==', ['get', 'narrow'], 1], '#e07b1a', '#6c3fa0'];
+const RAIL_COLOR = ['case', ['==', ['get', 'cls'], 'hsr'], '#2453c9', ['==', ['get', 'cls'], 'gtx'], '#9a6292', ['==', ['get', 'narrow'], 1], '#e07b1a', '#6c3fa0'];
 const METRO_COLOR = ['case', ['==', ['get', 'colour'], ''], '#1a9a6c', ['get', 'colour']];
 
 let linksCache = null;

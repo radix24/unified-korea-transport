@@ -21,7 +21,7 @@ export const APPRAISAL = {
   vocPerVehKm: 160,       // 차량운행비 (원/대·km, 화물차 포함 평균)
   accidentPerVehKm: 60,   // 교통사고 비용 (원/대·km)
   // 연 운영·유지관리비 (억원/km·년, 또는 사업비 대비 비율)
-  opexPerKm: { motorway: 0.6, trunk: 0.3, primary: 0.25, secondary: 0.2, hsr: 3, conv: 2.5, metro: 25, ferry: 0 },
+  opexPerKm: { motorway: 0.6, trunk: 0.3, primary: 0.25, secondary: 0.2, hsr: 3, conv: 2.5, gtx: 4, metro: 25, ferry: 0 },
   opexShare: { upgrade: 0.005, mega: 0.01, station: 0.03, ic: 0.02 },
   // AHP 가중치: 수도권 사업은 지역균형 항목을 보지 않는다
   weights: { capital: { econ: 0.65, policy: 0.35, balance: 0 }, region: { econ: 0.45, policy: 0.3, balance: 0.25 } },

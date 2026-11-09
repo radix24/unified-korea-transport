@@ -506,7 +506,7 @@ export class Model {
     // 시간이 숫자가 아닌 선로(속도·길이 없는 구간)는 뺀다: NaN이 섞이면 아래 최단 경로가 끝나지 않는다
     const edge = (u, v, t) => { if (!(t >= 0 && t < Infinity)) return; let a = adj.get(u); if (!a) adj.set(u, (a = [])); a.push(v, t); };
     L.forEach((l) => {
-      if (!l.active || l.via || !(l.mode === 2 || (l.mode === 1 && l.cls === 'conv'))) return;
+      if (!l.active || l.via || !(l.mode === 2 || (l.mode === 1 && (l.cls === 'conv' || l.cls === 'gtx')))) return;
       // 일반철도는 광역전철 표정 속도쯤으로 (최고 속도가 아니라 역마다 서는 열차)
       const kmh = l.mode === 2 ? Math.max(5, l.speed) : Math.min(Math.max(5, l.speed), P.localRailKmh);
       const t = (l.len / kmh) * 60;

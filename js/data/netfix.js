@@ -6,6 +6,7 @@
 // 3) 한 노선이 지나는 역에서 역 노드가 옆으로 비켜 있어 노선이 갈고리처럼 꺾여 들어갔다 나오는 곳 (서해선 부천종합운동장·동작·공덕 등
 //    환승역 19곳): 역 노드를 노선의 곧은 줄기 위로 옮긴다
 
+export const GTX_NAME = /^GTX-|광역급행철도/;
 const km = (a, b) => Math.hypot((a[0] - b[0]) * 88.6, (a[1] - b[1]) * 111);
 
 /** 구간 도형을 노드 쪽부터 [[x, y], ...]로 (NaN으로 나뉜 여러 조각이면 null) */
@@ -190,8 +191,12 @@ export function fixNetwork(base, nodeFix = {}, roadFix = {}, linkFix = null) {
   }
   // 대심도 광역급행철도(GTX): 지도 자료 선형이 역 어귀에서 기존 노선을 따라 구불거린다(대곡 등). 지하 깊이 거의 곧게 가므로
   // 250m 안의 잔굴곡을 없애고 매끈한 곡선으로 (양 끝 역 자리는 그대로)
+  // GTX는 따로 된 선로 등급(cls 'gtx')으로 둔다: 고속철도·일반철도·도시철도와 갈라, 전용 열차만 다닌다.
+  // 이름은 link_fix에서 GTX-A·B·C로 바뀐 뒤다 (예전 이름 '…광역급행철도…'만 찾던 아래 손질이 0.9.1부터 듣지 않았다)
   for (const l of base.links) {
-    if (l.mode !== 1 || !/광역급행철도/.test(l.name || '') || !l.geom || l.geom.some((v) => Number.isNaN(v))) continue;
+    if (l.mode !== 1 || !GTX_NAME.test(l.name || '')) continue;
+    l.cls = 'gtx';
+    if (!l.geom || l.geom.some((v) => Number.isNaN(v))) continue;
     const pts = [];
     for (let k = 0; k + 1 < l.geom.length; k += 2) pts.push([l.geom[k], l.geom[k + 1]]);
     if (pts.length < 3) continue;

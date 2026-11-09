@@ -170,7 +170,9 @@ export function nearestStation(ll) {
 /** 고른 역들 사이를 차례로 잇는 철도 경로: 지나는 역 순서(nodes)·노선(lines)·등급(cls). 길이 없으면 null. noHsr: 광역 전철은 고속선을 지나지 않는다 */
 export function routeThrough(picks, noHsr = false) {
   const net = effectiveNetwork(base, state), stSet = railStationSet();
-  const path = (a, b, line) => railPath(net.links, a, b, line, 1, railAdjacency(net.links, line, 1, noHsr));
+  // GTX 선로는 두 역이 모두 GTX 역일 때만 쓴다 (일반철도 계통이 GTX로 입선하지 않게)
+  const onGTX = (n) => linesAt(n).some((x) => x.mode === 1 && /^GTX-/.test(x.name || ''));
+  const path = (a, b, line) => railPath(net.links, a, b, line, 1, railAdjacency(net.links, line, 1, noHsr, false, true, onGTX(a) && onGTX(b)));
   const lineKm = new Map(), nodes = [picks[0]], segs = [];
   // 두 역이 함께 지나는 노선(분당선 왕십리–수원 등)이 있으면 그 노선을 따라 간다: 가장 빠른 길은 고속선(수서평택고속선)으로 새기도 한다
   const common = (a, b) => { const la = new Set(linesAt(a).filter((x) => x.named && x.mode === 1).map((x) => x.name)); return linesAt(b).filter((x) => x.named && x.mode === 1 && la.has(x.name)).map((x) => x.name); };

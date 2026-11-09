@@ -21,7 +21,8 @@ import { select } from './interact.js';
 import { renderAll, renderStatus, showGuide, switchTab } from './panels.js';
 import { bindHousingRename, housingRowHTML } from './budget.js';
 import { bindService, econCache, fmtRatio, lineEconomics, openServiceEditor, servicePanel, setEconCache, svcStats } from './svc.js';
-import { bindFund, bindRailStats, openLineDiagram, railStatsHTML } from './operators.js';
+import { bindFund, bindRailStats, openLineDiagram, railStatsHTML, serviceOperator } from './operators.js';
+import { opBadge } from '../game/operators.js';
 import { countyZones, localSettingsHTML } from './election.js';
 import { bindAnnexMany, bindBunguBtns, bindLocalSettings, bunguUnitOf, drawBungu, endGuEdit, guEdit, guPanel, guSubs, moveGuTo, normGu, payEvent, renameGus, startGuEdit } from './bungu.js';
 import { bindStraighten, startStraighten, straightenPanel } from './straighten.js';
@@ -233,7 +234,7 @@ function serviceListHTML() {
   const rows = (state.services || []).map((s, k) => {
     const x = stats.get(s.id), kind = SERVICE_KINDS[s.kind].label;
     const key = [s.name, kind, ...(s.lines || [s.line]), ...s.stops.map((n) => nn.get(n)?.name || '')].join(' ').toLowerCase();
-    return `<tr data-svc-go="${s.id}" data-svc-key="${esc(key)}" style="cursor:pointer" title="눌러서 고르기"><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${esc(svcColor(s, k))}"></span> <a href="#">${esc(s.name)}</a> <span class="m">${[s.name.includes(kind) ? '' : kind, `${s.stops.length}역`, x ? `승차율 ${Math.round(x.load * 100)}%` : '', s.built ? '' : '차량 제작 중'].filter(Boolean).join(', ')}</span></td>
+    return `<tr data-svc-go="${s.id}" data-svc-key="${esc(key)}" style="cursor:pointer" title="눌러서 고르기"><td><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${esc(svcColor(s, k))}"></span> <a href="#">${esc(s.name)}</a> ${s.segs?.length ? opBadge(state, serviceOperator(s)) : ''} <span class="m">${[s.name.includes(kind) ? '' : kind, `${s.stops.length}역`, x ? `승차율 ${Math.round(x.load * 100)}%` : '', s.built ? '' : '차량 제작 중'].filter(Boolean).join(', ')}</span></td>
     ${x ? `<td>${s.trains}</td><td title="가장 붐비는 구간 ${Math.round(x.peak).toLocaleString()}명">${Math.round(x.riders).toLocaleString()}</td><td class="${x.ratio > 100 ? 'neg' : ''}">${fmtRatio(x.ratio)}${x.ratio > 100 ? '<span class="loss-tag">적자</span>' : ''}</td>` : `<td>${s.trains || '–'}</td><td>–</td><td>–</td>`}</tr>`;
   }).join('');
   if (!rows) return '<p class="hint">아직 짠 계통이 없습니다.</p>';

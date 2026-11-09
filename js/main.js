@@ -3,7 +3,7 @@ import './app/fresh.js';   // 맨 먼저: 게임 자료를 캐시에서 예전 �
 import {
   APP_VERSION, base, busy, CLASS_LABEL, dataStamp, draft, errLog, grid, gridSent, historic, isForeign, loading, map, mark, namer, perf, places, Progress, requests, result, setBase, setDataStamp, setGrid, setGridSent, setHistoric, setIsForeign, setMap, setPlaces, setState, setSubPop0, setSubsFC, setWorker, setZoneProps, setZonesFC, state, subPop0, subsFC, worker, zoneProps, zonesFC,
 } from './app/core.js';
-import { fixNetwork, LEN_FIX_V } from './data/netfix.js';
+import { fixNetwork, GTX_NAME, LEN_FIX_V } from './data/netfix.js';
 import { decodeNetwork } from './data/netpack.js';
 import { seedInterKoreaAir } from './game/airlines.js';
 import { makeForeignTest } from './game/lines.js';
@@ -12,7 +12,7 @@ import { inferNetSize, migrateState, refFromBase, rememberNetwork, sliceRef } fr
 import { initRail } from './game/operators.js';
 import { initPPP } from './game/ppp.js';
 import { clearAuto, getRef, keepBackup, loadAuto } from './game/savestore.js';
-import { planService, refreshExistingServices, rerouteCommutersOffHsr, seedServices, tripsPerDay } from './game/services.js';
+import { planService, refreshExistingServices, rerouteCommutersOffHsr, rerouteOffForeignTrack, seedServices, tripsPerDay } from './game/services.js';
 import { clearSim, loadSim } from './game/simstore.js';
 import { colourNewMetro, dropOrphanNames, effectiveNetwork, migrateLineNames, initAirRoutes, initOngoing, load, migrateAir, newGame, placeName, save } from './game/state.js';
 import { loadTerrain, terrainAt } from './game/terrain.js';
@@ -182,6 +182,10 @@ async function init() {
   // 예전 저장: 고속선으로 다니던 광역 전철 계통을 일반선으로
   const offHsr = rerouteCommutersOffHsr(state, effectiveNetwork(base, state), [...base.stations, ...(state.newStations || []).map((n) => ['', n])]);
   if (offHsr.length) state.log.unshift(`${state.year}년: 고속선으로 다니던 광역 전철 계통을 일반선으로 다시 짰습니다 (${offHsr.join(', ')})`);
+  // 예전 저장: 새로 지은 GTX 선로가 일반철도 등급으로 들어 있다 → GTX 등급으로
+  for (const l of state.newLinks || []) if (l.mode === 1 && l.cls === 'conv' && GTX_NAME.test(l.name || '')) l.cls = 'gtx';
+  const offGtx = rerouteOffForeignTrack(state, effectiveNetwork(base, state), [...base.stations, ...(state.newStations || []).map((n) => ['', n])]);
+  if (offGtx.length) state.log.unshift(`${state.year}년: GTX·고속선을 빌려 다니던 일반 계통을 제 노선으로 다시 짰습니다 (${offGtx.join(', ')})`);
   initLocal(state);
   // 예전 저장: 승격한 도시를 '함흥시' 이름 그대로 광역 단체로 썼다 (직함이 '함흥시도지사'로 나왔다) → 함흥광역시로 옮긴다
   for (const c of state.local.independent || []) {
