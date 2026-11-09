@@ -607,7 +607,7 @@ export function proposerHTML(pr) {
 
 export function partyBadge(p) {
   const x = PARTIES[p];
-  return x ? `<span class="op-badge" style="${badgeStyle(x.color)}">${x.short}</span>` : '';
+  return x ? `<span class="op-badge" style="${x.text ? `background:${x.color};color:${x.text}` : badgeStyle(x.color)}">${x.short}</span>` : '';
 }
 
 export function officeLine(off) {

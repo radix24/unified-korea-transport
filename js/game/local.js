@@ -4,9 +4,9 @@
 export const PARTIES = {
   D: { name: '더불어민주당', short: '민주당', color: '#1f5fd1' },
   P: { name: '국민의힘', short: '국민의힘', color: '#e0383e' },
-  R: { name: '개혁신당', short: '개혁신당', color: '#ff7210' },
+  R: { name: '개혁신당', short: '개혁신당', color: '#ff7210', text: '#ffffff' },
   J: { name: '정의당', short: '정의당', color: '#e6b800' },
-  I: { name: '무소속', short: '무소속', color: '#7d848d' },
+  I: { name: '무소속', short: '무소속', color: '#7d848d', text: '#ffffff' },
 };
 /** 두 큰 정당 밖 (3당·무소속): 접전 지역에서 가끔 이기고, 현직이면 지지율에 따라 지킨다 */
 export const THIRD = ['R', 'J', 'I'];
