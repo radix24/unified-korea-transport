@@ -18,6 +18,7 @@ export const P = {
   accessDetour: 1.3,
 
   railTrainsPerDay: [0, 60, 300, 420, 500],  // 선로 수별 일 운행 가능 열차(양방향). 경부고속선 평택–오송 약 380회
+  jobsWeight: 0.5,            // 통행 목적지 가운데 일자리(출퇴근·업무)를 따라가는 몫: 나머지는 인구(쇼핑·친지 방문 등)
   railPaxPerTrain: { hsr: 750, conv: 450, gtx: 1000 },   // GTX: 8량 전동차 (입석 포함 약 1,000명)
   signalCapFactor: 1.3,       // 신호 고도화(KTCS-2·CBTC): 열차 간격이 줄어 하루 운행 가능 횟수가 늘어난다
   longTrainFactor: 1.5,       // 장편성(승강장 연장): 열차 한 편성 정원이 늘어난다 (8량 → 12량쯤)
@@ -63,7 +64,7 @@ export const P = {
   targetKrConvVC: 0.65,       // 기준 연도 보정 목표: 남측 일반철도 V/C 상위 5% 구간 (경부선·경인선 수도권 구간)
   railCalibQuantile: 0.95,
   calibrationRounds: 7,
-  calibVersion: 8,            // 보정 방식이 바뀌면 올린다: 예전 기준 연도(data/baseline.json)는 쓰지 않고 새로 보정한다
+  calibVersion: 10,            // 보정 방식이 바뀌면 올린다: 예전 기준 연도(data/baseline.json)는 쓰지 않고 새로 보정한다
   railASCStep: 25,            // 보정 반복마다 철도 상수 조정 폭(분)
   msaIterations: 5,
   msaIterationsWarm: 1,       // 해마다 지난해 결과에서 이어 배정할 때. 새 배정은 warmMsaOffset만큼 묽게(1/4) 섞어 경로가 튀지 않는다 (2번이면 연도 넘기기가 두 배)

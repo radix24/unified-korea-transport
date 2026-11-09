@@ -1,6 +1,6 @@
 {
-"v": "Alpha 0.9.5",
-"h": "239342d2ab",
+"v": "Alpha 0.9.6",
+"h": "66ca608055",
 "files": [
 "css/style.css",
 "js/app/budget.js",
@@ -106,7 +106,7 @@
 "js/app/budget.js": "015a4a1443",
 "js/app/bungu.js": "a0ce641208",
 "js/app/compare.js": "1550036335",
-"js/app/core.js": "d1dec411fd",
+"js/app/core.js": "d0fd6d4580",
 "js/app/draw.js": "19ffc03075",
 "js/app/econ.js": "a4f9f0ac0f",
 "js/app/election.js": "73eb65fc77",
@@ -173,8 +173,8 @@
 "js/main.js": "5e7046894d",
 "js/sim/graph.js": "2ade26898c",
 "js/sim/helper.js": "7927157a89",
-"js/sim/model.js": "f8114b7fb0",
-"js/sim/params.js": "e0216558c2",
+"js/sim/model.js": "84d4ea729d",
+"js/sim/params.js": "cf9081e473",
 "js/sim/pool.js": "0e97922c06",
 "js/sim/worker.js": "9ad4272b7a",
 "js/ui/borders.js": "d16d94e117",
@@ -192,13 +192,13 @@
 "js/ui/traffic.js": "006ce27d68",
 "js/ui/trainsmap.js": "417ea157f8",
 "data/meta.json": "1a4657d42b",
-"data/zones.json": "a845cecf65",
+"data/zones.json": "d656aa577c",
 "data/network.meta.json": "3cdaf99257",
 "data/network.bin": "0001f127cc",
 "data/grid.bin": "f71413232c",
 "data/air_sea.json": "ed23acc23d",
 "data/admin/sgg.geojson": "092c999886",
-"data/baseline.json": "c9657cd8e3",
-"data/baseline.bin": "f7f9c471d1"
+"data/baseline.json": "c820cd840f",
+"data/baseline.bin": "b99987ea78"
 }
 }

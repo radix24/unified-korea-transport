@@ -39,6 +39,15 @@ export class Model {
     // 북측 이주 균형 (2026.11 메일 건의): 시작 인구와 시·구역(도시) 여부. 도시는 시작보다 30% 넘게 줄지 않고, 시작의 1.5배를 넘으면 집이 모자라 덜 온다
     this.pop0 = Float64Array.from(zones, (z) => Math.max(z.pop, 1));
     this.urbanKP = Uint8Array.from(zones, (z) => (z.country === 'KP' && /(시|구역)$/.test(z.name || '') ? 1 : 0));
+    // 일자리 끌림: 남측 시군구 종사자 수(고용노동부 사업체노동실태현황 2024)를 주민 1명당 종사자 수로 바꿔 전국 평균과 견준다.
+    // 통행이 인구로만 나뉘어 도심(서울 중구: 주민 15만, 종사자 36만)으로 가는 출퇴근이 거의 없었다 (도심 지하철 혼잡도가 실제의 몇 분의 일).
+    // 끌림 a = (1 − w) + w × (주민당 종사자 / 평균). 자료가 없는 북측·국외 존은 1 (인구 비례 그대로)
+    {
+      let J = 0, Pp = 0;
+      for (const z of zones) if (z.jobs > 0) { J += z.jobs; Pp += Math.max(z.pop, 1); }
+      const avg = Pp > 0 ? J / Pp : 1, w = P.jobsWeight;
+      this.jobAttr = Float64Array.from(zones, (z) => (z.jobs > 0 ? 1 - w + (w * z.jobs) / Math.max(z.pop, 1) / avg : 1));
+    }
     this.initSubzones(zones, grid);
     // 관광지가 있는 읍면동 (하루 방문객): 관광 통행은 시군구 전체가 아니라 관광지 읍면동으로 간다
     this.tourSub = new Float64Array(this.S); this.tourSubKP = new Float64Array(this.S);
@@ -1226,6 +1235,20 @@ export class Model {
   buildDestW(integration) {
     const Z = this.Z, mass = this.tripMass();
     const destW = this.destW = Float64Array.from(this.subW);
+    // 일자리 몫은 존 안에서 주민 수가 아니라 역이 모인 읍면동으로 간다: 도심 업무지구(명동·소공동·을지로)는 주민이 적어
+    // 인구 비중으로 나누면 출근 통행이 주택가(신당·중림)로 가고 도심을 지나는 4호선이 비었다. 읍면동 종사자 자료가 없어
+    // 철도·도시철도역 수(역세권)를 일자리 분포 대신 쓴다. 역이 없는 존은 인구 비중 그대로
+    const jobW = this.jobSubWeights();
+    for (let j = 0; j < Z; j++) {
+      const a = this.jobAttr[j];
+      if (!(a > 0) || a === 1) continue;
+      const d0 = this.zoneSub0[j], dn = this.zoneSubN[j];
+      let st = 0;
+      for (let d = d0; d < d0 + dn; d++) st += jobW[d];
+      if (!(st > 0)) continue;
+      const part = Math.min(1, Math.max(0, (a - (1 - P.jobsWeight)) / a));   // 이 존으로 오는 통행 가운데 일자리 몫
+      for (let d = d0; d < d0 + dn; d++) destW[d] = (1 - part) * this.subW[d] + (part * jobW[d]) / st;
+    }
     for (let j = 0; j < Z; j++) {
       const tm = ((this.tour[j] * this.tourBoost[j] + this.tourKP[j] * integration) * P.tourismMass) / 1e4;
       if (!(tm > 0)) continue;
@@ -1235,8 +1258,25 @@ export class Model {
       for (let d = d0; d < d0 + dn; d++) site += siteOf(d);
       if (!(site > 0)) continue;
       const tau = tm / (mass[j] + tm);
-      for (let d = d0; d < d0 + dn; d++) destW[d] = (1 - tau) * this.subW[d] + tau * siteOf(d) / site;
+      for (let d = d0; d < d0 + dn; d++) destW[d] = (1 - tau) * destW[d] + tau * siteOf(d) / site;
     }
+  }
+
+  /** 읍면동마다 가까운 철도·도시철도역 수 (일자리 분포 어림). 역 구성이 그대로면 지난번 것을 쓴다 */
+  jobSubWeights() {
+    const st = [...new Set([...(this.net.stations || []), ...(this.metroStationNodes || [])])];
+    const sig = st.length + ':' + st.reduce((s, n) => (s * 31 + n) % 1e9, 7);
+    if (this.jobWCache?.sig === sig) return this.jobWCache.w;
+    const w = new Float64Array(this.S);
+    for (const n of st) {
+      const p = this.net.nodes[n];
+      if (!p) continue;
+      let best = -1, bd = Infinity;
+      for (let s = 0; s < this.S; s++) { const d = (this.subX[s] - p[0]) ** 2 + (this.subY[s] - p[1]) ** 2; if (d < bd) { bd = d; best = s; } }
+      if (best >= 0) w[best] += 1;
+    }
+    this.jobWCache = { sig, w };
+    return w;
   }
 
   /** 보조 워커 하나의 결과를 더한다 */
@@ -1426,7 +1466,8 @@ export class Model {
           const gravity = this.K * mass[i] * share / (imp + P.gravityOffsetMin) ** P.gravityPower;
           // 국외에서 오는 관광(입국)은 국외 존의 통행 발생 축소를 되돌려 따로 키운다
           const inbound = this.isExt[i] && !this.isExt[j] ? P.inboundTourism : 1;
-          const T = gravity * (mass[j] + tmass[j] * inbound);
+          // 일자리 끌림은 오가는 두 방향에 같이 친다 (집→일터와 일터→집): 두 존 끌림의 평균
+          const T = gravity * (mass[j] * (this.jobAttr[i] + this.jobAttr[j]) * 0.5 + tmass[j] * inbound);
           const tRail = T * eT / sum, tTr = T * eU / sum, tAir = T * eA / sum, tRoad = T - tRail - tTr - tAir;
           if (it === iters) {
             // 사업 평가용 OD별 통행량과 시간 비용 (합성 일반화비용에서 운임·유류비 같은 돈 몫을 뺀 것, 분)
